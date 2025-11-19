@@ -1,7 +1,3 @@
-# 环境配置
-.env
-*.pem
-
 # Python
 __pycache__/
 *.py[cod]
@@ -24,10 +20,22 @@ wheels/
 .installed.cfg
 *.egg
 
-# 虚拟环境
+# Virtual Environment
 venv/
 ENV/
 env/
+
+# Environment Variables
+.env
+
+# Private Keys
+*.pem
+private_key.*
+public_key.*
+
+# Logs
+*.log
+logs/
 
 # IDE
 .vscode/
@@ -36,15 +44,14 @@ env/
 *.swo
 *~
 
-# 日志
-*.log
-logs/
-
-# 操作系统
+# OS
 .DS_Store
 Thumbs.db
 
-# 临时文件
+# Archive
+archive/
+
+# Temporary files
 *.tmp
 *.bak
-.claude/
+*.backup
