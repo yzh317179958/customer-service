@@ -447,14 +447,46 @@ python3 tests/test_simple.py
 - 用户 B: "我叫李四"
 - 用户 A 第二轮: "我叫什么?" → 期望回答 "张三"
 
-### 完整测试
+### 完整会话隔离测试 ⭐ 已修复
 
 ```bash
 python3 tests/test_session_name.py
 ```
 
+**测试步骤** (遵循正确的会话隔离实现):
+1. 用户A打开页面 → 立即调用 `/api/conversation/new` 创建 conversation_A
+2. 用户B打开页面 → 立即调用 `/api/conversation/new` 创建 conversation_B
+3. 验证 conversation_A ≠ conversation_B
+4. 用户A说 "我叫张三，我今年25岁"
+5. 用户B说 "我叫李四，我是一名程序员"
+6. 用户A问 "我叫什么？我多大了？" → 期望回答 "张三、25岁"
+7. 用户B问 "我的名字和职业是什么？" → 期望回答 "李四、程序员"
+8. **关键验证**: 用户A问 "你知道李四是谁吗？" → 期望**不知道**（证明会话隔离成功）
+
+**注意**: 此测试脚本已修复，严格遵循《Coze会话隔离最终解决方案.md》的实现方式
+
 ---
 ## 📊 版本历史
+
+### v2.2.2 (2025-11-20) - 修复测试脚本，验证会话隔离
+
+**测试修复**:
+- ✅ **修复 test_session_name.py** - 严格遵循《Coze会话隔离最终解决方案.md》实现
+- ✅ **预先创建 conversation** - 用户打开页面时立即调用 `/api/conversation/new`
+- ✅ **验证通过** - Conversation ID 不同，用户A/B上下文完全隔离
+- ✅ **删除错误测试** - 移除依赖自动生成 conversation_id 的旧版本
+
+**测试结果**:
+```
+Session A → Conversation: 7574681165306363909
+Session B → Conversation: 7574686112397737989
+✅ 用户A正确记住"张三、25岁"
+✅ 用户B正确记住"李四、程序员"
+✅ 用户A不知道用户B的信息（会话完全隔离）
+```
+
+**修改文件**:
+- `tests/test_session_name.py` - 重写为正确的会话隔离测试
 
 ### v2.2.1 (2025-11-20) - 修复UI菜单交互问题
 
