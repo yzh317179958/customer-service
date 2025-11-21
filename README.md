@@ -799,6 +799,116 @@ python3 tests/test_session_name.py
 ---
 ## 📊 版本历史
 
+### v2.4.0 (2025-11-21) - 坐席工作台开发 + 项目结构整理 🎯
+
+**P0-10: 创建坐席工作台项目** ⭐ **新增独立项目**
+- ✅ **项目架构** - 基于 Vite + Vue 3 + TypeScript 的现代化工作台
+  - 独立端口 5174（与用户前端 5173 隔离）
+  - API 代理配置（自动转发 `/api` 到后端 8000 端口）
+  - 完整目录结构（views, components, stores, api, types）
+  - 路径别名配置（`@/*` → `src/*`）
+- ✅ **依赖安装**
+  - 核心框架：vue, vite, typescript
+  - 状态管理：pinia
+  - 路由：vue-router
+  - HTTP客户端：axios
+  - Markdown解析：marked
+- ✅ **项目配置**
+  - `vite.config.ts` - 端口、代理、路径别名
+  - `tsconfig.app.json` - TypeScript路径解析
+  - `package.json` - 完整依赖清单
+- ✅ **文档创建**
+  - `agent-workbench/README.md` - 工作台独立文档
+
+**P0-11: 实现坐席登录认证** ⭐ **完整登录流程**
+- ✅ **类型定义** (`agent-workbench/src/types/index.ts`)
+  - `AgentInfo` - 坐席基本信息
+  - `SessionStatus` - 会话状态枚举（5种状态）
+  - `SessionSummary` / `SessionDetail` - 会话数据模型
+  - `Message` - 扩展消息类型支持 'agent' | 'system'
+- ✅ **状态管理** (`agent-workbench/src/stores/agentStore.ts`)
+  - Pinia Store 管理登录状态
+  - `login()` - 登录并持久化到 localStorage
+  - `logout()` - 清除会话
+  - `restoreSession()` - 恢复登录状态
+- ✅ **路由配置** (`agent-workbench/src/router/index.ts`)
+  - `/login` - 登录页（无需认证）
+  - `/dashboard` - 工作台首页（需要认证）
+  - 路由守卫 - 未登录自动跳转登录页
+- ✅ **页面组件**
+  - `Login.vue` - 渐变背景，输入坐席ID和姓名
+  - `Dashboard.vue` - 显示坐席信息，功能预览，退出登录
+- ✅ **应用集成**
+  - `App.vue` - 集成路由，自动恢复会话
+  - `main.ts` - 注册 Pinia 和 Router
+
+**会话隔离测试规范** ⭐ **重要约束文档更新**
+- ✅ **新增约束13** - 会话隔离的测试标准
+  - 核心原则：每个新浏览器窗口/标签页 = 独立用户
+  - 标准测试流程（8步）
+  - Python自动化测试示例
+  - 验证要点和重要说明
+- ✅ **测试脚本修复**
+  - `tests/test_simple.py` - 完全重写，遵循正确的Coze实现方式
+  - 预先创建 conversation_id（调用 `/api/conversation/new`）
+  - 验证通过：✅ 会话完全隔离
+- ✅ **文档位置** - `prd/CONSTRAINTS_AND_PRINCIPLES.md:979-1141`
+
+**项目结构整理** 🗂️
+- ✅ **文档归档** - 移动12个旧文档到 `docs/archive/`
+  - COMPREHENSIVE_TEST_REPORT.md
+  - COMPREHENSIVE_TEST_REPORT_FINAL.md
+  - P0-3_FINAL_VERIFICATION_PASSED.md
+  - P0-3_IMPLEMENTATION_REPORT.md
+  - P0-4_ANALYSIS_REPORT.md
+  - P0_FINAL_TEST_REPORT.md
+  - claude.md
+  - docs/MODULE_REVIEW_REPORT.md
+  - docs/P0-API使用示例.md
+  - docs/P0-完成总结.md
+  - prd/ACCEPTANCE_CRITERIA_v1.0.md
+  - prd/DOCUMENTATION_SUMMARY.md
+- ✅ **Git配置**
+  - 创建完整的 `.gitignore` 文件
+  - 排除：Python缓存、Node模块、.env、*.pem、IDE配置等
+- ✅ **代码提交**
+  - Commit: `feat: 完成 P0-11 坐席工作台登录认证 + 整理项目结构`
+  - 71 files changed, 25059 insertions(+), 503 deletions(-)
+
+**测试验证** ✅
+- ✅ **TypeScript类型检查** - 通过（agent-workbench）
+- ✅ **核心功能测试** - 12/14 通过（85.7%）
+- ✅ **会话隔离测试** - ✅ 完全通过
+  - `test_session_name.py` - 全部验证点通过
+  - `test_simple.py` - 修复后通过
+- ✅ **向后兼容性** - 无破坏性更改
+- ✅ **新增约束** - 无（agent-workbench完全独立）
+
+**文档更新** 📚
+- ✅ `README.md` - 新增 v2.4.0 版本说明
+- ✅ `agent-workbench/README.md` - 工作台项目文档
+- ✅ `prd/CONSTRAINTS_AND_PRINCIPLES.md` - 新增约束13（会话隔离测试规范）
+- ✅ `prd/IMPLEMENTATION_TASKS_v1.0.md` - 标记 P0-10/P0-11 完成
+
+**GitHub 同步** 🔄
+- ✅ 推送到远程仓库：https://github.com/yzh317179958/fiido-customer-service
+- ✅ 分支：main
+- ✅ Commit Hash: 6f1beed
+
+**下一步计划** 📝
+- [ ] P0-12: 实现会话列表（获取待处理会话）
+- [ ] P0-13: 实现接入操作（坐席接管会话）
+- [ ] P0-14: 实现坐席聊天（发送人工消息）
+- [ ] P0-15: 实现释放操作（结束人工服务）
+
+**重要说明**:
+- 坐席工作台（agent-workbench）完全独立于用户前端（frontend）
+- 两个项目可以同时运行，互不干扰
+- 当前登录认证为简化版（实际生产应使用JWT认证）
+- 会话隔离测试标准已明确定义，所有后续开发必须遵守
+
+---
+
 ### v2.3.0 (2025-11-20) - P0人工接管功能完成 🎉
 
 **P0-4: 核心API实现**:
@@ -1027,8 +1137,8 @@ Session B → Conversation: 7574686112397737989
 
 ---
 
-**最后更新**: 2025-11-20
-**当前版本**: v2.3.0
+**最后更新**: 2025-11-21
+**当前版本**: v2.4.0
 
 ---
 
