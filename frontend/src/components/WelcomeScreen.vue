@@ -8,11 +8,9 @@ const chatStore = useChatStore()
   <div class="welcome-screen">
     <div class="welcome-avatar">
       <img
-        v-if="chatStore.botConfig.icon_url"
-        :src="chatStore.botConfig.icon_url"
+        src="/fiido2.png"
         :alt="chatStore.botConfig.name"
       >
-      <template v-else>{{ chatStore.botConfig.name.charAt(0) }}</template>
     </div>
     <div class="welcome-name">{{ chatStore.botConfig.name }}</div>
     <div class="welcome-message">{{ chatStore.botConfig.welcome }}</div>

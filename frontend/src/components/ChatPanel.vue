@@ -719,8 +719,7 @@ onUnmounted(() => {
         <!-- Typing Indicator -->
         <div v-if="chatStore.isLoading" class="message bot">
           <div class="message-avatar">
-            <img v-if="chatStore.botConfig.icon_url" :src="chatStore.botConfig.icon_url" :alt="chatStore.botConfig.name">
-            <template v-else>{{ chatStore.botConfig.name.charAt(0) }}</template>
+            <img src="/fiido2.png" :alt="chatStore.botConfig.name">
           </div>
           <div class="message-body">
             <div class="typing-indicator">

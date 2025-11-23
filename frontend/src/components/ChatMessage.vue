@@ -71,8 +71,8 @@ const senderName = computed(() => {
   <div v-else class="message" :class="{ user: isUser, bot: !isUser && !isAgent, agent: isAgent }">
     <div class="message-avatar" :class="{ 'agent-avatar': isAgent }">
       <img
-        v-if="!isUser && !isAgent && chatStore.botConfig.icon_url"
-        :src="chatStore.botConfig.icon_url"
+        v-if="!isUser && !isAgent"
+        src="/fiido2.png"
         :alt="chatStore.botConfig.name"
       >
       <template v-else>{{ avatarContent }}</template>
