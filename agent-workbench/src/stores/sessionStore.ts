@@ -1,0 +1,331 @@
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+import type { SessionSummary, SessionDetail, SessionStatus } from '@/types'
+
+export const useSessionStore = defineStore('session', () => {
+  // 会话列表
+  const sessions = ref<SessionSummary[]>([])
+  const total = ref(0)
+  const isLoading = ref(false)
+  const error = ref<string | null>(null)
+
+  // 当前选中的会话
+  const currentSession = ref<SessionDetail | null>(null)
+  const currentSessionName = ref<string>('')
+
+  // 统计信息
+  const stats = ref({
+    total_sessions: 0,
+    by_status: {
+      bot_active: 0,
+      pending_manual: 0,
+      manual_live: 0,
+      closed: 0
+    },
+    active_sessions: 0,
+    avg_waiting_time: 0,
+    max_waiting_time: 0,
+    avg_service_time: 0,
+    active_agents: 0,
+    by_escalation_reason: {} as Record<string, number>,
+    today: {
+      total_escalations: 0,
+      pending: 0,
+      serving: 0
+    }
+  })
+
+  // 筛选条件
+  const filterStatus = ref<SessionStatus | ''>('')
+
+  // 计算属性
+  const pendingCount = computed(() => stats.value.by_status.pending_manual || 0)
+  const manualLiveCount = computed(() => stats.value.by_status.manual_live || 0)
+
+  // 获取会话列表
+  async function fetchSessions(status?: SessionStatus, limit: number = 50, offset: number = 0) {
+    isLoading.value = true
+    error.value = null
+
+    try {
+      let url = `/api/sessions?limit=${limit}&offset=${offset}`
+      if (status) {
+        url += `&status=${status}`
+      }
+
+      const response = await fetch(url)
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (data.success) {
+        sessions.value = data.data.sessions
+        total.value = data.data.total
+        console.log(`✅ 获取会话列表成功: ${sessions.value.length} 个会话`)
+      } else {
+        throw new Error(data.error || '获取失败')
+      }
+    } catch (err: any) {
+      error.value = err.message
+      console.error('❌ 获取会话列表失败:', err)
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  // 获取统计信息
+  async function fetchStats() {
+    try {
+      const response = await fetch('/api/sessions/stats')
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (data.success) {
+        stats.value = data.data
+        console.log('✅ 获取统计信息成功:', stats.value)
+      }
+    } catch (err) {
+      console.error('❌ 获取统计信息失败:', err)
+    }
+  }
+
+  // 获取会话详情
+  async function fetchSessionDetail(sessionName: string) {
+    isLoading.value = true
+    error.value = null
+    currentSessionName.value = sessionName
+
+    try {
+      const response = await fetch(`/api/sessions/${sessionName}`)
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('会话不存在')
+        }
+        throw new Error(`HTTP ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (data.success) {
+        currentSession.value = data.data.session
+        console.log('✅ 获取会话详情成功:', sessionName)
+      } else {
+        throw new Error(data.error || '获取失败')
+      }
+    } catch (err: any) {
+      error.value = err.message
+      currentSession.value = null
+      console.error('❌ 获取会话详情失败:', err)
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  // 接入会话
+  async function takeoverSession(sessionName: string, agentId: string, agentName: string) {
+    try {
+      const response = await fetch(`/api/sessions/${sessionName}/takeover`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agent_id: agentId,
+          agent_name: agentName
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        // 处理特定错误
+        if (response.status === 409) {
+          if (data.detail?.includes('ALREADY_TAKEN')) {
+            throw new Error('该会话已被其他坐席接入')
+          } else if (data.detail?.includes('INVALID_STATUS')) {
+            throw new Error('当前会话状态不允许接入')
+          }
+        }
+        throw new Error(data.detail || '接入失败')
+      }
+
+      if (data.success) {
+        console.log('✅ 接入会话成功:', sessionName)
+        // 刷新列表和详情
+        await fetchSessions(filterStatus.value || undefined)
+        await fetchStats()
+        return true
+      }
+
+      return false
+    } catch (err: any) {
+      error.value = err.message
+      console.error('❌ 接入会话失败:', err)
+      throw err
+    }
+  }
+
+  // 释放会话
+  async function releaseSession(sessionName: string, agentId: string, reason: string = 'resolved') {
+    try {
+      const response = await fetch(`/api/sessions/${sessionName}/release`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agent_id: agentId,
+          reason: reason
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.detail || '释放失败')
+      }
+
+      if (data.success) {
+        console.log('✅ 释放会话成功:', sessionName)
+        // 刷新列表
+        await fetchSessions(filterStatus.value || undefined)
+        await fetchStats()
+        return true
+      }
+
+      return false
+    } catch (err: any) {
+      error.value = err.message
+      console.error('❌ 释放会话失败:', err)
+      throw err
+    }
+  }
+
+  // 转接会话
+  async function transferSession(
+    sessionName: string,
+    fromAgentId: string,
+    toAgentId: string,
+    toAgentName: string,
+    reason: string = '坐席转接'
+  ) {
+    try {
+      const response = await fetch(`/api/sessions/${sessionName}/transfer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from_agent_id: fromAgentId,
+          to_agent_id: toAgentId,
+          to_agent_name: toAgentName,
+          reason: reason
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        if (response.status === 403) {
+          throw new Error('只有当前服务的坐席才能转接会话')
+        } else if (response.status === 409) {
+          throw new Error('当前会话状态不允许转接')
+        }
+        throw new Error(data.detail || '转接失败')
+      }
+
+      if (data.success) {
+        console.log('✅ 转接会话成功:', sessionName, '->', toAgentName)
+        // 刷新列表
+        await fetchSessions(filterStatus.value || undefined)
+        await fetchStats()
+        return true
+      }
+
+      return false
+    } catch (err: any) {
+      error.value = err.message
+      console.error('❌ 转接会话失败:', err)
+      throw err
+    }
+  }
+
+  // 发送消息
+  async function sendMessage(sessionName: string, content: string, agentId: string, agentName: string) {
+    try {
+      const response = await fetch('/api/manual/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_name: sessionName,
+          role: 'agent',
+          content: content,
+          agent_info: {
+            agent_id: agentId,
+            agent_name: agentName
+          }
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.detail || '发送失败')
+      }
+
+      if (data.success) {
+        console.log('✅ 发送消息成功')
+        // 刷新会话详情
+        await fetchSessionDetail(sessionName)
+        return true
+      }
+
+      return false
+    } catch (err: any) {
+      error.value = err.message
+      console.error('❌ 发送消息失败:', err)
+      throw err
+    }
+  }
+
+  // 清空当前会话
+  function clearCurrentSession() {
+    currentSession.value = null
+    currentSessionName.value = ''
+  }
+
+  // 设置筛选条件并刷新
+  async function setFilter(status: SessionStatus | '') {
+    filterStatus.value = status
+    await fetchSessions(status || undefined)
+  }
+
+  return {
+    // 状态
+    sessions,
+    total,
+    isLoading,
+    error,
+    currentSession,
+    currentSessionName,
+    stats,
+    filterStatus,
+
+    // 计算属性
+    pendingCount,
+    manualLiveCount,
+
+    // 方法
+    fetchSessions,
+    fetchStats,
+    fetchSessionDetail,
+    takeoverSession,
+    releaseSession,
+    transferSession,
+    sendMessage,
+    clearCurrentSession,
+    setFilter
+  }
+})

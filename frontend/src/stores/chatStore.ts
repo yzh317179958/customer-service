@@ -254,7 +254,15 @@ export const useChatStore = defineStore('chat', () => {
       const data = await response.json()
 
       if (data.success && data.data) {
-        // 更新状态
+        // 非工作时间：只显示提示，不触发人工接管状态
+        if (data.is_in_shift === false) {
+          // 更新状态为 after_hours（用于状态栏显示）
+          updateSessionStatus('after_hours_email')
+          console.log('📢 非工作时间，无法转人工')
+          return true
+        }
+
+        // 工作时间：正常触发人工接管
         updateSessionStatus(data.data.status)
 
         // 设置升级信息

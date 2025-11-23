@@ -42,6 +42,8 @@ from src.session_state import (
     EscalationInfo
 )
 from src.regulator import Regulator, RegulatorConfig
+from src.shift_config import get_shift_config, is_in_shift
+from src.email_service import get_email_service, send_escalation_email
 
 # 加载环境变量
 load_dotenv()
@@ -487,6 +489,43 @@ async def get_config():
         "authMode": "OAUTH_JWT",
         "sessionIsolation": True  # 会话隔离已启用
     }
+
+
+@app.get("/api/shift/config")
+async def get_shift_config_api():
+    """获取工作时间配置"""
+    try:
+        config = get_shift_config()
+        return {
+            "success": True,
+            "data": config.get_config()
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+@app.get("/api/shift/status")
+async def get_shift_status():
+    """获取当前是否在工作时间"""
+    try:
+        in_shift = is_in_shift()
+        config = get_shift_config()
+        return {
+            "success": True,
+            "data": {
+                "is_in_shift": in_shift,
+                "message": "人工客服在线" if in_shift else "当前为非工作时间",
+                "shift_hours": f"{config.shift_start.strftime('%H:%M')} - {config.shift_end.strftime('%H:%M')}"
+            }
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
 
 
 @app.get("/api/token/info")
@@ -1135,6 +1174,48 @@ async def manual_escalate(request: dict):
         # 更新升级信息
         # 将 user_request 映射到正确的枚举值 "manual"
         escalation_reason = "manual" if reason == "user_request" else reason
+
+        # P1-邮件: 检查工作时间
+        in_shift = is_in_shift()
+        email_sent = False
+
+        if not in_shift:
+            # 非工作时间：只发邮件，不触发状态转换
+            # 创建临时会话状态用于邮件内容
+            session_state.escalation = EscalationInfo(
+                reason=escalation_reason,
+                details=f"用户主动请求人工服务" if reason == "user_request" else f"触发原因: {reason}",
+                severity="high" if reason == "user_request" else "low"
+            )
+
+            try:
+                email_result = send_escalation_email(session_state)
+                email_sent = email_result.get('success', False)
+                if email_sent:
+                    print(f"📧 非工作时间，已发送邮件通知: {session_name}")
+                else:
+                    print(f"⚠️  邮件发送失败: {email_result.get('error')}")
+            except Exception as email_error:
+                print(f"⚠️  邮件发送异常: {str(email_error)}")
+
+            # 记录日志
+            print(json.dumps({
+                "event": "after_hours_escalate",
+                "session_name": session_name,
+                "reason": reason,
+                "email_sent": email_sent,
+                "timestamp": int(time.time())
+            }, ensure_ascii=False))
+
+            # 返回但不改变状态，AI继续服务
+            return {
+                "success": True,
+                "data": session_state.model_dump(),
+                "email_sent": email_sent,
+                "is_in_shift": False
+            }
+
+        # 工作时间：正常触发人工接管
         session_state.escalation = EscalationInfo(
             reason=escalation_reason,
             details=f"用户主动请求人工服务" if reason == "user_request" else f"触发原因: {reason}",
@@ -1170,7 +1251,9 @@ async def manual_escalate(request: dict):
 
         return {
             "success": True,
-            "data": session_state.model_dump()
+            "data": session_state.model_dump(),
+            "email_sent": email_sent,
+            "is_in_shift": is_in_shift()
         }
 
     except HTTPException:
@@ -1182,7 +1265,7 @@ async def manual_escalate(request: dict):
 
 @app.get("/api/sessions/stats")
 async def get_sessions_stats():
-    """获取会话统计信息"""
+    """获取会话统计信息（增强版）"""
     if not session_store:
         raise HTTPException(status_code=503, detail="SessionStore not initialized")
 
@@ -1195,18 +1278,70 @@ async def get_sessions_stats():
             limit=100
         )
 
+        current_time = time.time()
+
         if pending_sessions:
-            current_time = time.time()
             waiting_times = [
                 current_time - session.escalation.trigger_at
                 for session in pending_sessions
                 if session.escalation
             ]
             avg_waiting_time = sum(waiting_times) / len(waiting_times) if waiting_times else 0
+            max_waiting_time = max(waiting_times) if waiting_times else 0
         else:
             avg_waiting_time = 0
+            max_waiting_time = 0
 
         stats["avg_waiting_time"] = round(avg_waiting_time, 2)
+        stats["max_waiting_time"] = round(max_waiting_time, 2)
+
+        # 获取正在服务中的会话，计算服务时长
+        live_sessions = await session_store.list_by_status(
+            status=SessionStatus.MANUAL_LIVE,
+            limit=100
+        )
+
+        if live_sessions:
+            service_times = [
+                current_time - (session.escalation.trigger_at if session.escalation else session.updated_at)
+                for session in live_sessions
+            ]
+            avg_service_time = sum(service_times) / len(service_times) if service_times else 0
+        else:
+            avg_service_time = 0
+
+        stats["avg_service_time"] = round(avg_service_time, 2)
+        stats["active_agents"] = len(set(
+            session.assigned_agent.id
+            for session in live_sessions
+            if session.assigned_agent
+        ))
+
+        # 按升级原因统计
+        all_pending = await session_store.list_by_status(
+            status=SessionStatus.PENDING_MANUAL,
+            limit=1000
+        )
+        all_live = await session_store.list_by_status(
+            status=SessionStatus.MANUAL_LIVE,
+            limit=1000
+        )
+
+        escalation_reasons = {}
+        for session in (all_pending + all_live):
+            if session.escalation:
+                reason = session.escalation.reason
+                escalation_reasons[reason] = escalation_reasons.get(reason, 0) + 1
+
+        stats["by_escalation_reason"] = escalation_reasons
+
+        # 今日统计（简化版，实际应该从持久化存储获取）
+        today_stats = {
+            "total_escalations": len(all_pending) + len(all_live),
+            "pending": len(all_pending),
+            "serving": len(all_live)
+        }
+        stats["today"] = today_stats
 
         return {
             "success": True,
@@ -1539,6 +1674,122 @@ async def takeover_session(
     except Exception as e:
         print(f"❌ 接入会话失败: {str(e)}")
         raise HTTPException(status_code=500, detail=f"接入失败: {str(e)}")
+
+
+@app.post("/api/sessions/{session_name}/transfer")
+async def transfer_session(
+    session_name: str,
+    transfer_request: dict
+):
+    """
+    会话转接（坐席间转接）
+
+    Body:
+    {
+        "from_agent_id": "agent_001",
+        "to_agent_id": "agent_002",
+        "to_agent_name": "小李",
+        "reason": "专业问题需转接技术支持"
+    }
+    """
+    if not session_store:
+        raise HTTPException(status_code=503, detail="SessionStore not initialized")
+
+    from_agent_id = transfer_request.get("from_agent_id")
+    to_agent_id = transfer_request.get("to_agent_id")
+    to_agent_name = transfer_request.get("to_agent_name")
+    reason = transfer_request.get("reason", "坐席转接")
+
+    if not all([from_agent_id, to_agent_id, to_agent_name]):
+        raise HTTPException(
+            status_code=400,
+            detail="from_agent_id, to_agent_id, and to_agent_name are required"
+        )
+
+    try:
+        # 获取会话状态
+        session_state = await session_store.get(session_name)
+
+        if not session_state:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        # 必须在 manual_live 状态才能转接
+        if session_state.status != SessionStatus.MANUAL_LIVE:
+            raise HTTPException(
+                status_code=409,
+                detail=f"INVALID_STATUS: 当前状态为{session_state.status.value}，无法转接"
+            )
+
+        # 验证当前坐席是否匹配
+        if session_state.assigned_agent and session_state.assigned_agent.id != from_agent_id:
+            raise HTTPException(
+                status_code=403,
+                detail="只有当前服务的坐席才能转接会话"
+            )
+
+        # 更新坐席信息
+        from src.session_state import AgentInfo
+        old_agent_name = session_state.assigned_agent.name if session_state.assigned_agent else "未知"
+
+        session_state.assigned_agent = AgentInfo(
+            id=to_agent_id,
+            name=to_agent_name
+        )
+
+        # 添加系统消息
+        system_message = Message(
+            role="system",
+            content=f"会话已从【{old_agent_name}】转接至【{to_agent_name}】（原因：{reason}）"
+        )
+        session_state.add_message(system_message)
+
+        # 保存会话状态
+        await session_store.save(session_state)
+
+        # 记录日志
+        print(json.dumps({
+            "event": "session_transferred",
+            "session_name": session_name,
+            "from_agent": from_agent_id,
+            "to_agent": to_agent_id,
+            "to_agent_name": to_agent_name,
+            "reason": reason,
+            "timestamp": int(time.time())
+        }, ensure_ascii=False))
+
+        # 推送 SSE 事件
+        if session_name in sse_queues:
+            # 推送系统消息
+            await sse_queues[session_name].put({
+                "type": "manual_message",
+                "role": "system",
+                "content": f"会话已从【{old_agent_name}】转接至【{to_agent_name}】",
+                "timestamp": system_message.timestamp
+            })
+            # 推送状态变化（坐席变更）
+            await sse_queues[session_name].put({
+                "type": "status_change",
+                "status": "manual_live",
+                "agent_info": {
+                    "agent_id": to_agent_id,
+                    "agent_name": to_agent_name
+                },
+                "reason": "transferred",
+                "timestamp": int(time.time())
+            })
+            print(f"✅ SSE 推送转接事件: {session_name}")
+
+        return {
+            "success": True,
+            "data": session_state.model_dump(),
+            "message": f"会话已转接至【{to_agent_name}】"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 转接会话失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"转接失败: {str(e)}")
 
 
 @app.get("/api/sessions")

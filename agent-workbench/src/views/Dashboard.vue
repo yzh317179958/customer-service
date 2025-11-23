@@ -1,9 +1,88 @@
 <script setup lang="ts">
+import { onMounted, onUnmounted, ref, nextTick, computed } from 'vue'
 import { useAgentStore } from '@/stores/agentStore'
+import { useSessionStore } from '@/stores/sessionStore'
 import { useRouter } from 'vue-router'
+import SessionList from '@/components/SessionList.vue'
+import QuickReplies from '@/components/QuickReplies.vue'
+import type { SessionStatus } from '@/types'
 
 const agentStore = useAgentStore()
+const sessionStore = useSessionStore()
 const router = useRouter()
+
+// 自动刷新定时器
+let refreshInterval: number | null = null
+
+// 当前筛选状态
+const currentFilter = ref<SessionStatus | 'all'>('pending_manual')
+
+// 搜索关键词
+const searchKeyword = ref('')
+
+// 过滤后的会话列表
+const filteredSessions = computed(() => {
+  if (!searchKeyword.value.trim()) {
+    return sessionStore.sessions
+  }
+
+  const keyword = searchKeyword.value.toLowerCase().trim()
+  return sessionStore.sessions.filter(session => {
+    // 搜索会话ID
+    if (session.session_name.toLowerCase().includes(keyword)) {
+      return true
+    }
+    // 搜索用户昵称
+    if (session.user_profile?.nickname?.toLowerCase().includes(keyword)) {
+      return true
+    }
+    // 搜索最后消息内容
+    if (session.last_message_preview?.content.toLowerCase().includes(keyword)) {
+      return true
+    }
+    // 搜索坐席名称
+    if (session.assigned_agent?.name.toLowerCase().includes(keyword)) {
+      return true
+    }
+    return false
+  })
+})
+
+// 聊天输入
+const messageInput = ref('')
+const chatHistoryRef = ref<HTMLElement | null>(null)
+const isSending = ref(false)
+const showQuickReplies = ref(false)
+
+// 转接对话框
+const showTransferDialog = ref(false)
+const transferTargetId = ref('')
+const transferTargetName = ref('')
+const transferReason = ref('')
+
+// 模拟可转接的坐席列表（实际项目应从API获取）
+const availableAgents = ref([
+  { id: 'agent_002', name: '技术支持-小李' },
+  { id: 'agent_003', name: '售后服务-小王' },
+  { id: 'agent_004', name: '高级客服-小张' }
+])
+
+// 处理快捷短语选择
+const handleQuickReplySelect = (content: string) => {
+  messageInput.value = content
+  showQuickReplies.value = false
+}
+
+// 格式化时间（秒转为易读格式）
+const formatTime = (seconds: number): string => {
+  if (seconds < 60) {
+    return `${Math.round(seconds)}秒`
+  } else if (seconds < 3600) {
+    return `${Math.round(seconds / 60)}分`
+  } else {
+    return `${Math.round(seconds / 3600)}时`
+  }
+}
 
 const handleLogout = () => {
   if (confirm('确定要退出登录吗？')) {
@@ -11,10 +90,176 @@ const handleLogout = () => {
     router.push('/login')
   }
 }
+
+// 处理会话选择
+const handleSelectSession = async (sessionName: string) => {
+  await sessionStore.fetchSessionDetail(sessionName)
+}
+
+// 处理接入会话
+const handleTakeover = async (sessionName: string) => {
+  try {
+    await sessionStore.takeoverSession(
+      sessionName,
+      agentStore.agentId,
+      agentStore.agentName
+    )
+    alert(`✅ 已成功接入会话`)
+    // 选中该会话
+    await sessionStore.fetchSessionDetail(sessionName)
+  } catch (err: any) {
+    alert(`❌ 接入失败: ${err.message}`)
+  }
+}
+
+// 切换筛选
+const handleFilterChange = async (filter: SessionStatus | 'all') => {
+  currentFilter.value = filter
+  if (filter === 'all') {
+    await sessionStore.fetchSessions()
+  } else {
+    await sessionStore.setFilter(filter)
+  }
+}
+
+// 刷新数据
+const refreshData = async () => {
+  const status = currentFilter.value === 'all' ? undefined : currentFilter.value
+  await Promise.all([
+    sessionStore.fetchSessions(status),
+    sessionStore.fetchStats()
+  ])
+
+  // 如果有选中的会话，也刷新会话详情（获取新消息）
+  if (sessionStore.currentSessionName) {
+    await sessionStore.fetchSessionDetail(sessionStore.currentSessionName)
+    // 自动滚动到底部
+    await scrollToBottom()
+  }
+}
+
+// 滚动到底部
+const scrollToBottom = async () => {
+  await nextTick()
+  if (chatHistoryRef.value) {
+    chatHistoryRef.value.scrollTop = chatHistoryRef.value.scrollHeight
+  }
+}
+
+// 发送消息
+const handleSendMessage = async () => {
+  if (!messageInput.value.trim() || isSending.value) return
+  if (!sessionStore.currentSession) return
+
+  const content = messageInput.value.trim()
+  messageInput.value = ''
+  isSending.value = true
+
+  try {
+    await sessionStore.sendMessage(
+      sessionStore.currentSession.session_name,
+      content,
+      agentStore.agentId,
+      agentStore.agentName
+    )
+    await scrollToBottom()
+  } catch (err: any) {
+    alert(`❌ 发送失败: ${err.message}`)
+  } finally {
+    isSending.value = false
+  }
+}
+
+// 释放会话
+const handleRelease = async () => {
+  if (!sessionStore.currentSession) return
+
+  if (!confirm('确定要结束本次服务吗？会话将恢复为AI服务。')) {
+    return
+  }
+
+  try {
+    await sessionStore.releaseSession(
+      sessionStore.currentSession.session_name,
+      agentStore.agentId,
+      'resolved'
+    )
+    alert('✅ 会话已释放，恢复AI服务')
+    sessionStore.clearCurrentSession()
+  } catch (err: any) {
+    alert(`❌ 释放失败: ${err.message}`)
+  }
+}
+
+// 处理回车发送
+const handleKeyPress = (event: KeyboardEvent) => {
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault()
+    handleSendMessage()
+  }
+}
+
+// 打开转接对话框
+const openTransferDialog = () => {
+  // 过滤掉当前坐席
+  const filtered = availableAgents.value.filter(a => a.id !== agentStore.agentId)
+  if (filtered.length === 0) {
+    alert('暂无可转接的坐席')
+    return
+  }
+  transferTargetId.value = ''
+  transferTargetName.value = ''
+  transferReason.value = ''
+  showTransferDialog.value = true
+}
+
+// 处理转接
+const handleTransfer = async () => {
+  if (!transferTargetId.value || !sessionStore.currentSession) {
+    alert('请选择要转接的坐席')
+    return
+  }
+
+  const targetAgent = availableAgents.value.find(a => a.id === transferTargetId.value)
+  if (!targetAgent) {
+    alert('坐席信息无效')
+    return
+  }
+
+  try {
+    await sessionStore.transferSession(
+      sessionStore.currentSession.session_name,
+      agentStore.agentId,
+      targetAgent.id,
+      targetAgent.name,
+      transferReason.value || '坐席转接'
+    )
+    alert(`✅ 会话已转接至【${targetAgent.name}】`)
+    showTransferDialog.value = false
+    sessionStore.clearCurrentSession()
+  } catch (err: any) {
+    alert(`❌ 转接失败: ${err.message}`)
+  }
+}
+
+onMounted(async () => {
+  // 初始加载
+  await refreshData()
+
+  // 设置自动刷新 (每5秒)
+  refreshInterval = window.setInterval(refreshData, 5000)
+})
+
+onUnmounted(() => {
+  if (refreshInterval) {
+    clearInterval(refreshInterval)
+  }
+})
 </script>
 
 <template>
   <div class="dashboard-container">
+    <!-- 头部 -->
     <div class="dashboard-header">
       <h1>坐席工作台</h1>
       <div class="agent-info">
@@ -24,18 +269,237 @@ const handleLogout = () => {
       </div>
     </div>
 
-    <div class="dashboard-content">
-      <div class="welcome-message">
-        <h2>欢迎，{{ agentStore.agentName }}！</h2>
-        <p>您已成功登录坐席工作台</p>
-        <div class="info-box">
-          <p>📋 <strong>下一步功能</strong>：</p>
-          <ul>
-            <li>P0-12: 会话列表 - 查看待处理的用户会话</li>
-            <li>P0-13: 接入操作 - 接管用户会话</li>
-            <li>P0-14: 坐席聊天 - 与用户实时对话</li>
-            <li>P0-15: 释放操作 - 结束会话并恢复AI</li>
-          </ul>
+    <!-- 主体内容 -->
+    <div class="dashboard-body">
+      <!-- 左侧：会话列表 -->
+      <div class="sessions-panel">
+        <!-- 统计信息 -->
+        <div class="stats-bar">
+          <div class="stat-item pending" @click="handleFilterChange('pending_manual')">
+            <span class="stat-value">{{ sessionStore.pendingCount }}</span>
+            <span class="stat-label">待接入</span>
+          </div>
+          <div class="stat-item live" @click="handleFilterChange('manual_live')">
+            <span class="stat-value">{{ sessionStore.manualLiveCount }}</span>
+            <span class="stat-label">服务中</span>
+          </div>
+          <div class="stat-item all" @click="handleFilterChange('all')">
+            <span class="stat-value">{{ sessionStore.stats.total_sessions }}</span>
+            <span class="stat-label">全部</span>
+          </div>
+        </div>
+
+        <!-- 详细统计 -->
+        <div class="detailed-stats">
+          <div class="detail-stat">
+            <span class="detail-label">平均等待</span>
+            <span class="detail-value">{{ formatTime(sessionStore.stats.avg_waiting_time) }}</span>
+          </div>
+          <div class="detail-stat">
+            <span class="detail-label">在线坐席</span>
+            <span class="detail-value">{{ sessionStore.stats.active_agents }}</span>
+          </div>
+        </div>
+
+        <!-- 筛选标签 -->
+        <div class="filter-tabs">
+          <button
+            class="filter-tab"
+            :class="{ active: currentFilter === 'pending_manual' }"
+            @click="handleFilterChange('pending_manual')"
+          >
+            待接入
+          </button>
+          <button
+            class="filter-tab"
+            :class="{ active: currentFilter === 'manual_live' }"
+            @click="handleFilterChange('manual_live')"
+          >
+            服务中
+          </button>
+          <button
+            class="filter-tab"
+            :class="{ active: currentFilter === 'all' }"
+            @click="handleFilterChange('all')"
+          >
+            全部
+          </button>
+        </div>
+
+        <!-- 搜索框 -->
+        <div class="search-box">
+          <input
+            v-model="searchKeyword"
+            type="text"
+            class="search-input"
+            placeholder="搜索用户、会话ID、消息内容..."
+          >
+          <span v-if="searchKeyword" class="search-clear" @click="searchKeyword = ''">
+            &times;
+          </span>
+        </div>
+
+        <!-- 会话列表 -->
+        <SessionList
+          :sessions="filteredSessions"
+          :is-loading="sessionStore.isLoading"
+          :selected-session="sessionStore.currentSessionName"
+          @select="handleSelectSession"
+          @takeover="handleTakeover"
+        />
+      </div>
+
+      <!-- 右侧：会话详情/聊天区域 -->
+      <div class="chat-panel">
+        <div v-if="!sessionStore.currentSession" class="no-session">
+          <div class="no-session-icon">💬</div>
+          <p>选择一个会话开始服务</p>
+          <p class="hint">点击左侧会话列表中的会话查看详情</p>
+        </div>
+
+        <div v-else class="session-detail">
+          <!-- 会话头部信息 -->
+          <div class="detail-header">
+            <div class="detail-user">
+              <span class="user-avatar">
+                {{ sessionStore.currentSession.user_profile?.nickname?.charAt(0) || '访' }}
+              </span>
+              <div class="user-info">
+                <span class="user-name">
+                  {{ sessionStore.currentSession.user_profile?.nickname || sessionStore.currentSession.session_name }}
+                </span>
+                <span class="session-status" :class="`status-${sessionStore.currentSession.status}`">
+                  {{ sessionStore.currentSession.status }}
+                </span>
+              </div>
+            </div>
+
+            <!-- 操作按钮 -->
+            <div class="detail-actions">
+              <button
+                v-if="sessionStore.currentSession.status === 'pending_manual'"
+                class="action-btn primary"
+                @click="handleTakeover(sessionStore.currentSession.session_name)"
+              >
+                接入会话
+              </button>
+              <button
+                v-if="sessionStore.currentSession.status === 'manual_live'"
+                class="action-btn secondary"
+                @click="openTransferDialog"
+              >
+                转接
+              </button>
+              <button
+                v-if="sessionStore.currentSession.status === 'manual_live'"
+                class="action-btn danger"
+                @click="handleRelease"
+              >
+                结束服务
+              </button>
+            </div>
+          </div>
+
+          <!-- 聊天历史 -->
+          <div ref="chatHistoryRef" class="chat-history">
+            <div
+              v-for="message in sessionStore.currentSession.history"
+              :key="message.id"
+              class="message"
+              :class="message.role"
+            >
+              <div v-if="message.role === 'system'" class="system-message">
+                {{ message.content }}
+              </div>
+              <template v-else>
+                <div class="message-avatar">
+                  {{ message.role === 'user' ? '用' : message.role === 'agent' ? '客' : 'AI' }}
+                </div>
+                <div class="message-body">
+                  <div class="message-header">
+                    <span class="message-sender">
+                      {{ message.role === 'user' ? '用户' : message.role === 'agent' ? message.agent_name || '客服' : 'AI' }}
+                    </span>
+                    <span class="message-time">
+                      {{ new Date(message.timestamp * 1000).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }}
+                    </span>
+                  </div>
+                  <div class="message-content">{{ message.content }}</div>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- 聊天输入区域 -->
+          <div v-if="sessionStore.currentSession.status === 'manual_live'" class="chat-input-area">
+            <!-- 快捷短语面板 -->
+            <div v-if="showQuickReplies" class="quick-replies-panel">
+              <QuickReplies @select="handleQuickReplySelect" />
+            </div>
+
+            <div class="input-wrapper">
+              <button
+                class="quick-reply-btn"
+                @click="showQuickReplies = !showQuickReplies"
+                :class="{ active: showQuickReplies }"
+                title="快捷短语"
+              >
+                <span class="btn-icon">📝</span>
+              </button>
+              <textarea
+                v-model="messageInput"
+                class="message-input"
+                placeholder="输入消息..."
+                rows="1"
+                @keypress="handleKeyPress"
+              ></textarea>
+              <button
+                class="send-btn"
+                :disabled="!messageInput.trim() || isSending"
+                @click="handleSendMessage"
+              >
+                {{ isSending ? '发送中...' : '发送' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 转接对话框 -->
+    <div v-if="showTransferDialog" class="dialog-overlay">
+      <div class="dialog">
+        <div class="dialog-header">
+          <h3>转接会话</h3>
+          <button class="dialog-close" @click="showTransferDialog = false">&times;</button>
+        </div>
+        <div class="dialog-body">
+          <div class="form-group">
+            <label>选择坐席</label>
+            <select v-model="transferTargetId" class="form-select">
+              <option value="">请选择...</option>
+              <option
+                v-for="agent in availableAgents.filter(a => a.id !== agentStore.agentId)"
+                :key="agent.id"
+                :value="agent.id"
+              >
+                {{ agent.name }}
+              </option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>转接原因（选填）</label>
+            <input
+              v-model="transferReason"
+              type="text"
+              class="form-input"
+              placeholder="如：专业问题需转接技术支持"
+            >
+          </div>
+        </div>
+        <div class="dialog-footer">
+          <button class="btn-cancel" @click="showTransferDialog = false">取消</button>
+          <button class="btn-confirm" @click="handleTransfer" :disabled="!transferTargetId">确认转接</button>
         </div>
       </div>
     </div>
@@ -44,21 +508,24 @@ const handleLogout = () => {
 
 <style scoped>
 .dashboard-container {
-  min-height: 100vh;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
   background: #f5f5f5;
 }
 
 .dashboard-header {
   background: white;
-  padding: 20px 40px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 16px 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .dashboard-header h1 {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
   color: #1a1a1a;
 }
@@ -81,6 +548,407 @@ const handleLogout = () => {
 }
 
 .logout-button {
+  padding: 6px 12px;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.logout-button:hover {
+  background: #e5e7eb;
+}
+
+.dashboard-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* 左侧会话列表面板 */
+.sessions-panel {
+  width: 360px;
+  background: white;
+  border-right: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.stats-bar {
+  display: flex;
+  padding: 16px;
+  gap: 8px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.stat-item {
+  flex: 1;
+  text-align: center;
+  padding: 12px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.stat-item:hover {
+  transform: translateY(-2px);
+}
+
+.stat-item.pending {
+  background: #fef3c7;
+}
+
+.stat-item.live {
+  background: #dbeafe;
+}
+
+.stat-item.all {
+  background: #f3f4f6;
+}
+
+.stat-value {
+  display: block;
+  font-size: 24px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+/* 详细统计 */
+.detailed-stats {
+  display: flex;
+  padding: 12px 16px;
+  gap: 16px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #fafafa;
+}
+
+.detail-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.detail-label {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.detail-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.filter-tabs {
+  display: flex;
+  padding: 12px 16px;
+  gap: 8px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.filter-tab {
+  flex: 1;
+  padding: 8px;
+  background: #f3f4f6;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.filter-tab.active {
+  background: #667eea;
+  color: white;
+}
+
+.filter-tab:hover:not(.active) {
+  background: #e5e7eb;
+}
+
+/* 搜索框 */
+.search-box {
+  padding: 0 16px 12px;
+  position: relative;
+}
+
+.search-box .search-input {
+  width: 100%;
+  padding: 10px 36px 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.search-box .search-input:focus {
+  border-color: #667eea;
+}
+
+.search-clear {
+  position: absolute;
+  right: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9ca3af;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.search-clear:hover {
+  color: #6b7280;
+}
+
+/* 右侧聊天面板 */
+.chat-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: white;
+  overflow: hidden;
+}
+
+.no-session {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+}
+
+.no-session-icon {
+  font-size: 64px;
+  margin-bottom: 16px;
+}
+
+.no-session p {
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+.no-session .hint {
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+.session-detail {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.detail-header {
+  padding: 16px 24px;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.detail-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.detail-user .user-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.user-info .user-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.session-status {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.status-pending_manual {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.status-manual_live {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.status-bot_active {
+  background: #d1fae5;
+  color: #059669;
+}
+
+.action-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.action-btn.primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.action-btn.primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.action-btn.danger {
+  background: #ef4444;
+  color: white;
+}
+
+.action-btn.danger:hover {
+  background: #dc2626;
+}
+
+.action-btn.secondary {
+  background: #6366f1;
+  color: white;
+}
+
+.action-btn.secondary:hover {
+  background: #4f46e5;
+}
+
+/* 转接对话框样式 */
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.dialog {
+  background: white;
+  border-radius: 12px;
+  width: 400px;
+  max-width: 90%;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+}
+
+.dialog-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dialog-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.dialog-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.dialog-close:hover {
+  color: #6b7280;
+}
+
+.dialog-body {
+  padding: 20px;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group:last-child {
+  margin-bottom: 0;
+}
+
+.form-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+.form-select,
+.form-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.form-select:focus,
+.form-input:focus {
+  border-color: #667eea;
+}
+
+.dialog-footer {
+  padding: 16px 20px;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.btn-cancel {
   padding: 8px 16px;
   background: #f3f4f6;
   border: 1px solid #e5e7eb;
@@ -90,63 +958,232 @@ const handleLogout = () => {
   transition: all 0.2s;
 }
 
-.logout-button:hover {
+.btn-cancel:hover {
   background: #e5e7eb;
 }
 
-.dashboard-content {
-  padding: 40px;
-  max-width: 1200px;
-  margin: 0 auto;
+.btn-confirm {
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
-.welcome-message {
-  background: white;
-  padding: 40px;
+.btn-confirm:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.btn-confirm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.chat-history {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 24px;
+}
+
+.message {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.message.user {
+  flex-direction: row-reverse;
+}
+
+.message.system {
+  justify-content: center;
+}
+
+.system-message {
+  padding: 8px 16px;
+  background: #f3f4f6;
+  border-radius: 16px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.message-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.message.user .message-avatar {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.message.assistant .message-avatar {
+  background: #d1fae5;
+  color: #059669;
+}
+
+.message.agent .message-avatar {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.message-body {
+  max-width: 70%;
+}
+
+.message-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.message-sender {
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.message-time {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.message-content {
+  padding: 10px 14px;
   border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  font-size: 14px;
+  line-height: 1.5;
 }
 
-.welcome-message h2 {
-  font-size: 28px;
-  font-weight: 700;
-  color: #1a1a1a;
-  margin-bottom: 8px;
+.message.user .message-content {
+  background: #1f2937;
+  color: white;
+  border-radius: 12px 12px 4px 12px;
 }
 
-.welcome-message > p {
-  font-size: 16px;
-  color: #666;
-  margin-bottom: 30px;
+.message.assistant .message-content {
+  background: #f3f4f6;
+  color: #1f2937;
+  border-radius: 12px 12px 12px 4px;
 }
 
-.info-box {
+.message.agent .message-content {
+  background: #eff6ff;
+  color: #1e40af;
+  border-left: 3px solid #3b82f6;
+  border-radius: 12px 12px 12px 4px;
+}
+
+/* 聊天输入区域 */
+.chat-input-area {
+  padding: 16px 24px;
+  border-top: 1px solid #e5e7eb;
   background: #f9fafb;
-  border-left: 4px solid #667eea;
-  padding: 20px;
+  position: relative;
+}
+
+/* 快捷短语面板 */
+.quick-replies-panel {
+  position: absolute;
+  bottom: 100%;
+  left: 24px;
+  right: 24px;
+  margin-bottom: 8px;
+  z-index: 10;
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.15);
   border-radius: 8px;
+  overflow: hidden;
 }
 
-.info-box p {
+.input-wrapper {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+/* 快捷短语按钮 */
+.quick-reply-btn {
+  width: 44px;
+  height: 44px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.quick-reply-btn:hover {
+  border-color: #667eea;
+  background: #f5f3ff;
+}
+
+.quick-reply-btn.active {
+  border-color: #667eea;
+  background: #667eea;
+}
+
+.quick-reply-btn.active .btn-icon {
+  filter: grayscale(1) brightness(10);
+}
+
+.btn-icon {
+  font-size: 18px;
+}
+
+.message-input {
+  flex: 1;
+  padding: 12px 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
   font-size: 14px;
-  color: #333;
-  margin-bottom: 12px;
+  resize: none;
+  min-height: 44px;
+  max-height: 120px;
+  font-family: inherit;
 }
 
-.info-box ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
+.message-input:focus {
+  outline: none;
+  border-color: #667eea;
 }
 
-.info-box li {
-  padding: 8px 0;
+.send-btn {
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
   font-size: 14px;
-  color: #666;
-  border-bottom: 1px solid #e5e7eb;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
 }
 
-.info-box li:last-child {
-  border-bottom: none;
+.send-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.send-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>

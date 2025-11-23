@@ -21,6 +21,12 @@
         <span></span>
       </div>
     </div>
+
+    <!-- 非工作时间提示 -->
+    <div v-if="sessionStatus === 'after_hours_email'" class="after-hours-notice">
+      <span class="notice-icon">📧</span>
+      <span class="notice-text">请留下邮箱，我们会回复您</span>
+    </div>
   </div>
 </template>
 
@@ -192,6 +198,26 @@ const agentInfo = computed(() => chatStore.agentInfo)
   40% {
     transform: scale(1);
   }
+}
+
+/* 非工作时间提示 */
+.after-hours-notice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 12px;
+}
+
+.notice-icon {
+  font-size: 14px;
+}
+
+.notice-text {
+  color: #92400e;
+  font-weight: 500;
 }
 
 /* 响应式设计 */

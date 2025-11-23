@@ -799,6 +799,51 @@ python3 tests/test_session_name.py
 ---
 ## 📊 版本历史
 
+### v2.5.0 (2025-11-23) - 坐席工作台完善 + 历史回填 🎯
+
+**P0-12 至 P0-15: 坐席工作台核心功能** ⭐ **完整工作台实现**
+- ✅ **会话列表组件** (`agent-workbench/src/components/SessionList.vue`)
+  - 会话卡片展示（用户头像、状态标签、等待时间）
+  - 状态筛选（待接入/服务中/全部）
+  - 快速接入按钮
+- ✅ **会话状态管理** (`agent-workbench/src/stores/sessionStore.ts`)
+  - fetchSessions / fetchStats / fetchSessionDetail
+  - takeoverSession / releaseSession / sendMessage
+  - 自动刷新（每5秒）
+- ✅ **Dashboard 完整功能** (`agent-workbench/src/views/Dashboard.vue`)
+  - 统计卡片（待接入/服务中/全部）
+  - 会话详情面板
+  - 聊天历史展示
+  - 消息发送（Enter 发送）
+  - 会话释放操作
+
+**P1-1: 会话统计 API** ⭐ **已实现**
+- ✅ `GET /api/sessions/stats` - 返回统计数据
+  - 总会话数、各状态数量、平均等待时间
+
+**P1-2: 历史回填** ⭐ **用户端加载历史**
+- ✅ `loadSessionHistory()` 函数实现
+  - 恢复会话状态（bot_active/pending_manual/manual_live）
+  - 恢复升级信息（reason, timestamp, context）
+  - 恢复坐席信息（agent_id, agent_name）
+  - 恢复历史消息（按时间排序，去重）
+  - 人工模式自动启动轮询
+- ✅ 约束文档新增 **约束15: 历史回填实现规范**
+
+**回归测试框架** ⭐ **12项自动化测试**
+- ✅ `tests/regression_test.sh` - 完整测试套件
+  - 第一层：核心功能（健康检查、AI对话、会话隔离）
+  - 第二层：人工接管（升级、阻止、接入、消息、释放）
+  - 第三层：坐席工作台（列表、统计、TypeScript检查）
+- ✅ 所有12项测试通过
+
+**约束文档更新**
+- ✅ 约束14: Python 环境要求（强制使用 python3）
+- ✅ 约束15: 历史回填实现规范（P1-2）
+- ✅ 文档版本: v1.5
+
+---
+
 ### v2.4.0 (2025-11-21) - 坐席工作台开发 + 项目结构整理 🎯
 
 **P0-10: 创建坐席工作台项目** ⭐ **新增独立项目**

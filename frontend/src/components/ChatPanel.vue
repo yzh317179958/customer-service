@@ -401,8 +401,110 @@ const initializeConversation = async () => {
   }
 }
 
+// 🔴 P1-2: 加载会话历史（用户打开页面时回填历史消息）
+const loadSessionHistory = async () => {
+  try {
+    console.log('📚 加载会话历史...')
+
+    const response = await fetch(`${API_BASE_URL.value}/api/sessions/${chatStore.sessionId}`)
+
+    // 404 表示新会话，无历史记录
+    if (response.status === 404) {
+      console.log('ℹ️  新会话，无历史记录')
+      return
+    }
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`)
+    }
+
+    const data = await response.json()
+
+    if (data.success && data.data.session) {
+      const session = data.data.session
+
+      // 1. 恢复会话状态
+      if (session.status && session.status !== chatStore.sessionStatus) {
+        chatStore.updateSessionStatus(session.status)
+        console.log('✅ 恢复会话状态:', session.status)
+      }
+
+      // 2. 恢复升级信息
+      if (session.escalation) {
+        chatStore.setEscalationInfo({
+          reason: session.escalation.reason,
+          timestamp: session.escalation.timestamp,
+          context: session.escalation.context
+        })
+        console.log('✅ 恢复升级信息:', session.escalation.reason)
+      }
+
+      // 3. 恢复坐席信息
+      if (session.assigned_agent) {
+        chatStore.setAgentInfo({
+          id: session.assigned_agent.id,
+          name: session.assigned_agent.name
+        })
+        console.log('✅ 恢复坐席信息:', session.assigned_agent.name)
+      }
+
+      // 4. 恢复历史消息
+      if (session.history && session.history.length > 0) {
+        console.log(`📨 加载 ${session.history.length} 条历史消息`)
+
+        // 按时间戳排序
+        const sortedHistory = [...session.history].sort((a: any, b: any) =>
+          a.timestamp - b.timestamp
+        )
+
+        // 添加历史消息到前端
+        sortedHistory.forEach((msg: any) => {
+          // 检查是否已存在（避免重复）
+          const exists = chatStore.messages.some(
+            m => Math.abs(m.timestamp.getTime() / 1000 - msg.timestamp) < 0.1 &&
+                 m.content === msg.content
+          )
+
+          if (!exists) {
+            let sender = 'System'
+            if (msg.role === 'user') {
+              sender = '我'
+            } else if (msg.role === 'assistant') {
+              sender = chatStore.botConfig.name
+            } else if (msg.role === 'agent') {
+              sender = msg.agent_name || '客服'
+            }
+
+            chatStore.addMessage({
+              id: `history-${msg.role}-${msg.timestamp}`,
+              content: msg.content,
+              role: msg.role,
+              timestamp: new Date(msg.timestamp * 1000),
+              sender: sender,
+              agent_info: msg.agent_id ? {
+                id: msg.agent_id,
+                name: msg.agent_name || '客服'
+              } : undefined
+            })
+          }
+        })
+
+        console.log('✅ 历史消息加载完成')
+        scrollToBottom()
+      }
+
+      // 5. 如果是人工模式，启动轮询
+      if (session.status === 'pending_manual' || session.status === 'manual_live') {
+        startStatusPolling()
+      }
+    }
+  } catch (error) {
+    console.error('⚠️  加载历史失败:', error)
+  }
+}
+
 // Handle product inquiry from other components
-onMounted(() => {
+onMounted(async () => {
   window.addEventListener('ask-product', ((e: CustomEvent) => {
     chatInput.value = `请介绍一下 ${e.detail} 的详细信息`
     sendMessage()
@@ -412,7 +514,10 @@ onMounted(() => {
   loadBotConfig()
 
   // Initialize conversation immediately
-  initializeConversation()
+  await initializeConversation()
+
+  // 🔴 P1-2: 加载历史消息
+  await loadSessionHistory()
 })
 
 const loadBotConfig = async () => {
