@@ -152,8 +152,11 @@ async def lifespan(app: FastAPI):
         # 获取初始 token
         access_token = token_manager.get_access_token()
 
-        # 创建带超时配置的 HTTP 客户端
-        http_client = httpx.Client(timeout=HTTP_TIMEOUT)
+        # 创建带超时配置的 HTTP 客户端（禁用环境代理以避免 SOCKS 协议问题）
+        http_client = httpx.Client(
+            timeout=HTTP_TIMEOUT,
+            trust_env=False  # 不从环境变量读取代理配置，避免 SOCKS 协议不支持的问题
+        )
         coze_client = Coze(
             auth=TokenAuth(token=access_token),
             base_url=api_base,
@@ -238,9 +241,9 @@ def refresh_coze_client_if_needed():
         # 获取 token（自动处理缓存和刷新）
         access_token = token_manager.get_access_token()
 
-        # 更新 Coze 客户端的 token（带超时配置）
+        # 更新 Coze 客户端的 token（带超时配置，禁用环境代理）
         api_base = os.getenv("COZE_API_BASE", "https://api.coze.com")
-        http_client = httpx.Client(timeout=HTTP_TIMEOUT)
+        http_client = httpx.Client(timeout=HTTP_TIMEOUT, trust_env=False)
         coze_client = Coze(
             auth=TokenAuth(token=access_token),
             base_url=api_base,
@@ -310,9 +313,9 @@ async def create_conversation(request: NewConversationRequest):
         # 获取带 session_name 的 token
         access_token = token_manager.get_access_token(session_name=session_id)
 
-        # 刷新 coze_client (确保使用正确的 token)
+        # 刷新 coze_client (确保使用正确的 token，禁用环境代理)
         api_base = os.getenv("COZE_API_BASE", "https://api.coze.com")
-        http_client = httpx.Client(timeout=HTTP_TIMEOUT)
+        http_client = httpx.Client(timeout=HTTP_TIMEOUT, trust_env=False)
         temp_coze_client = Coze(
             auth=TokenAuth(token=access_token),
             base_url=api_base,
@@ -549,9 +552,9 @@ async def refresh_token():
         # 强制刷新 token
         new_token = token_manager.refresh_token()
 
-        # 更新 Coze 客户端
+        # 更新 Coze 客户端（禁用环境代理）
         api_base = os.getenv("COZE_API_BASE", "https://api.coze.com")
-        http_client = httpx.Client(timeout=HTTP_TIMEOUT)
+        http_client = httpx.Client(timeout=HTTP_TIMEOUT, trust_env=False)
         coze_client = Coze(
             auth=TokenAuth(token=new_token),
             base_url=api_base,
@@ -675,7 +678,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
             "Content-Type": "application/json"
         }
 
-        http_client = httpx.Client(timeout=HTTP_TIMEOUT)
+        http_client = httpx.Client(timeout=HTTP_TIMEOUT, trust_env=False)
 
         with http_client.stream('POST', url, json=payload, headers=headers) as response:
             if response.status_code != 200:
@@ -927,7 +930,7 @@ async def chat_stream(request: ChatRequest):
                 "Content-Type": "application/json"
             }
 
-            http_client = httpx.Client(timeout=HTTP_TIMEOUT)
+            http_client = httpx.Client(timeout=HTTP_TIMEOUT, trust_env=False)
 
             with http_client.stream('POST', url, json=payload, headers=headers) as response:
                 if response.status_code != 200:
