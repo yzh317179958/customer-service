@@ -79,24 +79,43 @@ SESSION_EXPIRE_SECONDS=86400
 
 ---
 
-### 2.2 坐席认证系统
+### 2.2 坐席认证系统 ⭐ **已完成 (v3.1.3)**
 
-**问题**: 当前坐席登录是硬编码，任何人都可以登录
+**状态**: ✅ **生产可用** - 2025-11-25
 
-**需求**:
-```
-- 坐席账号数据库存储
-- 登录验证 + JWT Token
-- Token刷新和过期处理
-- 权限控制 (普通坐席/管理员)
-```
+**已实现功能**:
 
-**API设计**:
+#### 基础认证 (v2.3.7)
+- ✅ 坐席登录/登出 - JWT Token 认证
+- ✅ 密码加密存储 - bcrypt 加密
+- ✅ Token 刷新机制 - 1小时有效期，7天刷新
+- ✅ 默认账号初始化 - admin, agent001, agent002
+
+#### 管理员功能 (v3.1.1)
+- ✅ JWT 权限中间件 - `require_admin()`, `require_agent()`
+- ✅ 坐席账号管理 - CRUD 操作（列表、创建、修改、删除）
+- ✅ 角色权限控制 - admin/agent 角色区分
+- ✅ 密码重置 - 管理员重置坐席密码
+
+#### 自助功能 (v3.1.2-v3.1.3)
+- ✅ 修改自己密码 - 旧密码验证 + 新密码强度检查 (v3.1.2)
+- ✅ 修改个人资料 - 只允许修改 name 和 avatar_url (v3.1.3)
+
+**API列表**:
 ```
-POST /api/agent/login      - 坐席登录
-POST /api/agent/logout     - 坐席登出
-GET  /api/agent/profile    - 获取坐席信息
-POST /api/agent/refresh    - 刷新Token
+POST /api/agent/login                      - 坐席登录
+POST /api/agent/logout                     - 坐席登出
+GET  /api/agent/profile                    - 获取坐席信息
+POST /api/agent/refresh                    - 刷新Token
+POST /api/agent/change-password            - 修改自己密码 ⭐ v3.1.2
+PUT  /api/agent/profile                    - 修改个人资料 ⭐ v3.1.3
+
+# 管理员API ⭐ v3.1.1
+GET    /api/agents                         - 查询坐席列表
+POST   /api/agents                         - 创建坐席账号
+PUT    /api/agents/{username}              - 修改坐席信息
+DELETE /api/agents/{username}              - 删除坐席
+POST   /api/agents/{username}/reset-password - 重置密码
 ```
 
 **数据模型**:
@@ -104,19 +123,36 @@ POST /api/agent/refresh    - 刷新Token
 class Agent(BaseModel):
     id: str
     username: str
-    password_hash: str
+    password_hash: str  # bcrypt加密
     name: str
     role: str  # agent / admin
     status: str  # online / offline / busy
-    max_sessions: int = 5  # 最大同时服务数
+    max_sessions: int = 5
     created_at: float
+    last_login: float
+    avatar_url: Optional[str] = None
 ```
 
-**验收标准**:
-- [ ] 坐席必须登录才能访问工作台
-- [ ] Token过期自动跳转登录页
-- [ ] 密码加密存储
-- [ ] 登录失败次数限制
+**安全约束** (约束17):
+- ✅ 密码必须使用 bcrypt 加密（自动加盐）
+- ✅ JWT 密钥从环境变量读取
+- ✅ Access Token ≤ 2小时，Refresh Token ≤ 30天
+- ✅ 返回数据不包含 password_hash
+- ⚠️ 生产环境必须修改默认密码
+
+**测试结果** (v3.1.3):
+- ✅ 管理员功能测试: 7/7 通过
+- ✅ 修改密码测试: 6/7 通过
+- ✅ 修改资料测试: 8/8 通过
+- ✅ 回归测试: 12/12 通过
+- ✅ 不破坏原有AI对话、人工接管、会话隔离功能
+
+**相关文档**:
+- `prd/02_约束与原则/CONSTRAINTS_AND_PRINCIPLES.md` - 约束17（坐席认证安全性）
+- `prd/03_技术方案/api_contract.md` - 坐席认证 API 接口
+- `prd/04_任务拆解/admin_management_tasks.md` - 管理员功能任务拆解
+- `docs/坐席认证系统实施报告.md` - 实施报告
+- `docs/坐席认证系统答疑文档.md` - 答疑文档
 
 ---
 

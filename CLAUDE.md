@@ -291,16 +291,38 @@ cd /home/yzh/AI客服/鉴权
 
 ## 常用命令
 
+### 启动服务
+
 ```bash
 # 启动后端
 python3 backend.py
+# 访问: http://localhost:8000
+# API文档: http://localhost:8000/docs
 
 # 启动用户端
 cd frontend && npm run dev
+# 访问: http://localhost:5173 (本地)
+# 访问: http://192.168.x.x:5173 (局域网)
 
 # 启动坐席工作台
 cd agent-workbench && npm run dev
+# 访问: http://localhost:5174 (本地，端口可能为5174或5175)
+# 访问: http://192.168.x.x:5174 (局域网)
+# 默认账号: admin/admin123, agent001/agent123
+```
 
+### 完整服务访问地址
+
+| 服务 | 本地地址 | 局域网地址 | 说明 |
+|------|---------|-----------|------|
+| 后端API | http://localhost:8000 | http://192.168.x.x:8000 | FastAPI后端 |
+| API文档 | http://localhost:8000/docs | http://192.168.x.x:8000/docs | Swagger UI |
+| 用户端 | http://localhost:5173 | http://192.168.x.x:5173 | Vue前端 |
+| 坐席工作台 | http://localhost:5174 | http://192.168.x.x:5174 | 坐席管理系统 |
+
+### 测试命令
+
+```bash
 # 回归测试
 ./tests/regression_test.sh
 
@@ -321,6 +343,121 @@ curl http://localhost:8000/api/sessions/stats
 - `COZE_OAUTH_CLIENT_ID` - OAuth客户端ID
 - `REGULATOR_KEYWORDS` - 人工接管触发关键词
 - `REGULATOR_FAIL_THRESHOLD` - AI连续失败阈值
+- `JWT_SECRET_KEY` - JWT密钥（生产环境必须使用强随机密钥） ⭐ v3.1+
+
+---
+
+## 🔐 坐席认证与权限约束 ⭐ **强制遵守** (v3.1+)
+
+### 核心约束
+
+#### 约束19: 字段级访问控制 ⭐ **新增 v3.1.3**
+
+**强制要求**：
+
+1. **坐席只能修改自己的 name 和 avatar_url**
+```python
+# ✅ 正确 - 只允许修改非敏感字段
+@app.put("/api/agent/profile")
+async def update_profile(
+    request: UpdateProfileRequest,  # 只包含 name 和 avatar_url
+    agent: Dict = Depends(require_agent)
+):
+    # 只更新允许的字段
+    if request.name is not None:
+        current_agent.name = request.name
+    if request.avatar_url is not None:
+        current_agent.avatar_url = request.avatar_url
+
+# ❌ 错误 - 允许修改敏感字段
+request_data = request.dict()
+for key, value in request_data.items():
+    setattr(current_agent, key, value)  # 可能修改 role, max_sessions 等
+```
+
+**禁止修改的字段**：
+- `role` - 角色（admin/agent）
+- `username` - 用户名
+- `max_sessions` - 最大会话数
+- `status` - 坐席状态
+- `created_at` - 创建时间
+- `last_login` - 最后登录时间
+- `password_hash` - 密码哈希
+
+**生产环境基准值**：
+- 允许修改：`name` (1-50字符), `avatar_url` (URL字符串)
+- 至少需要提供一个字段
+- 返回 400 如果请求体为空
+
+#### 约束20: 密码修改安全性 ⭐ **新增 v3.1.2**
+
+**强制要求**：
+
+1. **三重验证机制**
+```python
+# ✅ 正确 - 完整的密码修改流程
+@app.post("/api/agent/change-password")
+async def change_password(request: ChangePasswordRequest, agent: Dict = Depends(require_agent)):
+    # 验证1: 旧密码正确性
+    if not PasswordHasher.verify_password(request.old_password, current_agent.password_hash):
+        raise HTTPException(400, "OLD_PASSWORD_INCORRECT: 旧密码不正确")
+
+    # 验证2: 新密码强度（至少8字符，包含字母和数字）
+    if not validate_password(request.new_password):
+        raise HTTPException(400, "INVALID_PASSWORD: 密码必须至少8个字符，包含字母和数字")
+
+    # 验证3: 新旧密码不能相同
+    if PasswordHasher.verify_password(request.new_password, current_agent.password_hash):
+        raise HTTPException(400, "PASSWORD_SAME: 新密码不能与旧密码相同")
+
+# ❌ 错误 - 缺少验证
+current_agent.password_hash = PasswordHasher.hash_password(request.new_password)  # 不验证旧密码！
+```
+
+**生产环境基准值**：
+- 最小密码长度：8 字符
+- 必须包含：字母 + 数字
+- 禁止：新旧密码相同
+- Token有效性：修改密码后旧Token仍有效（直到过期）
+
+#### 约束21: JWT 权限分级
+
+**强制要求**：
+
+1. **三级权限模型**
+```python
+# ✅ 正确 - 使用权限中间件
+@app.get("/api/agents")  # 管理员功能
+async def get_agents(admin: Dict = Depends(require_admin)):
+    pass
+
+@app.post("/api/agent/change-password")  # 任何登录用户
+async def change_password(agent: Dict = Depends(require_agent)):
+    pass
+
+# 用户端 API 无需认证
+@app.post("/api/chat")
+async def chat(request: ChatRequest):
+    pass
+
+# ❌ 错误 - 混用权限
+@app.get("/api/agents")
+async def get_agents(agent: Dict = Depends(require_agent)):  # 应该用 require_admin!
+    pass
+```
+
+**权限级别**：
+| 权限 | 适用对象 | 典型API |
+|------|---------|---------|
+| `无需认证` | 用户端前端 | `/api/chat`, `/api/manual/escalate` |
+| `require_agent()` | 任何登录坐席 | 修改密码、修改资料、会话查询 |
+| `require_admin()` | 管理员 | 坐席CRUD、密码重置、权限管理 |
+
+**生产环境基准值**：
+- Token过期时间：1小时（Access Token）
+- Refresh Token：7天
+- 401 错误：Token无效或过期
+- 403 错误：权限不足（如普通坐席访问管理员API）
 
 ---
 
@@ -333,6 +470,9 @@ curl http://localhost:8000/api/sessions/stats
 5. **不要使用** WebSocket 替换 SSE 流式响应
 6. **不要跳过** 回归测试就提交代码
 7. **不要在** 人工接管期间允许 AI 对话
+8. **不要允许** 坐席修改自己的 role、username、max_sessions 等敏感字段 ⭐ v3.1.3
+9. **不要跳过** 旧密码验证直接修改密码 ⭐ v3.1.2
+10. **不要混用** JWT 权限级别（如用 require_agent 保护管理员 API）⭐ v3.1
 
 ---
 
@@ -695,4 +835,4 @@ watch -n 1 'redis-cli INFO memory | grep used_memory_human'
 
 **文档维护者**: Claude Code
 **最后更新**: 2025-11-25
-**文档版本**: v1.1 ⭐ 新增企业生产环境要求
+**文档版本**: v1.2 ⭐ 新增坐席认证与权限约束（约束19-21）

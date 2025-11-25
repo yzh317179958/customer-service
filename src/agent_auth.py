@@ -131,15 +131,17 @@ class AgentTokenManager:
         Returns:
             JWT Token 字符串
         """
-        now = datetime.utcnow()
-        expire = now + self.access_token_expire
+        # 修复: 使用 time.time() 代替 datetime.utcnow().timestamp()
+        # datetime.utcnow().timestamp() 会被解释为本地时间，导致时区问题
+        now = time.time()
+        expire = now + self.access_token_expire.total_seconds()
 
         payload = {
             "agent_id": agent.id,
             "username": agent.username,
             "role": agent.role.value,
-            "iat": now.timestamp(),
-            "exp": expire.timestamp()
+            "iat": now,
+            "exp": expire
         }
 
         token = jwt.encode(payload, self.secret_key, algorithm=self.algorithm)
@@ -155,15 +157,16 @@ class AgentTokenManager:
         Returns:
             JWT Token 字符串
         """
-        now = datetime.utcnow()
-        expire = now + self.refresh_token_expire
+        # 修复: 使用 time.time() 代替 datetime.utcnow().timestamp()
+        now = time.time()
+        expire = now + self.refresh_token_expire.total_seconds()
 
         payload = {
             "agent_id": agent.id,
             "username": agent.username,
             "type": "refresh",
-            "iat": now.timestamp(),
-            "exp": expire.timestamp()
+            "iat": now,
+            "exp": expire
         }
 
         token = jwt.encode(payload, self.secret_key, algorithm=self.algorithm)
@@ -559,6 +562,18 @@ class UpdateAgentRequest(BaseModel):
 class ResetPasswordRequest(BaseModel):
     """重置密码请求"""
     new_password: str = Field(..., min_length=8)
+
+
+class ChangePasswordRequest(BaseModel):
+    """修改自己密码请求"""
+    old_password: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=8)
+
+
+class UpdateProfileRequest(BaseModel):
+    """修改个人资料请求"""
+    name: Optional[str] = Field(None, min_length=1, max_length=50)
+    avatar_url: Optional[str] = None
 
 
 def validate_password(password: str) -> bool:

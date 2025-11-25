@@ -20,12 +20,14 @@ from contextlib import asynccontextmanager
 import uuid
 import hashlib
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from dotenv import load_dotenv
+from typing import Dict, Any
 
 from cozepy import Coze, TokenAuth, JWTAuth, JWTOAuthApp
 import httpx
@@ -304,6 +306,92 @@ try:
     app.mount("/static", StaticFiles(directory=CURRENT_DIR), name="static")
 except Exception as e:
     print(f"⚠️  静态文件挂载失败: {e}")
+
+
+# ====================
+# JWT 权限中间件 (Agent Authorization Middleware)
+# ====================
+
+# 初始化 HTTPBearer 安全方案
+security = HTTPBearer()
+
+
+async def verify_agent_token(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+) -> Dict[str, Any]:
+    """
+    验证 JWT Token
+
+    Args:
+        credentials: HTTP Bearer 凭证
+
+    Returns:
+        Dict: Token 载荷（包含 agent_id, username, role）
+
+    Raises:
+        HTTPException 401: Token 无效或已过期
+    """
+    if not agent_token_manager:
+        raise HTTPException(
+            status_code=503,
+            detail="坐席认证系统未初始化"
+        )
+
+    token = credentials.credentials
+
+    # 验证 Token
+    payload = agent_token_manager.verify_token(token)
+
+    if not payload:
+        raise HTTPException(
+            status_code=401,
+            detail="Token 无效或已过期"
+        )
+
+    return payload
+
+
+async def require_admin(
+    agent: Dict[str, Any] = Depends(verify_agent_token)
+) -> Dict[str, Any]:
+    """
+    要求管理员权限
+
+    Args:
+        agent: 经过 verify_agent_token 验证的坐席信息
+
+    Returns:
+        Dict: Token 载荷
+
+    Raises:
+        HTTPException 403: 权限不足（非管理员）
+    """
+    if agent.get("role") != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="需要管理员权限"
+        )
+
+    return agent
+
+
+async def require_agent(
+    agent: Dict[str, Any] = Depends(verify_agent_token)
+) -> Dict[str, Any]:
+    """
+    要求坐席权限（包括管理员）
+
+    Args:
+        agent: 经过 verify_agent_token 验证的坐席信息
+
+    Returns:
+        Dict: Token 载荷
+
+    说明:
+        此函数用于保护坐席工作台 API
+        管理员和普通坐席都可以访问
+    """
+    return agent
 
 
 def generate_user_id(ip_address: str = None, user_agent: str = None) -> str:
@@ -2366,24 +2454,12 @@ from src.agent_auth import (
     CreateAgentRequest,
     UpdateAgentRequest,
     ResetPasswordRequest,
-    create_jwt_dependencies,
+    ChangePasswordRequest,
+    UpdateProfileRequest,
     validate_password,
     PasswordHasher,
     AgentRole
 )
-
-# 创建 JWT 权限依赖项（延迟初始化）
-verify_agent_token = None
-require_admin = None
-
-
-def init_jwt_dependencies():
-    """初始化 JWT 权限依赖项"""
-    global verify_agent_token, require_admin
-    if agent_token_manager and agent_manager:
-        verify_agent_token, require_admin = create_jwt_dependencies(
-            agent_token_manager, agent_manager
-        )
 
 
 @app.get("/api/agents")
@@ -2391,7 +2467,8 @@ async def get_agents_list(
     status: Optional[str] = None,
     role: Optional[str] = None,
     page: int = 1,
-    page_size: int = 20
+    page_size: int = 20,
+    admin: Dict[str, Any] = Depends(require_admin)  # ← 添加管理员权限验证
 ):
     """
     获取坐席列表 (需要管理员权限)
@@ -2401,6 +2478,8 @@ async def get_agents_list(
         role: 过滤角色 (admin/agent)
         page: 页码，默认1
         page_size: 每页数量，默认20
+
+    权限: 管理员
 
     Returns:
         items: 坐席列表
@@ -2458,12 +2537,17 @@ async def get_agents_list(
 
 
 @app.post("/api/agents")
-async def create_agent(request: CreateAgentRequest):
+async def create_agent(
+    request: CreateAgentRequest,
+    admin: Dict[str, Any] = Depends(require_admin)  # ← 添加管理员权限验证
+):
     """
     创建坐席账号 (需要管理员权限)
 
     Args:
         request: 创建坐席请求
+
+    权限: 管理员
 
     Returns:
         agent: 创建的坐席信息
@@ -2522,13 +2606,19 @@ async def create_agent(request: CreateAgentRequest):
 
 
 @app.put("/api/agents/{username}")
-async def update_agent(username: str, request: UpdateAgentRequest):
+async def update_agent(
+    username: str,
+    request: UpdateAgentRequest,
+    admin: Dict[str, Any] = Depends(require_admin)  # ← 添加管理员权限验证
+):
     """
     修改坐席信息 (需要管理员权限)
 
     Args:
         username: 坐席用户名
         request: 修改请求
+
+    权限: 管理员
 
     Returns:
         agent: 修改后的坐席信息
@@ -2590,7 +2680,10 @@ async def update_agent(username: str, request: UpdateAgentRequest):
 
 
 @app.delete("/api/agents/{username}")
-async def delete_agent(username: str):
+async def delete_agent(
+    username: str,
+    admin: Dict[str, Any] = Depends(require_admin)  # ← 添加管理员权限验证
+):
     """
     删除坐席账号 (需要管理员权限)
 
@@ -2600,6 +2693,8 @@ async def delete_agent(username: str):
 
     Args:
         username: 坐席用户名
+
+    权限: 管理员
 
     Returns:
         message: 删除结果
@@ -2649,13 +2744,19 @@ async def delete_agent(username: str):
 
 
 @app.post("/api/agents/{username}/reset-password")
-async def reset_agent_password(username: str, request: ResetPasswordRequest):
+async def reset_agent_password(
+    username: str,
+    request: ResetPasswordRequest,
+    admin: Dict[str, Any] = Depends(require_admin)  # ← 添加管理员权限验证
+):
     """
     重置坐席密码 (需要管理员权限)
 
     Args:
         username: 坐席用户名
         request: 重置密码请求
+
+    权限: 管理员
 
     Returns:
         message: 重置结果
@@ -2697,6 +2798,146 @@ async def reset_agent_password(username: str, request: ResetPasswordRequest):
         raise HTTPException(
             status_code=500,
             detail=f"重置失败: {str(e)}"
+        )
+
+
+@app.post("/api/agent/change-password")
+async def change_password(
+    request: ChangePasswordRequest,
+    agent: Dict[str, Any] = Depends(require_agent)  # ← 任何登录用户都可以
+):
+    """
+    修改自己的密码 (需要坐席权限)
+
+    Args:
+        request: 修改密码请求
+
+    权限: 任何登录用户
+
+    Returns:
+        message: 修改结果
+    """
+    try:
+        if not agent_manager:
+            raise HTTPException(status_code=500, detail="坐席管理系统未初始化")
+
+        # 获取当前登录的坐席
+        username = agent.get("username")
+        current_agent = agent_manager.get_agent_by_username(username)
+
+        if not current_agent:
+            raise HTTPException(
+                status_code=404,
+                detail="AGENT_NOT_FOUND: 坐席不存在"
+            )
+
+        # 验证旧密码
+        if not PasswordHasher.verify_password(request.old_password, current_agent.password_hash):
+            raise HTTPException(
+                status_code=400,
+                detail="OLD_PASSWORD_INCORRECT: 旧密码不正确"
+            )
+
+        # 验证新密码强度
+        if not validate_password(request.new_password):
+            raise HTTPException(
+                status_code=400,
+                detail="INVALID_PASSWORD: 密码必须至少8个字符，包含字母和数字"
+            )
+
+        # 验证新密码不能与旧密码相同
+        if PasswordHasher.verify_password(request.new_password, current_agent.password_hash):
+            raise HTTPException(
+                status_code=400,
+                detail="PASSWORD_SAME: 新密码不能与旧密码相同"
+            )
+
+        # 更新密码
+        current_agent.password_hash = PasswordHasher.hash_password(request.new_password)
+        agent_manager.update_agent(current_agent)
+
+        print(f"✅ 坐席修改密码: {username}")
+
+        return {
+            "success": True,
+            "message": "密码修改成功"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 坐席修改密码失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"修改失败: {str(e)}"
+        )
+
+
+@app.put("/api/agent/profile")
+async def update_profile(
+    request: UpdateProfileRequest,
+    agent: Dict[str, Any] = Depends(require_agent)  # ← 任何登录用户都可以
+):
+    """
+    修改个人资料 (需要坐席权限)
+
+    Args:
+        request: 修改资料请求
+
+    权限: 任何登录用户
+
+    Returns:
+        agent: 修改后的坐席信息
+    """
+    try:
+        if not agent_manager:
+            raise HTTPException(status_code=500, detail="坐席管理系统未初始化")
+
+        # 获取当前登录的坐席
+        username = agent.get("username")
+        current_agent = agent_manager.get_agent_by_username(username)
+
+        if not current_agent:
+            raise HTTPException(
+                status_code=404,
+                detail="AGENT_NOT_FOUND: 坐席不存在"
+            )
+
+        # 检查是否至少有一个字段需要修改
+        if request.name is None and request.avatar_url is None:
+            raise HTTPException(
+                status_code=400,
+                detail="NO_FIELDS_TO_UPDATE: 至少需要提供一个要修改的字段"
+            )
+
+        # 只修改允许的字段
+        if request.name is not None:
+            current_agent.name = request.name
+
+        if request.avatar_url is not None:
+            current_agent.avatar_url = request.avatar_url
+
+        # 更新坐席信息
+        agent_manager.update_agent(current_agent)
+
+        # 返回结果（隐藏密码）
+        agent_dict = current_agent.dict()
+        agent_dict.pop("password_hash", None)
+
+        print(f"✅ 坐席修改个人资料: {username}")
+
+        return {
+            "success": True,
+            "agent": agent_dict
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 坐席修改个人资料失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"修改失败: {str(e)}"
         )
 
 

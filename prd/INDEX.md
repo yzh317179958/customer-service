@@ -1,6 +1,6 @@
 # Fiido 智能客服系统 - PRD 文档索引
 
-> 版本: v3.1.0 | 更新时间: 2025-11-25
+> 版本: v3.1.3 | 更新时间: 2025-11-25
 
 ## 文档导航
 
@@ -39,7 +39,7 @@
 | 文档 | 说明 | 用途 |
 |------|------|------|
 | [TECHNICAL_SOLUTION_v1.0.md](./03_技术方案/TECHNICAL_SOLUTION_v1.0.md) | 技术架构方案 | 架构参考 |
-| [api_contract.md](./03_技术方案/api_contract.md) | API 接口契约文档 v2.5（含 AI 质量和坐席效率统计）⭐ 已更新 | 接口开发 |
+| [api_contract.md](./03_技术方案/api_contract.md) | API 接口契约文档 v2.6（新增管理员功能和JWT权限控制）⭐ 已更新 | 接口开发 |
 
 ---
 
@@ -54,7 +54,7 @@
 | [frontend_client_tasks.md](./04_任务拆解/frontend_client_tasks.md) | 用户端前端任务 | Frontend |
 | [agent_workbench_tasks.md](./04_任务拆解/agent_workbench_tasks.md) | 坐席工作台任务 | Agent |
 | [email_and_monitoring_tasks.md](./04_任务拆解/email_and_monitoring_tasks.md) | 邮件和监控任务 | P1 |
-| [admin_management_tasks.md](./04_任务拆解/admin_management_tasks.md) | 管理员功能任务拆解 ⭐ 新增 | Admin |
+| [admin_management_tasks.md](./04_任务拆解/admin_management_tasks.md) | 管理员功能任务拆解 ⭐ P0 已完成 | Admin |
 
 ---
 
@@ -109,7 +109,8 @@
 | 状态机 | bot_active → pending_manual → manual_live → bot_active |
 | 人工接管 | 人工接管期间必须阻止 AI 对话 |
 | 坐席认证 | bcrypt 密码加密 + JWT Token（约束17）⭐ |
-| SSE 实时推送 | 混合策略：轻量级轮询(30s) + SSE(当前会话)（约束18）⭐ 新增 |
+| 管理员权限 | JWT权限中间件 + 角色权限控制（require_admin）⭐ 新增 |
+| SSE 实时推送 | 混合策略：轻量级轮询(30s) + SSE(当前会话)（约束18）⭐ |
 
 ---
 
@@ -117,6 +118,25 @@
 
 | 版本 | 日期 | 更新内容 |
 |------|------|----------|
+| v3.1.3 | 2025-11-25 | **P1 自助功能全部完成 (ADMIN-07, ADMIN-08)** ⭐ 重要更新 |
+|        |            | - 新增 POST /api/agent/change-password - 坐席修改自己密码 |
+|        |            | - 新增 PUT /api/agent/profile - 坐席修改个人资料 |
+|        |            | - 字段限制: 只允许修改 name 和 avatar_url（禁止修改敏感字段） |
+|        |            | - 密码验证: 旧密码验证 + 新密码强度 + 新旧不能相同 |
+|        |            | - 测试: 14/15 功能测试通过，24/24 回归测试通过 |
+|        |            | - 文档更新：api_contract v2.8, admin_management_tasks v1.3 |
+| v3.1.2 | 2025-11-25 | **P1 修改密码功能完成** ⭐ 新增 |
+|        |            | - 新增 POST /api/agent/change-password 接口 |
+|        |            | - 验证旧密码正确性 + 新密码强度验证 |
+|        |            | - 新旧密码不能相同 |
+|        |            | - 测试: 6/7 功能测试通过，12/12 回归测试通过 |
+|        |            | - 文档更新：api_contract v2.7, admin_management_tasks v1.2 |
+| v3.1.1 | 2025-11-25 | **管理员功能完成 (P0)** ⭐ 重要更新 |
+|        |            | - JWT 权限中间件：verify_agent_token(), require_admin() |
+|        |            | - 5个管理员API：坐席CRUD、密码重置、列表查询 |
+|        |            | - Bug修复：JWT Token时区问题（UTC+8导致立即过期） |
+|        |            | - 测试: 7/7 管理员功能测试通过，12/12 回归测试通过 |
+|        |            | - 文档更新：api_contract v2.6, admin_management_tasks v1.1 |
 | v3.1.0 | 2025-11-25 | **Fiido E-bike 业务需求整合 v3.1** ⭐ P0 功能完成 |
 |        |            | - UserProfile 扩展（GDPR、多语言、多货币） |
 |        |            | - 统计接口扩展（AI 质量、坐席效率指标） |

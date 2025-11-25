@@ -1,8 +1,8 @@
-# AI 监管/人工接管 API Contract (v2.5)
+# AI 监管/人工接管 API Contract (v2.6)
 
-> **版本**: v2.5
+> **版本**: v2.6
 > **更新时间**: 2025-11-25
-> **变更**: 整合 Fiido E-bike 业务需求 - 扩展用户画像、统计指标
+> **变更**: 新增管理员功能和JWT权限控制、修复JWT时区bug
 
 ## ⚠️ Coze API 强制约束
 
@@ -365,6 +365,177 @@ GET /api/agent/profile?username=admin
 
 ---
 
+### 5. `POST /api/agent/change-password` - 修改自己密码 ⭐ 新增 (v2.7)
+
+**用途**: 坐席修改自己的密码
+
+**Request Body**:
+```json
+{
+  "old_password": "agent123",      // 旧密码（明文，通过 HTTPS 传输）
+  "new_password": "newpass123"     // 新密码
+}
+```
+
+**Request Headers**:
+```
+Authorization: Bearer <access_token>
+```
+
+**Response (200 OK)**:
+```json
+{
+  "success": true,
+  "message": "密码修改成功"
+}
+```
+
+**Response (400 Bad Request)**:
+```json
+{
+  "detail": "OLD_PASSWORD_INCORRECT: 旧密码不正确"
+}
+// 或
+{
+  "detail": "INVALID_PASSWORD: 密码必须至少8个字符，包含字母和数字"
+}
+// 或
+{
+  "detail": "PASSWORD_SAME: 新密码不能与旧密码相同"
+}
+```
+
+**Response (401 Unauthorized)**:
+```json
+{
+  "detail": "Token 无效或已过期"
+}
+```
+
+**说明**:
+- ✅ 任何登录用户都可以修改自己的密码（require_agent权限）
+- ✅ 必须验证旧密码正确性
+- ✅ 新密码强度要求：至少8字符，包含字母和数字
+- ✅ 新密码不能与旧密码相同
+- ⚠️ 生产环境必须使用 HTTPS
+- ⚠️ 修改密码后，旧的 Token 仍然有效（直到过期）
+
+**使用示例**:
+```javascript
+const response = await fetch('/api/agent/change-password', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${accessToken}`
+  },
+  body: JSON.stringify({
+    old_password: 'old_password_here',
+    new_password: 'new_secure_password_123'
+  })
+});
+
+const result = await response.json();
+if (result.success) {
+  console.log('密码修改成功');
+  // 建议用户重新登录
+}
+```
+
+---
+
+### 6. `PUT /api/agent/profile` - 修改个人资料 ⭐ 新增 (v2.8)
+
+**用途**: 坐席修改自己的个人资料
+
+**Request Body**:
+```json
+{
+  "name": "新姓名",              // 可选，姓名（1-50字符）
+  "avatar_url": "/avatars/new.png"  // 可选，头像URL
+}
+```
+
+**Request Headers**:
+```
+Authorization: Bearer <access_token>
+```
+
+**Response (200 OK)**:
+```json
+{
+  "success": true,
+  "agent": {
+    "id": "agent_1763973603632",
+    "username": "agent001",
+    "name": "新姓名",           // ← 已更新
+    "role": "agent",
+    "status": "online",
+    "max_sessions": 5,
+    "created_at": 1763973603.8021133,
+    "last_login": 1763973937.2624621,
+    "avatar_url": "/avatars/new.png"  // ← 已更新
+  }
+}
+```
+
+**Response (400 Bad Request)**:
+```json
+{
+  "detail": "NO_FIELDS_TO_UPDATE: 至少需要提供一个要修改的字段"
+}
+```
+
+**Response (401 Unauthorized)**:
+```json
+{
+  "detail": "Token 无效或已过期"
+}
+```
+
+**说明**:
+- ✅ 任何登录用户都可以修改自己的资料（require_agent权限）
+- ✅ **只允许修改** `name` 和 `avatar_url` 两个字段
+- ❌ **禁止修改** `role`、`username`、`max_sessions`、`status` 等敏感字段
+- ✅ 至少需要提供一个字段（name 或 avatar_url）
+- ✅ 可以单独修改 name，单独修改 avatar_url，或同时修改两者
+- ⚠️ 生产环境必须使用 HTTPS
+- ✅ 返回的 agent 对象不包含 password_hash
+
+**使用示例**:
+```javascript
+// 示例1: 只修改姓名
+const response = await fetch('/api/agent/profile', {
+  method: 'PUT',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${accessToken}`
+  },
+  body: JSON.stringify({
+    name: '客服小张'
+  })
+});
+
+// 示例2: 同时修改姓名和头像
+const response = await fetch('/api/agent/profile', {
+  method': 'PUT',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${accessToken}`
+  },
+  body: JSON.stringify({
+    name: '客服小张',
+    avatar_url: '/avatars/zhang.png'
+  })
+});
+
+const result = await response.json();
+if (result.success) {
+  console.log('资料修改成功', result.agent);
+}
+```
+
+---
+
 ### Token 使用示例
 
 #### 前端存储和使用
@@ -440,21 +611,72 @@ if (response.status === 401) {
 
 ---
 
-### 未来扩展
+### 管理员功能 ⭐ v2.6 新增
 
-**计划中的功能** (优先级: 中):
-- [ ] JWT 权限中间件 - 保护坐席工作台 API
-- [ ] 角色权限控制 - 区分 admin 和 agent 权限
-- [ ] 坐席管理 API - CRUD 操作（管理员专用）
-- [ ] 密码修改 - 用户修改自己的密码
-- [ ] 密码重置 - 管理员重置坐席密码
-- [ ] 坐席列表查询 - 管理员查看所有坐席
+**已完成的功能** (v2.6 - 2025-11-25):
+- [x] **JWT 权限中间件** - 保护坐席工作台和管理员 API
+  - `verify_agent_token()`: 验证JWT Token
+  - `require_admin()`: 要求管理员权限（返回403如果非管理员）
+  - `require_agent()`: 要求坐席权限（管理员和坐席都可访问）
+
+- [x] **角色权限控制** - 区分 admin 和 agent 权限
+  - 管理员（role: admin）：可访问所有管理员API
+  - 普通坐席（role: agent）：仅可访问坐席工作台API
+  - 无Token或Token无效：返回403 Forbidden
+
+- [x] **坐席管理 API** - CRUD 操作（管理员专用）
+  - `GET /api/agents` - 列表查询（支持分页和筛选）
+  - `POST /api/agents` - 创建坐席账号
+  - `PUT /api/agents/{username}` - 修改坐席信息
+  - `DELETE /api/agents/{username}` - 删除坐席
+  - `POST /api/agents/{username}/reset-password` - 重置密码
+
+**权限要求**：
+| API 端点 | 权限要求 | 返回状态码 |
+|----------|----------|-----------|
+| `GET /api/agents` | `require_admin()` | 403 (非管理员) |
+| `POST /api/agents` | `require_admin()` | 403 (非管理员) |
+| `PUT /api/agents/{username}` | `require_admin()` | 403 (非管理员) |
+| `DELETE /api/agents/{username}` | `require_admin()` | 403 (非管理员) |
+| `POST /api/agents/{username}/reset-password` | `require_admin()` | 403 (非管理员) |
+| `POST /api/agent/login` | 无需权限 | - |
+
+**Bug 修复** (v2.6):
+- 🐛 修复JWT Token时区问题：将 `datetime.utcnow().timestamp()` 改为 `time.time()`
+  - **问题**: `datetime.utcnow().timestamp()` 会被解释为本地时间，导致8小时时区差异
+  - **影响**: 所有Token在UTC+8时区立即过期
+  - **修复**: 使用 `time.time()` 获取正确的UTC时间戳
+  - **文件**: `src/agent_auth.py` - `create_access_token()` 和 `create_refresh_token()`
+
+**测试结果** (v2.6):
+- ✅ 管理员功能测试: 7/7 通过
+- ✅ 回归测试: 12/12 通过
+- ✅ 不破坏原有AI对话、人工接管、会话隔离功能
+
+**已完成的P1功能** (v2.8 - 2025-11-25):
+- [x] **修改自己密码** - POST /api/agent/change-password (v2.7)
+  - 验证旧密码正确性
+  - 新密码强度验证（至少8字符，含字母和数字）
+  - 新旧密码不能相同
+  - 权限: require_agent()（任何登录用户）
+  - 测试: 6/7 通过，12/12 回归测试通过
+
+- [x] **修改个人资料** - PUT /api/agent/profile (v2.8)
+  - 只允许修改 name 和 avatar_url
+  - 禁止修改 role、username、max_sessions 等敏感字段
+  - 至少需要提供一个字段
+  - 权限: require_agent()（任何登录用户）
+  - 测试: 8/8 通过，12/12 回归测试通过
+
+**计划中的功能** (优先级: 低):
 - [ ] 登录历史 - 审计日志查询
+- [ ] 坐席权限组管理 - 更细粒度的权限控制
+- [ ] 坐席工作统计 - 接待数量、平均响应时间等
 
 ---
 
 **最后更新**: 2025-11-25
-**文档版本**: v2.4 (新增 SSE 实时推送规范)
+**文档版本**: v2.8 (新增修改个人资料功能)
 
 ---
 

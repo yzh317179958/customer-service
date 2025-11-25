@@ -2184,4 +2184,559 @@ setInterval(refreshData, 5000)  // 比30秒多6倍请求
 - 🟡 资源浪费(短轮询)
 - 🟡 实时性差(轮询延迟)
 - 🟡 内存泄漏(未清理资源)
+
+---
+
+## 约束19: 字段级访问控制 ⭐ 新增 (v3.1.3)
+
+**约束编号**: 19
+**约束类型**: 🔴 强制要求
+**适用模块**: 后端 - 坐席认证系统
+**实施时间**: v3.1.3
+**文档状态**: ✅ 已完成实施
+
+### 19.1 核心约束：坐席只能修改非敏感字段
+
+**强制要求**：
+
+坐席用户只能修改自己的 `name` 和 `avatar_url`，禁止修改敏感字段。
+
+```python
+# ✅ 正确 - 只允许修改非敏感字段
+class UpdateProfileRequest(BaseModel):
+    """修改个人资料请求 - 只允许修改非敏感字段"""
+    name: Optional[str] = Field(None, min_length=1, max_length=50)
+    avatar_url: Optional[str] = None
+
+@app.put("/api/agent/profile")
+async def update_profile(
+    request: UpdateProfileRequest,
+    agent: Dict = Depends(require_agent)  # 任何登录用户都可以
+):
+    # 只更新允许的字段
+    if request.name is not None:
+        current_agent.name = request.name
+    if request.avatar_url is not None:
+        current_agent.avatar_url = request.avatar_url
+
+    agent_manager.update_agent(current_agent)
+
+# ❌ 错误 - 允许修改任意字段（权限提升漏洞！）
+@app.put("/api/agent/profile")
+async def update_profile(request: dict):
+    for key, value in request.items():
+        setattr(agent, key, value)  # 可能修改 role="admin"！
+```
+
+**禁止修改的敏感字段**：
+- `role` - 角色（admin/agent）⚠️ 最危险，可能导致权限提升
+- `username` - 用户名（唯一标识符）
+- `max_sessions` - 最大会话数（业务限制）
+- `status` - 坐席状态（业务状态机）
+- `created_at` - 创建时间（审计字段）
+- `last_login` - 最后登录时间（审计字段）
+- `password_hash` - 密码哈希（安全字段）
+
+### 19.2 验证规则
+
+**必须实现的验证**：
+
+1. **至少提供一个字段**
+```python
+if request.name is None and request.avatar_url is None:
+    raise HTTPException(400, "NO_FIELDS_TO_UPDATE: 至少需要提供一个要修改的字段")
+```
+
+2. **字段长度验证**
+```python
+name: Optional[str] = Field(None, min_length=1, max_length=50)  # 1-50字符
+```
+
+3. **返回时脱敏**
+```python
+agent_dict = current_agent.dict()
+agent_dict.pop("password_hash", None)  # 永不返回密码
+return {"success": True, "agent": agent_dict}
+```
+
+### 19.3 API 接口规范
+
+**接口**: `PUT /api/agent/profile`
+**权限**: `require_agent()` - 任何登录用户
+**请求体**:
+```json
+{
+  "name": "新姓名",              // 可选，1-50字符
+  "avatar_url": "/avatars/new.png"  // 可选
+}
+```
+
+**响应**:
+```json
+{
+  "success": true,
+  "agent": {
+    "id": "agent_123",
+    "username": "agent001",  // 不可修改
+    "name": "新姓名",       // ← 已更新
+    "role": "agent",        // 不可修改
+    "status": "online",     // 不可修改
+    "max_sessions": 5,      // 不可修改
+    "avatar_url": "/avatars/new.png"  // ← 已更新
+  }
+}
+```
+
+### 19.4 安全检查清单
+
+**实施前检查**：
+- [ ] UpdateProfileRequest 是否只包含 name 和 avatar_url？
+- [ ] 是否禁止了动态字段赋值（避免 `setattr()`）？
+- [ ] 是否验证了至少提供一个字段？
+- [ ] 返回时是否移除了 password_hash？
+
+**测试验证**：
+- [ ] 尝试修改 role 字段是否被拒绝？
+- [ ] 尝试修改 username 字段是否被拒绝？
+- [ ] 尝试修改 max_sessions 字段是否被拒绝？
+- [ ] 空请求是否返回 400？
+
+### 19.5 典型攻击场景
+
+**场景1: 权限提升攻击**
+```python
+# 攻击者尝试修改自己的角色为管理员
+PUT /api/agent/profile
+{
+  "role": "admin",  // 试图提升权限
+  "max_sessions": 999
+}
+
+# ✅ 正确实现：请求被忽略，只更新 name 和 avatar_url（没有这两个字段则返回400）
+# ❌ 错误实现：攻击者成功成为管理员
+```
+
+**场景2: 修改其他用户账号**
+```python
+# ✅ 正确：通过 JWT 验证，只能修改自己的账号
+agent = Depends(require_agent)  # 从 Token 获取当前用户
+current_agent = agent_manager.get_agent_by_username(agent.get("username"))
+
+# ❌ 错误：允许通过参数指定用户名
+@app.put("/api/agent/profile/{username}")  # 危险！
+```
+
+### 19.6 相关文档
+
+- `prd/03_技术方案/api_contract.md` - API 接口规范（第6节）
+- `prd/04_任务拆解/admin_management_tasks.md` - ADMIN-08 任务详情
+- `CLAUDE.md` - 约束19 详细说明
+
+**违反后果**:
+- 🔴 权限提升漏洞（用户可自行成为管理员）
+- 🔴 业务逻辑破坏（修改 max_sessions、status）
+- 🔴 审计日志失效（修改 created_at、last_login）
+
+---
+
+## 约束20: 密码修改安全性 ⭐ 新增 (v3.1.2)
+
+**约束编号**: 20
+**约束类型**: 🔴 强制要求
+**适用模块**: 后端 - 坐席认证系统
+**实施时间**: v3.1.2
+**文档状态**: ✅ 已完成实施
+
+### 20.1 三重验证机制
+
+**强制要求**：修改密码必须通过三重验证
+
+```python
+# ✅ 正确 - 完整的三重验证
+@app.post("/api/agent/change-password")
+async def change_password(
+    request: ChangePasswordRequest,
+    agent: Dict = Depends(require_agent)
+):
+    current_agent = agent_manager.get_agent_by_username(agent.get("username"))
+
+    # 验证1: 旧密码必须正确
+    if not PasswordHasher.verify_password(request.old_password, current_agent.password_hash):
+        raise HTTPException(400, "OLD_PASSWORD_INCORRECT: 旧密码不正确")
+
+    # 验证2: 新密码强度要求（至少8字符，包含字母和数字）
+    if not validate_password(request.new_password):
+        raise HTTPException(400, "INVALID_PASSWORD: 密码必须至少8个字符，包含字母和数字")
+
+    # 验证3: 新密码不能与旧密码相同
+    if PasswordHasher.verify_password(request.new_password, current_agent.password_hash):
+        raise HTTPException(400, "PASSWORD_SAME: 新密码不能与旧密码相同")
+
+    # 通过所有验证后才更新
+    current_agent.password_hash = PasswordHasher.hash_password(request.new_password)
+    agent_manager.update_agent(current_agent)
+
+# ❌ 错误 - 缺少验证
+@app.post("/api/agent/change-password")
+async def change_password(request: dict):
+    agent.password_hash = bcrypt.hash(request["new_password"])  # 不验证旧密码！
+```
+
+### 20.2 密码强度要求
+
+**强制规则**：
+
+```python
+def validate_password(password: str) -> bool:
+    """
+    密码强度验证
+
+    要求:
+    - 最少 8 个字符
+    - 必须包含字母
+    - 必须包含数字
+    """
+    if len(password) < 8:
+        return False
+
+    has_letter = any(c.isalpha() for c in password)
+    has_digit = any(c.isdigit() for c in password)
+
+    return has_letter and has_digit
+
+# ✅ 正确示例
+"agent123"     # 通过 - 8字符，含字母和数字
+"password1"    # 通过 - 9字符，含字母和数字
+
+# ❌ 错误示例
+"pass"         # 拒绝 - 少于8字符
+"12345678"     # 拒绝 - 只有数字
+"abcdefgh"     # 拒绝 - 只有字母
+```
+
+### 20.3 安全注意事项
+
+**1. 错误信息不泄露细节**
+```python
+# ✅ 正确 - 统一错误信息
+raise HTTPException(400, "OLD_PASSWORD_INCORRECT: 旧密码不正确")
+
+# ❌ 错误 - 泄露用户名是否存在
+if not user:
+    raise HTTPException(404, "用户不存在")
+if not verify_password(...):
+    raise HTTPException(400, "密码错误")
+```
+
+**2. Token 生命周期**
+```python
+# ⚠️ 注意：修改密码后，旧的 JWT Token 仍然有效（直到过期）
+# 原因：JWT 是无状态的，无法主动失效
+# 建议：提示用户重新登录以获取新 Token
+
+# 未来改进：实现 Token 黑名单机制
+```
+
+**3. 密码历史记录（可选）**
+```python
+# 未来可扩展：记录最近3次密码，禁止重复使用
+password_history: List[str] = []  # 存储最近3次密码哈希
+```
+
+### 20.4 API 接口规范
+
+**接口**: `POST /api/agent/change-password`
+**权限**: `require_agent()` - 任何登录用户
+**请求体**:
+```json
+{
+  "old_password": "agent123",
+  "new_password": "newpass123"
+}
+```
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "密码修改成功"
+}
+```
+
+**错误响应**:
+```json
+{"detail": "OLD_PASSWORD_INCORRECT: 旧密码不正确"}
+{"detail": "INVALID_PASSWORD: 密码必须至少8个字符，包含字母和数字"}
+{"detail": "PASSWORD_SAME: 新密码不能与旧密码相同"}
+```
+
+### 20.5 安全检查清单
+
+**实施前检查**：
+- [ ] 是否验证旧密码正确性？
+- [ ] 是否验证新密码强度（8字符+字母+数字）？
+- [ ] 是否禁止新旧密码相同？
+- [ ] 是否使用 bcrypt 加密？
+- [ ] 错误信息是否统一（不泄露细节）？
+
+**测试验证**：
+- [ ] 旧密码错误是否被拒绝（400）？
+- [ ] 弱密码是否被拒绝（400/422）？
+- [ ] 新旧密码相同是否被拒绝（400）？
+- [ ] 修改成功后能否用新密码登录？
+
+### 20.6 相关文档
+
+- `prd/03_技术方案/api_contract.md` - API 接口规范（第5节）
+- `prd/04_任务拆解/admin_management_tasks.md` - ADMIN-07 任务详情
+- `CLAUDE.md` - 约束20 详细说明
+
+**违反后果**:
+- 🔴 账号被盗（不验证旧密码）
+- 🔴 弱密码攻击（不验证密码强度）
+- 🔴 用户体验差（新旧密码相同无提示）
+
+---
+
+## 约束21: JWT 权限分级 ⭐ 新增 (v3.1.1)
+
+**约束编号**: 21
+**约束类型**: 🔴 强制要求
+**适用模块**: 后端 - 权限控制
+**实施时间**: v3.1.1
+**文档状态**: ✅ 已完成实施
+
+### 21.1 三级权限模型
+
+**强制要求**：系统必须严格区分三级权限
+
+| 权限级别 | 适用对象 | 中间件 | 典型API |
+|---------|---------|-------|---------|
+| **无需认证** | 用户端前端 | 无 | `/api/chat`, `/api/manual/escalate` |
+| **坐席权限** | 任何登录坐席 | `require_agent()` | 修改密码、修改资料、会话查询 |
+| **管理员权限** | 管理员 | `require_admin()` | 坐席CRUD、密码重置、权限管理 |
+
+```python
+# ✅ 正确 - 三级权限清晰分离
+
+# 1. 无需认证 - 用户端 API
+@app.post("/api/chat")
+async def chat(request: ChatRequest):
+    """用户聊天，无需登录"""
+    pass
+
+# 2. 坐席权限 - 任何登录用户（管理员+普通坐席）
+@app.post("/api/agent/change-password")
+async def change_password(agent: Dict = Depends(require_agent)):
+    """坐席修改自己的密码"""
+    pass
+
+# 3. 管理员权限 - 仅管理员
+@app.get("/api/agents")
+async def get_agents(admin: Dict = Depends(require_admin)):
+    """管理员查看坐席列表"""
+    pass
+
+# ❌ 错误 - 混用权限
+@app.get("/api/agents")
+async def get_agents(agent: Dict = Depends(require_agent)):  # 应该用 require_admin!
+    # 普通坐席可以查看所有坐席列表 - 权限泄露！
+    pass
+```
+
+### 21.2 JWT 中间件实现
+
+**核心中间件**：
+
+```python
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+security = HTTPBearer()
+
+async def verify_agent_token(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+) -> Dict[str, Any]:
+    """验证 JWT Token（基础验证）"""
+    token = credentials.credentials
+
+    payload = agent_token_manager.verify_token(token)
+    if not payload:
+        raise HTTPException(401, detail="Token 无效或已过期")
+
+    return payload
+
+async def require_agent(
+    agent: Dict = Depends(verify_agent_token)
+) -> Dict[str, Any]:
+    """要求坐席权限（管理员和普通坐席都可访问）"""
+    return agent
+
+async def require_admin(
+    agent: Dict = Depends(verify_agent_token)
+) -> Dict[str, Any]:
+    """要求管理员权限（只有管理员可访问）"""
+    if agent.get("role") != "admin":
+        raise HTTPException(403, detail="需要管理员权限")
+    return agent
+```
+
+### 21.3 权限检查流程
+
+**请求处理流程**：
+
+```
+1. 用户发送请求 + Authorization Header
+   ↓
+2. security = HTTPBearer() 提取 Token
+   ↓
+3. verify_agent_token() 验证 Token 有效性
+   - 无效/过期 → 401 Unauthorized
+   ↓
+4. require_agent() 或 require_admin() 检查角色
+   - require_admin(): role != "admin" → 403 Forbidden
+   - require_agent(): 任何登录用户都通过
+   ↓
+5. 执行业务逻辑
+```
+
+### 21.4 错误状态码规范
+
+**强制要求**：
+
+| 状态码 | 含义 | 触发条件 | 示例 |
+|-------|------|---------|------|
+| **401 Unauthorized** | 认证失败 | Token无效、过期、缺失 | `"Token 无效或已过期"` |
+| **403 Forbidden** | 权限不足 | Token有效但角色不符 | `"需要管理员权限"` |
+
+```python
+# ✅ 正确 - 明确区分 401 和 403
+if not payload:
+    raise HTTPException(401, "Token 无效或已过期")  # 认证问题
+
+if agent.get("role") != "admin":
+    raise HTTPException(403, "需要管理员权限")  # 权限问题
+
+# ❌ 错误 - 混淆 401 和 403
+if agent.get("role") != "admin":
+    raise HTTPException(401, "未授权")  # 应该用 403!
+```
+
+### 21.5 Token 生命周期
+
+**生产环境配置**：
+
+```python
+# JWT Token 配置
+ACCESS_TOKEN_EXPIRE_MINUTES = 60   # 1小时
+REFRESH_TOKEN_EXPIRE_DAYS = 7      # 7天
+
+# Token 内容
+{
+  "agent_id": "agent_123",
+  "username": "admin",
+  "role": "admin",           # ← 权限判断依据
+  "iat": 1763973937,         # 签发时间
+  "exp": 1763977537,         # 过期时间
+  "type": "access"           # Token 类型
+}
+```
+
+**Token 刷新流程**：
+```python
+# 1. Access Token 过期 → 返回 401
+# 2. 前端使用 Refresh Token 请求新的 Access Token
+POST /api/agent/refresh
+{
+  "refresh_token": "eyJ..."
+}
+
+# 3. 服务器验证 Refresh Token，返回新的 Access Token
+{
+  "success": true,
+  "token": "eyJ...",  # 新的 Access Token
+  "expires_in": 3600
+}
+```
+
+### 21.6 API 权限分配表
+
+**完整权限分配**：
+
+| API 端点 | 权限要求 | 中间件 | 说明 |
+|---------|---------|-------|------|
+| **用户端 API** | | | |
+| `POST /api/chat` | 无 | - | AI对话 |
+| `POST /api/chat/stream` | 无 | - | 流式对话 |
+| `POST /api/manual/escalate` | 无 | - | 用户请求人工 |
+| `POST /api/manual/messages` (role=user) | 无 | - | 用户发消息 |
+| **坐席工作台 API** | | | |
+| `GET /api/sessions` | 坐席 | require_agent | 会话列表 |
+| `GET /api/sessions/{id}` | 坐席 | require_agent | 会话详情 |
+| `POST /api/sessions/{id}/takeover` | 坐席 | require_agent | 接入会话 |
+| `POST /api/manual/messages` (role=agent) | 坐席 | require_agent | 坐席发消息 |
+| `POST /api/sessions/{id}/release` | 坐席 | require_agent | 释放会话 |
+| **坐席自助 API** | | | |
+| `POST /api/agent/change-password` | 坐席 | require_agent | 修改密码 |
+| `PUT /api/agent/profile` | 坐席 | require_agent | 修改资料 |
+| **管理员 API** | | | |
+| `GET /api/agents` | 管理员 | require_admin | 坐席列表 |
+| `POST /api/agents` | 管理员 | require_admin | 创建坐席 |
+| `PUT /api/agents/{username}` | 管理员 | require_admin | 修改坐席 |
+| `DELETE /api/agents/{username}` | 管理员 | require_admin | 删除坐席 |
+| `POST /api/agents/{username}/reset-password` | 管理员 | require_admin | 重置密码 |
+
+### 21.7 安全检查清单
+
+**实施前检查**：
+- [ ] 所有管理员 API 是否使用 `require_admin()`？
+- [ ] 所有坐席工作台 API 是否使用 `require_agent()`？
+- [ ] 用户端 API 是否无需认证？
+- [ ] Token 过期时间是否合理（Access: 1h, Refresh: 7d）？
+- [ ] 401 和 403 错误是否正确区分？
+
+**测试验证**：
+- [ ] 无 Token 访问坐席 API 是否返回 401？
+- [ ] 普通坐席访问管理员 API 是否返回 403？
+- [ ] 管理员访问坐席 API 是否成功？
+- [ ] Token 过期后是否返回 401？
+- [ ] Refresh Token 是否能正确刷新？
+
+### 21.8 典型攻击场景
+
+**场景1: 权限混淆攻击**
+```python
+# 攻击者使用普通坐席Token访问管理员API
+GET /api/agents
+Authorization: Bearer <agent_token>  # role: "agent"
+
+# ✅ 正确实现：返回 403 Forbidden
+# ❌ 错误实现：返回坐席列表（权限泄露）
+```
+
+**场景2: Token 伪造攻击**
+```python
+# 攻击者尝试伪造 Token，修改 role 为 admin
+{
+  "agent_id": "agent_001",
+  "role": "admin",  // 伪造
+  "exp": 9999999999
+}
+
+# ✅ 正确实现：JWT 签名验证失败 → 401
+# ❌ 错误实现：不验证签名，直接信任 Token
+```
+
+### 21.9 相关文档
+
+- `prd/03_技术方案/api_contract.md` - JWT 权限中间件文档
+- `prd/04_任务拆解/admin_management_tasks.md` - 权限控制任务
+- `CLAUDE.md` - 约束21 详细说明
+
+**违反后果**:
+- 🔴 权限泄露（普通坐席访问管理员功能）
+- 🔴 账号接管（Token 伪造）
+- 🔴 审计失效（无法追溯操作者）
+
+---
 - 🟡 SSE连接断开后无法恢复(未重连)

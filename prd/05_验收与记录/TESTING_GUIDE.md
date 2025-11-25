@@ -817,6 +817,390 @@ curl http://localhost:8000/api/sessions/{session_name}
 
 ---
 
+## 3.11 管理员功能测试 ⭐ 新增 (v3.1.1-v3.1.3)
+
+### 3.11.1 JWT 权限中间件测试 (v3.1.1)
+
+**测试目的**: 验证JWT权限控制正确实施
+
+**测试步骤**:
+```bash
+# 步骤1: 获取管理员和普通坐席Token
+# 管理员登录
+curl -X POST http://localhost:8000/api/agent/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "admin123"}'
+# 保存返回的token到 $ADMIN_TOKEN
+
+# 普通坐席登录
+curl -X POST http://localhost:8000/api/agent/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "agent001", "password": "agent123"}'
+# 保存返回的token到 $AGENT_TOKEN
+
+# 步骤2: 测试无Token访问管理员API
+curl -X GET http://localhost:8000/api/agents
+# 预期: 401 Unauthorized
+
+# 步骤3: 测试普通坐席访问管理员API
+curl -X GET http://localhost:8000/api/agents \
+  -H "Authorization: Bearer $AGENT_TOKEN"
+# 预期: 403 Forbidden, "需要管理员权限"
+
+# 步骤4: 测试管理员访问管理员API
+curl -X GET http://localhost:8000/api/agents \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+# 预期: 200 OK, 返回坐席列表
+
+# 步骤5: 测试管理员访问坐席API
+curl -X POST http://localhost:8000/api/agent/change-password \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"old_password": "admin123", "new_password": "newpass123"}'
+# 预期: 200 OK（管理员也可以访问坐席API）
+```
+
+**验收标准**:
+- [ ] 无Token返回401
+- [ ] 普通坐席访问管理员API返回403
+- [ ] 管理员可以访问管理员API
+- [ ] 管理员也可以访问坐席API
+
+### 3.11.2 坐席账号管理测试 (v3.1.1)
+
+**测试目的**: 验证坐席CRUD操作正常
+
+**测试步骤**:
+```bash
+# 步骤1: 创建测试坐席
+curl -X POST http://localhost:8000/api/agents \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "test_agent_001",
+    "password": "test123456",
+    "name": "测试坐席001",
+    "role": "agent",
+    "max_sessions": 5
+  }'
+# 预期: 201 Created
+# 验证: 返回的agent不包含password_hash
+
+# 步骤2: 查询坐席列表
+curl -X GET "http://localhost:8000/api/agents?limit=10&offset=0" \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+# 预期: 200 OK
+# 验证: 列表中包含刚创建的test_agent_001
+
+# 步骤3: 修改坐席信息
+curl -X PUT http://localhost:8000/api/agents/test_agent_001 \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "测试坐席001修改",
+    "max_sessions": 10,
+    "status": "offline"
+  }'
+# 预期: 200 OK
+# 验证: 返回的agent.name已更新，max_sessions=10
+
+# 步骤4: 按角色筛选
+curl -X GET "http://localhost:8000/api/agents?role=admin" \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+# 预期: 200 OK
+# 验证: 只返回role="admin"的坐席（admin用户）
+
+# 步骤5: 重置密码
+curl -X POST http://localhost:8000/api/agents/test_agent_001/reset-password \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"new_password": "newpass123"}'
+# 预期: 200 OK, "密码重置成功"
+
+# 步骤6: 验证新密码可登录
+curl -X POST http://localhost:8000/api/agent/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "test_agent_001", "password": "newpass123"}'
+# 预期: 200 OK, 返回Token
+
+# 步骤7: 删除坐席
+curl -X DELETE http://localhost:8000/api/agents/test_agent_001 \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+# 预期: 200 OK
+
+# 步骤8: 验证删除成功
+curl -X GET "http://localhost:8000/api/agents?username=test_agent_001" \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+# 预期: 列表中不包含test_agent_001
+```
+
+**验收标准**:
+- [ ] 创建坐席成功且密码加密
+- [ ] 查询列表返回正确
+- [ ] 修改信息生效
+- [ ] 按角色筛选正确
+- [ ] 重置密码后可用新密码登录
+- [ ] 删除坐席成功
+
+### 3.11.3 修改自己密码测试 (v3.1.2)
+
+**测试目的**: 验证坐席可以安全修改自己的密码
+
+**测试步骤**:
+```bash
+# 前置条件: 已登录并获得agent001的Token
+AGENT_TOKEN="[agent001_token]"
+
+# 测试1: 旧密码错误
+curl -X POST http://localhost:8000/api/agent/change-password \
+  -H "Authorization: Bearer $AGENT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"old_password": "wrong_pass", "new_password": "newpass123"}'
+# 预期: 400 Bad Request, "OLD_PASSWORD_INCORRECT"
+
+# 测试2: 新密码强度不足（只有字母）
+curl -X POST http://localhost:8000/api/agent/change-password \
+  -H "Authorization: Bearer $AGENT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"old_password": "agent123", "new_password": "onlyletters"}'
+# 预期: 400 Bad Request, "INVALID_PASSWORD"
+
+# 测试3: 新密码强度不足（少于8字符）
+curl -X POST http://localhost:8000/api/agent/change-password \
+  -H "Authorization: Bearer $AGENT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"old_password": "agent123", "new_password": "pass1"}'
+# 预期: 400/422, "INVALID_PASSWORD" 或字段验证错误
+
+# 测试4: 新旧密码相同
+curl -X POST http://localhost:8000/api/agent/change-password \
+  -H "Authorization: Bearer $AGENT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"old_password": "agent123", "new_password": "agent123"}'
+# 预期: 400 Bad Request, "PASSWORD_SAME"
+
+# 测试5: 成功修改密码
+curl -X POST http://localhost:8000/api/agent/change-password \
+  -H "Authorization: Bearer $AGENT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"old_password": "agent123", "new_password": "newpass123"}'
+# 预期: 200 OK, "密码修改成功"
+
+# 测试6: 验证新密码可登录
+curl -X POST http://localhost:8000/api/agent/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "agent001", "password": "newpass123"}'
+# 预期: 200 OK, 返回新Token
+
+# 测试7: 旧密码不能再登录
+curl -X POST http://localhost:8000/api/agent/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "agent001", "password": "agent123"}'
+# 预期: 401 Unauthorized, "用户名或密码错误"
+
+# 清理: 恢复原密码（使用新Token）
+curl -X POST http://localhost:8000/api/agent/change-password \
+  -H "Authorization: Bearer $NEW_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"old_password": "newpass123", "new_password": "agent123"}'
+```
+
+**验收标准**:
+- [ ] 旧密码错误被拒绝
+- [ ] 弱密码被拒绝（少于8字符或只有字母/数字）
+- [ ] 新旧密码相同被拒绝
+- [ ] 成功修改后可用新密码登录
+- [ ] 旧密码不能再使用
+
+### 3.11.4 修改个人资料测试 (v3.1.3)
+
+**测试目的**: 验证坐席只能修改非敏感字段
+
+**测试步骤**:
+```bash
+# 前置条件: 已登录并获得agent001的Token
+AGENT_TOKEN="[agent001_token]"
+
+# 测试1: 只修改姓名
+curl -X PUT http://localhost:8000/api/agent/profile \
+  -H "Authorization: Bearer $AGENT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "新姓名测试"}'
+# 预期: 200 OK
+# 验证: 返回的agent.name = "新姓名测试"
+
+# 测试2: 同时修改姓名和头像
+curl -X PUT http://localhost:8000/api/agent/profile \
+  -H "Authorization: Bearer $AGENT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "客服小张",
+    "avatar_url": "/avatars/zhang.png"
+  }'
+# 预期: 200 OK
+# 验证: name和avatar_url都已更新
+
+# 测试3: 只修改头像
+curl -X PUT http://localhost:8000/api/agent/profile \
+  -H "Authorization: Bearer $AGENT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"avatar_url": "/avatars/new_avatar.png"}'
+# 预期: 200 OK
+# 验证: 只有avatar_url更新
+
+# 测试4: 空请求（无字段）
+curl -X PUT http://localhost:8000/api/agent/profile \
+  -H "Authorization: Bearer $AGENT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+# 预期: 400 Bad Request, "NO_FIELDS_TO_UPDATE"
+
+# 测试5: 尝试修改敏感字段（role）
+curl -X PUT http://localhost:8000/api/agent/profile \
+  -H "Authorization: Bearer $AGENT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "合法修改",
+    "role": "admin",
+    "max_sessions": 999,
+    "username": "hacker"
+  }'
+# 预期: 200 OK
+# 关键验证: 只有name被更新，role/max_sessions/username保持不变
+
+# 测试6: 验证敏感字段未被修改
+curl -X GET "http://localhost:8000/api/agent/profile?username=agent001" \
+  -H "Authorization: Bearer $AGENT_TOKEN"
+# 预期: 200 OK
+# 验证: role仍然是"agent"，max_sessions仍然是5，username仍然是"agent001"
+
+# 清理: 恢复原姓名
+curl -X PUT http://localhost:8000/api/agent/profile \
+  -H "Authorization: Bearer $AGENT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "客服小王", "avatar_url": null}'
+```
+
+**验收标准**:
+- [ ] 可以修改name字段
+- [ ] 可以修改avatar_url字段
+- [ ] 可以同时修改name和avatar_url
+- [ ] 空请求返回400错误
+- [ ] 尝试修改role/username/max_sessions等敏感字段时，这些字段保持不变
+- [ ] 返回的agent对象不包含password_hash
+
+### 3.11.5 安全性验证测试 (v3.1.3)
+
+**测试目的**: 验证权限提升攻击被阻止
+
+**测试步骤**:
+```bash
+# 场景1: 普通坐席尝试提升为管理员
+AGENT_TOKEN="[agent001_token]"
+
+# 通过修改资料提升权限（应失败）
+curl -X PUT http://localhost:8000/api/agent/profile \
+  -H "Authorization: Bearer $AGENT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"role": "admin"}'
+# 预期: 400 Bad Request, "NO_FIELDS_TO_UPDATE"（role字段被忽略）
+
+# 验证角色未改变
+curl -X GET "http://localhost:8000/api/agent/profile?username=agent001"
+# 预期: role仍然是"agent"
+
+# 场景2: 普通坐席尝试修改其他坐席密码
+curl -X POST http://localhost:8000/api/agents/agent002/reset-password \
+  -H "Authorization: Bearer $AGENT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"new_password": "hacked123"}'
+# 预期: 403 Forbidden, "需要管理员权限"
+
+# 场景3: 普通坐席尝试删除其他坐席
+curl -X DELETE http://localhost:8000/api/agents/agent002 \
+  -H "Authorization: Bearer $AGENT_TOKEN"
+# 预期: 403 Forbidden, "需要管理员权限"
+
+# 场景4: 验证Token伪造防护
+# 伪造一个无签名的Token
+FAKE_TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYWRtaW4ifQ.fake"
+
+curl -X GET http://localhost:8000/api/agents \
+  -H "Authorization: Bearer $FAKE_TOKEN"
+# 预期: 401 Unauthorized, "Token 无效或已过期"
+```
+
+**验收标准**:
+- [ ] 普通坐席无法通过修改资料提升权限
+- [ ] 普通坐席无法访问管理员API
+- [ ] Token伪造被检测并拒绝
+- [ ] 所有敏感操作都需要管理员权限
+
+### 3.11.6 完整测试脚本执行 (v3.1.3)
+
+**测试目的**: 运行自动化测试脚本验证所有功能
+
+**测试步骤**:
+```bash
+# 步骤1: 停止现有服务
+lsof -ti:8000 | xargs kill -9 2>/dev/null
+
+# 步骤2: 启动后端服务
+nohup python3 backend.py > /tmp/backend.log 2>&1 &
+sleep 4
+
+# 步骤3: 运行管理员功能测试
+cd /home/yzh/AI客服/鉴权
+./tests/test_admin_apis.sh
+
+# 预期输出:
+# ========================================
+# Fiido 智能客服 - 管理员功能测试
+# ========================================
+# ✅ [1/15] 管理员登录成功
+# ✅ [2/15] 普通坐席登录成功
+# ✅ [3/15] 无Token访问被拒绝 (401)
+# ✅ [4/15] 普通坐席访问管理员API被拒绝 (403)
+# ✅ [5/15] 创建坐席成功
+# ✅ [6/15] 查询坐席列表成功
+# ✅ [7/15] 修改坐席信息成功
+# ✅ [8/15] 按角色筛选成功
+# ✅ [9/15] 删除坐席成功
+# ✅ [10/15] 重置密码成功
+# ✅ [11/15] 修改密码 - 旧密码错误 (400)
+# ✅ [12/15] 修改密码 - 新密码弱 (422)
+# ✅ [13/15] 修改密码成功
+# ✅ [14/15] 修改资料成功
+# ✅ [15/15] 修改资料 - 空请求 (400)
+#
+# ========================================
+# 测试完成! 通过: 15/15 (100%)
+# ========================================
+
+# 步骤4: 运行回归测试
+./tests/regression_test.sh
+
+# 预期输出:
+# ========================================
+# Fiido 智能客服 - 回归测试
+# ========================================
+# ✅ [1/12] 健康检查
+# ✅ [2/12] AI 对话 (同步)
+# ... (省略中间步骤)
+# ✅ [12/12] 会话统计
+#
+# ========================================
+# 回归测试完成! 通过: 12/12 (100%)
+# ========================================
+```
+
+**验收标准**:
+- [ ] 管理员功能测试: 15/15 通过
+- [ ] 回归测试: 12/12 通过
+- [ ] 无破坏性影响（AI对话、人工接管、会话隔离功能正常）
+
+---
+
 ## 附录：测试用例模板
 
 ```markdown
