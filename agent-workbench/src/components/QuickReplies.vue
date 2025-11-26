@@ -1,138 +1,296 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import {
+  getQuickReplies,
+  useQuickReply,
+  replaceVariables,
+  type QuickReply,
+  type CategoryMetadata,
+  type QuickReplyCategory
+} from '../api/quickReplies'
+
+const props = defineProps<{
+  sessionName?: string      // 当前会话名称（用于获取客户信息）
+  customerName?: string     // 客户姓名
+  agentName?: string        // 坐席姓名
+}>()
 
 const emit = defineEmits<{
   (e: 'select', content: string): void
 }>()
 
-// 快捷短语配置
-const quickReplies = ref([
-  {
-    id: 1,
-    category: '问候',
-    items: [
-      { id: 101, title: '欢迎语', content: '您好，我是人工客服，很高兴为您服务。请问有什么可以帮助您的？' },
-      { id: 102, title: '稍等', content: '好的，请您稍等，我正在为您查询相关信息。' },
-      { id: 103, title: '感谢等待', content: '感谢您的耐心等待，已为您查询到以下信息：' }
-    ]
-  },
-  {
-    id: 2,
-    category: '产品',
-    items: [
-      { id: 201, title: '产品咨询', content: '关于您咨询的产品，我来为您详细介绍一下：' },
-      { id: 202, title: '价格说明', content: '目前这款产品的价格是：' },
-      { id: 203, title: '库存确认', content: '我帮您查询了一下库存，目前该产品：' }
-    ]
-  },
-  {
-    id: 3,
-    category: '售后',
-    items: [
-      { id: 301, title: '退换货', content: '关于退换货，我们的政策是：7天无理由退换，15天质量问题可换货。请问您遇到了什么问题？' },
-      { id: 302, title: '维修服务', content: '我们提供全国联保服务，您可以：1. 寄回总部维修；2. 到当地授权服务点维修。' },
-      { id: 303, title: '物流查询', content: '我帮您查询了订单物流状态：' }
-    ]
-  },
-  {
-    id: 4,
-    category: '结束',
-    items: [
-      { id: 401, title: '问题解决', content: '很高兴能帮助到您！如果还有其他问题，随时联系我们。祝您生活愉快！' },
-      { id: 402, title: '后续跟进', content: '好的，我已记录您的问题，稍后会有专人跟进处理。请保持电话畅通。' },
-      { id: 403, title: '评价邀请', content: '感谢您的咨询！如果您对本次服务满意，欢迎给我们一个好评。再见！' }
-    ]
-  }
-])
+// 状态
+const loading = ref(false)
+const quickReplies = ref<QuickReply[]>([])
+const categories = ref<CategoryMetadata[]>([])
+const supportedVariables = ref<Record<string, string>>({})
 
 // 搜索关键词
 const searchKeyword = ref('')
 
 // 当前展开的分类
-const expandedCategory = ref<number | null>(null)
+const expandedCategory = ref<string | null>(null)
 
-// 过滤后的快捷短语
-const filteredReplies = computed(() => {
+// 分类筛选
+const selectedCategory = ref<QuickReplyCategory | null>(null)
+
+// 错误状态
+const error = ref<string | null>(null)
+
+/**
+ * 加载快捷回复数据
+ */
+const loadQuickReplies = async () => {
+  try {
+    loading.value = true
+    error.value = null
+
+    const response = await getQuickReplies(selectedCategory.value || undefined)
+
+    quickReplies.value = response.data.items
+    categories.value = response.data.categories
+    supportedVariables.value = response.data.variables
+
+    console.log('✅ 快捷回复加载成功:', quickReplies.value.length, '条')
+  } catch (err: any) {
+    console.error('❌ 加载快捷回复失败:', err)
+    error.value = err.response?.data?.detail || '加载快捷回复失败'
+  } finally {
+    loading.value = false
+  }
+}
+
+/**
+ * 按分类分组快捷回复
+ */
+const groupedReplies = computed(() => {
+  const groups: Record<string, QuickReply[]> = {}
+
+  quickReplies.value.forEach(reply => {
+    if (!groups[reply.category]) {
+      groups[reply.category] = []
+    }
+    groups[reply.category].push(reply)
+  })
+
+  return groups
+})
+
+/**
+ * 过滤后的分类（根据搜索关键词）
+ */
+const filteredCategories = computed(() => {
   if (!searchKeyword.value.trim()) {
-    return quickReplies.value
+    return categories.value.map(cat => ({
+      ...cat,
+      items: groupedReplies.value[cat.key] || []
+    })).filter(cat => cat.items.length > 0)
   }
 
   const keyword = searchKeyword.value.toLowerCase()
-  return quickReplies.value.map(category => ({
-    ...category,
-    items: category.items.filter(
+
+  return categories.value.map(cat => {
+    const items = (groupedReplies.value[cat.key] || []).filter(
       item =>
         item.title.toLowerCase().includes(keyword) ||
         item.content.toLowerCase().includes(keyword)
     )
-  })).filter(category => category.items.length > 0)
+    return { ...cat, items }
+  }).filter(cat => cat.items.length > 0)
 })
 
-// 切换分类展开
-const toggleCategory = (categoryId: number) => {
-  if (expandedCategory.value === categoryId) {
+/**
+ * 切换分类展开
+ */
+const toggleCategory = (categoryKey: string) => {
+  if (expandedCategory.value === categoryKey) {
     expandedCategory.value = null
   } else {
-    expandedCategory.value = categoryId
+    expandedCategory.value = categoryKey
   }
 }
 
-// 选择快捷短语
-const handleSelect = (content: string) => {
-  emit('select', content)
+/**
+ * 获取变量替换的上下文
+ */
+const getVariableContext = (): Record<string, string> => {
+  return {
+    customer_name: props.customerName || '客户',
+    agent_name: props.agentName || '客服',
+    session_name: props.sessionName || '',
+    // 可以添加更多上下文变量
+  }
 }
+
+/**
+ * 预览快捷回复内容（替换变量）
+ */
+const previewContent = (reply: QuickReply): string => {
+  if (reply.variables.length === 0) {
+    return reply.content
+  }
+
+  const context = getVariableContext()
+  return replaceVariables(reply.content, context)
+}
+
+/**
+ * 选择快捷短语
+ */
+const handleSelect = async (reply: QuickReply) => {
+  try {
+    // 获取替换变量后的内容
+    const content = previewContent(reply)
+
+    // 追踪使用次数
+    await useQuickReply(reply.id)
+    console.log(`✅ 使用快捷回复: ${reply.title} (ID: ${reply.id})`)
+
+    // 发送到父组件
+    emit('select', content)
+
+    // 更新本地使用次数（可选，避免重新加载）
+    const index = quickReplies.value.findIndex(r => r.id === reply.id)
+    if (index !== -1) {
+      quickReplies.value[index].usage_count++
+    }
+  } catch (err) {
+    console.error('❌ 使用快捷回复失败:', err)
+  }
+}
+
+/**
+ * 格式化快捷键显示
+ */
+const formatShortcut = (shortcut?: string): string => {
+  if (!shortcut) return ''
+  // 将 "Ctrl+1" 转换为平台特定格式
+  return shortcut.replace('Ctrl', navigator.platform.includes('Mac') ? '⌘' : 'Ctrl')
+}
+
+/**
+ * 初始化加载
+ */
+onMounted(() => {
+  loadQuickReplies()
+})
+
+/**
+ * 监听分类筛选变化
+ */
+watch(selectedCategory, () => {
+  loadQuickReplies()
+})
 </script>
 
 <template>
   <div class="quick-replies">
     <div class="quick-replies-header">
       <h3>快捷短语</h3>
+
+      <!-- 搜索框 -->
       <input
         v-model="searchKeyword"
         type="text"
         class="search-input"
         placeholder="搜索短语..."
       >
+
+      <!-- 分类筛选 -->
+      <div v-if="categories.length > 0" class="category-filter">
+        <button
+          class="filter-btn"
+          :class="{ active: selectedCategory === null }"
+          @click="selectedCategory = null"
+        >
+          全部
+        </button>
+        <button
+          v-for="cat in categories"
+          :key="cat.key"
+          class="filter-btn"
+          :class="{ active: selectedCategory === cat.key }"
+          :style="{ borderColor: selectedCategory === cat.key ? cat.color : '' }"
+          @click="selectedCategory = cat.key as QuickReplyCategory"
+        >
+          {{ cat.label }}
+        </button>
+      </div>
     </div>
 
-    <div class="categories">
+    <!-- 加载状态 -->
+    <div v-if="loading" class="loading">
+      <div class="spinner"></div>
+      <span>加载中...</span>
+    </div>
+
+    <!-- 错误状态 -->
+    <div v-else-if="error" class="error">
+      <span>❌ {{ error }}</span>
+      <button class="retry-btn" @click="loadQuickReplies">重试</button>
+    </div>
+
+    <!-- 快捷回复列表 -->
+    <div v-else class="categories">
       <div
-        v-for="category in filteredReplies"
-        :key="category.id"
+        v-for="category in filteredCategories"
+        :key="category.key"
         class="category"
       >
         <div
           class="category-header"
-          @click="toggleCategory(category.id)"
+          @click="toggleCategory(category.key)"
         >
-          <span class="category-name">{{ category.category }}</span>
+          <span class="category-icon" :style="{ color: category.color }">
+            {{ category.icon === 'MessageCircle' ? '💬' :
+               category.icon === 'Package' ? '📦' :
+               category.icon === 'Truck' ? '🚚' :
+               category.icon === 'Wrench' ? '🔧' :
+               category.icon === 'FileText' ? '📄' : '📌' }}
+          </span>
+          <span class="category-name">{{ category.label }}</span>
           <span class="category-count">{{ category.items.length }}</span>
-          <span class="expand-icon" :class="{ expanded: expandedCategory === category.id }">
+          <span class="expand-icon" :class="{ expanded: expandedCategory === category.key }">
             ▶
           </span>
         </div>
 
         <transition name="slide">
           <div
-            v-if="expandedCategory === category.id"
+            v-if="expandedCategory === category.key"
             class="category-items"
           >
             <div
               v-for="item in category.items"
               :key="item.id"
               class="reply-item"
-              @click="handleSelect(item.content)"
+              @click="handleSelect(item)"
             >
-              <span class="reply-title">{{ item.title }}</span>
-              <span class="reply-preview">{{ item.content.substring(0, 30) }}...</span>
+              <div class="reply-header">
+                <span class="reply-title">{{ item.title }}</span>
+                <span v-if="item.shortcut" class="reply-shortcut">
+                  {{ formatShortcut(item.shortcut) }}
+                </span>
+              </div>
+              <span class="reply-preview">
+                {{ previewContent(item).substring(0, 50) }}{{ previewContent(item).length > 50 ? '...' : '' }}
+              </span>
+              <div class="reply-meta">
+                <span class="usage-count">🔥 {{ item.usage_count }}次</span>
+                <span v-if="item.variables.length > 0" class="has-variables">
+                  🏷️ 含变量
+                </span>
+              </div>
             </div>
           </div>
         </transition>
       </div>
     </div>
 
-    <div v-if="filteredReplies.length === 0" class="no-results">
-      未找到匹配的短语
+    <!-- 空状态 -->
+    <div v-if="!loading && !error && filteredCategories.length === 0" class="no-results">
+      <span v-if="searchKeyword">未找到匹配的短语</span>
+      <span v-else>暂无快捷回复</span>
     </div>
   </div>
 </template>
@@ -143,6 +301,9 @@ const handleSelect = (content: string) => {
   border-radius: 8px;
   border: 1px solid #e5e7eb;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 500px;
 }
 
 .quick-replies-header {
@@ -165,14 +326,93 @@ const handleSelect = (content: string) => {
   border-radius: 6px;
   font-size: 13px;
   outline: none;
+  margin-bottom: 8px;
 }
 
 .search-input:focus {
   border-color: #667eea;
 }
 
+.category-filter {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.filter-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  background: white;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.filter-btn:hover {
+  border-color: #667eea;
+  color: #667eea;
+}
+
+.filter-btn.active {
+  background: #667eea;
+  color: white;
+  border-color: #667eea;
+}
+
+.loading,
+.error {
+  padding: 20px;
+  text-align: center;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #e5e7eb;
+  border-top-color: #667eea;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.error {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.retry-btn {
+  padding: 6px 12px;
+  font-size: 12px;
+  border: 1px solid #667eea;
+  border-radius: 4px;
+  background: white;
+  color: #667eea;
+  cursor: pointer;
+  align-self: center;
+}
+
+.retry-btn:hover {
+  background: #667eea;
+  color: white;
+}
+
 .categories {
-  max-height: 300px;
+  flex: 1;
   overflow-y: auto;
 }
 
@@ -194,6 +434,11 @@ const handleSelect = (content: string) => {
 
 .category-header:hover {
   background: #f9fafb;
+}
+
+.category-icon {
+  font-size: 16px;
+  margin-right: 8px;
 }
 
 .category-name {
@@ -225,7 +470,7 @@ const handleSelect = (content: string) => {
 }
 
 .reply-item {
-  padding: 8px 12px;
+  padding: 10px 12px;
   margin-bottom: 4px;
   background: white;
   border-radius: 6px;
@@ -243,21 +488,47 @@ const handleSelect = (content: string) => {
   margin-bottom: 0;
 }
 
+.reply-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
 .reply-title {
-  display: block;
   font-size: 13px;
   font-weight: 500;
   color: #1f2937;
-  margin-bottom: 2px;
+}
+
+.reply-shortcut {
+  font-size: 11px;
+  color: #9ca3af;
+  background: #f3f4f6;
+  padding: 2px 6px;
+  border-radius: 3px;
 }
 
 .reply-preview {
   display: block;
   font-size: 12px;
   color: #6b7280;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  margin-bottom: 6px;
+  line-height: 1.4;
+}
+
+.reply-meta {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.usage-count {
+  color: #f59e0b;
+}
+
+.has-variables {
+  color: #8b5cf6;
 }
 
 .no-results {
@@ -271,7 +542,7 @@ const handleSelect = (content: string) => {
 .slide-enter-active,
 .slide-leave-active {
   transition: all 0.3s ease;
-  max-height: 300px;
+  max-height: 500px;
   overflow: hidden;
 }
 

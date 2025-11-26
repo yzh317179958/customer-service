@@ -14,7 +14,7 @@ const router = createRouter({
     {
       path: '/dashboard',
       name: 'Dashboard',
-      component: () => import('@/views/Dashboard.vue'),
+      component: () => import('@/views/DashboardV2.vue'),
       meta: { requiresAuth: true }
     },
     // ⭐ v3.1.3 新增：管理员页面

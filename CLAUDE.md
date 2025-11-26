@@ -18,6 +18,7 @@
 - `prd/01_全局指导/prd.md` - 主PRD文档，系统需求定义和开发流程规范
 - `prd/01_全局指导/PRD_COMPLETE_v3.0.md` - 完整版PRD，详细功能规格
 - `prd/01_全局指导/README.md` - 项目概述和快速入门
+- `prd/01_全局指导/REFERENCE_SYSTEMS.md` - 企业级参考系统分析（拼多多、聚水潭）⭐ v3.5+
 
 ### 3. 技术方案
 - `prd/03_技术方案/TECHNICAL_SOLUTION_v1.0.md` - 技术架构方案
@@ -30,6 +31,7 @@
 - `prd/04_任务拆解/agent_workbench_tasks.md` - 坐席工作台任务
 - `prd/04_任务拆解/admin_management_tasks.md` - 管理员功能任务拆解 ⭐ 新增
 - `prd/04_任务拆解/email_and_monitoring_tasks.md` - 邮件和监控任务
+- `prd/04_任务拆解/enterprise_features_tasks.md` - 企业级功能任务拆解 ⭐ v3.5+
 
 ### 5. 验收与记录
 - `prd/05_验收与记录/ACCEPTANCE_CRITERIA_v1.0.md` - 详细验收标准
@@ -313,6 +315,30 @@ bot_active → pending_manual → manual_live → bot_active
 3. 如有新增API，更新 prd/03_技术方案/api_contract.md
 
 4. 提交并推送到 GitHub 仓库，包含进度更新
+
+5. ⭐ **版本标签发布** (强制要求)
+   - 每次完成功能开发后，必须打上版本标签
+   - 版本号格式: v{主版本}.{次版本}.{修订版}
+   - 主版本: 重大架构变更或不兼容更新 (v1.0.0 → v2.0.0)
+   - 次版本: 新增功能 (v3.3.0 → v3.4.0)
+   - 修订版: Bug修复或小改进 (v3.4.0 → v3.4.1)
+
+   # 发布版本标签
+   git tag -a v3.4.0 -m "feat: 工单系统完整实现 v3.4.0
+
+   完成工单系统后端+前端全栈开发
+
+   功能特性:
+   - 8个后端API接口
+   - 2个前端页面 (列表+详情)
+   - SLA自动计算
+   - 活动日志记录
+
+   测试结果:
+   - 9/9 功能测试通过
+   - 12/12 回归测试通过"
+
+   git push origin v3.4.0
 ```
 
 **示例**：

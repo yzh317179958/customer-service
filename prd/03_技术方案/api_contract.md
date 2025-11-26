@@ -1,8 +1,8 @@
-# AI 监管/人工接管 API Contract (v2.6)
+# AI 监管/人工接管 API Contract (v2.7)
 
-> **版本**: v2.6
-> **更新时间**: 2025-11-25
-> **变更**: 新增管理员功能和JWT权限控制、修复JWT时区bug
+> **版本**: v2.7
+> **更新时间**: 2025-11-26
+> **变更**: 快捷回复系统完全实现（后端API + 前端组件 + 变量替换）
 
 ## ⚠️ Coze API 强制约束
 
@@ -1411,8 +1411,651 @@ graph LR
 ### v2.2
 - ✅ 初始版本：核心人工接管 API
 
+### v3.0 (2025-11-26)
+- ✅ 新增企业级功能 API (Phase 1 - v3.5.0)
+- ✅ 快捷回复系统 API (13个接口)
+- ✅ 会话标签系统 API
+- ✅ 自动回复规则 API
+
 ---
 
 **文档维护者**: Fiido AI 客服开发团队
-**最后更新**: 2025-11-25
-**文档版本**: v2.5
+**最后更新**: 2025-11-26
+**文档版本**: v3.0 (新增企业级功能 API)
+
+---
+
+## 🚀 企业级功能 API ⭐ v3.0 新增 (2025-11-26)
+
+**文档版本**: v3.0
+**新增时间**: 2025-11-26
+**负责模块**: 企业级功能 (Phase 1)
+**Coze 依赖**: ❌ 无依赖 (本地功能)
+**参考系统**: 拼多多客服工作台、聚水潭 ERP
+
+---
+
+## 📌 快捷回复系统 API
+
+### 1. `GET /api/quick-replies` - 获取快捷回复列表
+
+**用途**: 查询快捷回复,支持按分类筛选
+
+**Query Parameters**:
+- `category` (string, 可选): 快捷回复分类
+  - `pre_sales` - 售前咨询
+  - `after_sales` - 售后服务
+  - `logistics` - 物流相关
+  - `technical` - 技术支持
+  - `policy` - 政策条款
+
+**Request URL**:
+```
+GET /api/quick-replies?category=pre_sales
+```
+
+**Response (200 OK)**:
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": "reply_001",
+        "category": "pre_sales",
+        "title": "欢迎语",
+        "content": "您好{customer_name},我是Fiido客服{agent_name},很高兴为您服务!",
+        "variables": ["{customer_name}", "{agent_name}"],
+        "shortcut": "Ctrl+1",
+        "is_shared": true,
+        "created_by": "admin",
+        "usage_count": 156,
+        "created_at": 1764126450.0
+      }
+    ],
+    "total": 45,
+    "categories": ["pre_sales", "after_sales", "logistics", "technical", "policy"]
+  }
+}
+```
+
+**权限**: require_agent
+
+---
+
+### 2. `POST /api/quick-replies` - 创建快捷回复
+
+**用途**: 创建新的快捷回复(管理员权限)
+
+**Request Body**:
+```json
+{
+  "category": "pre_sales",
+  "title": "产品价格说明",
+  "content": "关于{product_name}的价格为€{product_price}，您可以在官网查看...",
+  "variables": ["{product_name}", "{product_price}"],
+  "shortcut": "Ctrl+5",
+  "is_shared": true
+}
+```
+
+**Response (200 OK)**:
+```json
+{
+  "success": true,
+  "data": {
+    "id": "reply_046",
+    "category": "pre_sales",
+    "title": "产品价格说明",
+    "created_at": 1764126500.0,
+    "usage_count": 0
+  }
+}
+```
+
+**Response (400 Bad Request)**:
+```json
+{
+  "detail": "SHORTCUT_CONFLICT: 快捷键 Ctrl+5 已被占用"
+}
+```
+
+**权限**: require_admin
+
+---
+
+### 3. `POST /api/quick-replies/{id}/use` - 记录使用次数
+
+**用途**: 快捷回复被使用时调用,统计使用频率
+
+**Request URL**:
+```
+POST /api/quick-replies/reply_001/use
+```
+
+**Response (200 OK)**:
+```json
+{
+  "success": true,
+  "data": {
+    "id": "reply_001",
+    "usage_count": 157
+  }
+}
+```
+
+**权限**: require_agent
+
+---
+
+### 4. `DELETE /api/quick-replies/{id}` - 删除快捷回复
+
+**用途**: 删除快捷回复(管理员权限)
+
+**Request URL**:
+```
+DELETE /api/quick-replies/reply_046
+```
+
+**Response (200 OK)**:
+```json
+{
+  "success": true,
+  "message": "快捷回复已删除"
+}
+```
+
+**Response (400 Bad Request)**:
+```json
+{
+  "detail": "SYSTEM_REPLY: 系统预设回复不可删除"
+}
+```
+
+**权限**: require_admin
+
+---
+
+## 🏷️ 会话标签系统 API
+
+### 5. `GET /api/tags` - 获取所有标签
+
+**用途**: 查询标签列表,包含系统预设和自定义标签
+
+**Response (200 OK)**:
+```json
+{
+  "success": true,
+  "data": {
+    "system_tags": [
+      {
+        "id": "tag_vip",
+        "name": "VIP",
+        "color": "#F59E0B",
+        "icon": "Crown",
+        "category": "priority",
+        "is_system": true,
+        "usage_count": 45
+      },
+      {
+        "id": "tag_refund",
+        "name": "退款",
+        "color": "#EF4444",
+        "icon": "DollarSign",
+        "category": "status",
+        "is_system": true,
+        "usage_count": 23
+      }
+    ],
+    "custom_tags": [
+      {
+        "id": "tag_custom_001",
+        "name": "电池问题",
+        "color": "#3B82F6",
+        "category": "custom",
+        "is_system": false,
+        "usage_count": 12,
+        "created_by": "agent_001"
+      }
+    ],
+    "total": 12
+  }
+}
+```
+
+**权限**: require_agent
+
+---
+
+### 6. `POST /api/tags` - 创建自定义标签
+
+**用途**: 创建新的自定义标签
+
+**Request Body**:
+```json
+{
+  "name": "电池问题",
+  "color": "#3B82F6",
+  "icon": "Battery"
+}
+```
+
+**Response (200 OK)**:
+```json
+{
+  "success": true,
+  "data": {
+    "id": "tag_custom_002",
+    "name": "电池问题",
+    "color": "#3B82F6",
+    "category": "custom",
+    "is_system": false,
+    "created_by": "agent_001",
+    "created_at": 1764126600.0
+  }
+}
+```
+
+**Response (400 Bad Request)**:
+```json
+{
+  "detail": "TAG_EXISTS: 标签名称已存在"
+}
+```
+
+**权限**: require_agent
+
+---
+
+### 7. `POST /api/sessions/{session_name}/tags` - 给会话添加标签
+
+**用途**: 为会话添加标签
+
+**Request Body**:
+```json
+{
+  "tag_id": "tag_vip"
+}
+```
+
+**Response (200 OK)**:
+```json
+{
+  "success": true,
+  "data": {
+    "session_name": "session_abc123",
+    "tags": [
+      {
+        "id": "tag_vip",
+        "name": "VIP",
+        "color": "#F59E0B",
+        "added_at": 1764126700.0,
+        "added_by": "agent_001"
+      }
+    ]
+  }
+}
+```
+
+**Response (400 Bad Request)**:
+```json
+{
+  "detail": "TAG_ALREADY_ADDED: 该标签已添加到此会话"
+}
+```
+
+**权限**: require_agent
+
+---
+
+### 8. `DELETE /api/sessions/{session_name}/tags/{tag_id}` - 移除会话标签
+
+**用途**: 从会话移除标签
+
+**Request URL**:
+```
+DELETE /api/sessions/session_abc123/tags/tag_vip
+```
+
+**Response (200 OK)**:
+```json
+{
+  "success": true,
+  "message": "标签已移除"
+}
+```
+
+**权限**: require_agent
+
+---
+
+### 9. `GET /api/sessions/by-tag/{tag_id}` - 按标签筛选会话
+
+**用途**: 查询包含指定标签的所有会话
+
+**Query Parameters**:
+- `page` (int, 默认1): 页码
+- `page_size` (int, 默认20): 每页数量
+
+**Request URL**:
+```
+GET /api/sessions/by-tag/tag_vip?page=1&page_size=20
+```
+
+**Response (200 OK)**:
+```json
+{
+  "success": true,
+  "data": {
+    "tag": {
+      "id": "tag_vip",
+      "name": "VIP"
+    },
+    "sessions": [
+      {
+        "session_name": "session_abc123",
+        "status": "manual_live",
+        "tags": ["VIP", "技术"],
+        "last_message_preview": "关于D4S电池问题..."
+      }
+    ],
+    "total": 45,
+    "page": 1,
+    "total_pages": 3
+  }
+}
+```
+
+**权限**: require_agent
+
+---
+
+## ⚙️ 自动回复规则 API
+
+### 10. `GET /api/auto-reply-rules` - 获取自动回复规则
+
+**用途**: 查询所有自动回复规则(管理员权限)
+
+**Response (200 OK)**:
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": "rule_001",
+        "type": "welcome",
+        "trigger_condition": {
+          "event": "first_message"
+        },
+        "reply_content": "您好{customer_name},我是Fiido客服,很高兴为您服务!",
+        "variables": ["{customer_name}"],
+        "enabled": true,
+        "delay_seconds": 0,
+        "created_at": 1764126800.0
+      },
+      {
+        "id": "rule_002",
+        "type": "keyword",
+        "trigger_condition": {
+          "keywords": ["退款", "refund", "退货"]
+        },
+        "reply_content": "关于退款政策,请参考: https://fiido.com/refund-policy",
+        "enabled": true,
+        "delay_seconds": 2,
+        "created_at": 1764126900.0
+      }
+    ],
+    "total": 8
+  }
+}
+```
+
+**权限**: require_admin
+
+---
+
+### 11. `POST /api/auto-reply-rules` - 创建自动回复规则
+
+**用途**: 创建新的自动回复规则(管理员权限)
+
+**Request Body**:
+```json
+{
+  "type": "keyword",
+  "trigger_condition": {
+    "keywords": ["价格", "price", "多少钱"]
+  },
+  "reply_content": "您可以在官网查看最新价格: https://fiido.com/products",
+  "enabled": true,
+  "delay_seconds": 1
+}
+```
+
+**自动回复类型 (type)**:
+- `welcome` - 欢迎语(首次消息)
+- `offline` - 离线提示(非工作时间)
+- `busy` - 坐席繁忙提示
+- `queue` - 排队等待提示
+- `keyword` - 关键词触发
+- `timeout` - 超时提示
+
+**Response (200 OK)**:
+```json
+{
+  "success": true,
+  "data": {
+    "id": "rule_009",
+    "type": "keyword",
+    "enabled": true,
+    "created_at": 1764127000.0
+  }
+}
+```
+
+**权限**: require_admin
+
+---
+
+### 12. `PUT /api/auto-reply-rules/{id}` - 更新自动回复规则
+
+**用途**: 修改自动回复规则(管理员权限)
+
+**Request Body**:
+```json
+{
+  "reply_content": "更新后的回复内容...",
+  "enabled": false
+}
+```
+
+**Response (200 OK)**:
+```json
+{
+  "success": true,
+  "data": {
+    "id": "rule_009",
+    "enabled": false,
+    "updated_at": 1764127100.0
+  }
+}
+```
+
+**权限**: require_admin
+
+---
+
+### 13. `DELETE /api/auto-reply-rules/{id}` - 删除自动回复规则
+
+**用途**: 删除自动回复规则(管理员权限)
+
+**Request URL**:
+```
+DELETE /api/auto-reply-rules/rule_009
+```
+
+**Response (200 OK)**:
+```json
+{
+  "success": true,
+  "message": "自动回复规则已删除"
+}
+```
+
+**权限**: require_admin
+
+---
+
+## 📊 企业级功能数据模型
+
+### QuickReply 数据结构
+
+```typescript
+interface QuickReply {
+  id: string                    // 唯一ID
+  category: QuickReplyCategory  // 分类
+  title: string                 // 标题
+  content: string               // 内容(支持变量)
+  variables: string[]           // 支持的变量列表
+  shortcut?: string             // 快捷键(如 "Ctrl+1")
+  is_shared: boolean            // 是否团队共享
+  created_by: string            // 创建者ID
+  usage_count: number           // 使用次数
+  created_at: number            // 创建时间(UTC时间戳)
+}
+
+enum QuickReplyCategory {
+  PRE_SALES = 'pre_sales',      // 售前咨询
+  AFTER_SALES = 'after_sales',  // 售后服务
+  LOGISTICS = 'logistics',       // 物流相关
+  TECHNICAL = 'technical',       // 技术支持
+  POLICY = 'policy'              // 政策条款
+}
+```
+
+### SessionTag 数据结构
+
+```typescript
+interface SessionTag {
+  id: string                 // 唯一ID
+  name: string               // 标签名称
+  color: string              // 颜色(hex)
+  icon?: string              // 图标(Lucide图标名称)
+  category: TagCategory      // 分类
+  is_system: boolean         // 是否系统预设
+  usage_count: number        // 使用次数
+  created_by?: string        // 创建者ID(自定义标签)
+  created_at?: number        // 创建时间
+}
+
+enum TagCategory {
+  STATUS = 'status',         // 状态标签
+  PRIORITY = 'priority',     // 优先级标签
+  CUSTOM = 'custom'          // 自定义标签
+}
+
+interface SessionTagRelation {
+  session_name: string       // 会话ID
+  tag_id: string             // 标签ID
+  added_by: string           // 添加者ID
+  added_at: number           // 添加时间
+}
+```
+
+### AutoReplyRule 数据结构
+
+```typescript
+interface AutoReplyRule {
+  id: string                     // 唯一ID
+  type: AutoReplyType            // 规则类型
+  trigger_condition: object      // 触发条件(JSON)
+  reply_content: string          // 回复内容(支持变量)
+  enabled: boolean               // 是否启用
+  delay_seconds: number          // 延迟发送(秒)
+  variables: string[]            // 支持的变量
+  created_at: number             // 创建时间
+  updated_at?: number            // 更新时间
+}
+
+enum AutoReplyType {
+  WELCOME = 'welcome',           // 欢迎语
+  OFFLINE = 'offline',           // 离线提示
+  BUSY = 'busy',                 // 坐席繁忙
+  QUEUE = 'queue',               // 排队等待
+  KEYWORD = 'keyword',           // 关键词触发
+  TIMEOUT = 'timeout'            // 超时提示
+}
+```
+
+---
+
+## 🔒 企业级功能安全约束
+
+### 权限要求
+
+| API 端点 | 权限要求 | 说明 |
+|---------|---------|------|
+| `GET /api/quick-replies` | require_agent | 任何坐席可查看 |
+| `POST /api/quick-replies` | require_admin | 仅管理员可创建 |
+| `POST /api/quick-replies/{id}/use` | require_agent | 任何坐席可使用 |
+| `DELETE /api/quick-replies/{id}` | require_admin | 仅管理员可删除 |
+| `GET /api/tags` | require_agent | 任何坐席可查看 |
+| `POST /api/tags` | require_agent | 任何坐席可创建自定义标签 |
+| `POST /api/sessions/{id}/tags` | require_agent | 任何坐席可打标签 |
+| `DELETE /api/sessions/{id}/tags/{tag_id}` | require_agent | 任何坐席可移除标签 |
+| `GET /api/auto-reply-rules` | require_admin | 仅管理员可查看规则 |
+| `POST /api/auto-reply-rules` | require_admin | 仅管理员可创建规则 |
+| `PUT /api/auto-reply-rules/{id}` | require_admin | 仅管理员可修改规则 |
+| `DELETE /api/auto-reply-rules/{id}` | require_admin | 仅管理员可删除规则 |
+
+### 数据验证
+
+1. **快捷回复**:
+   - 标题长度: 1-100 字符
+   - 内容长度: 1-2000 字符
+   - 快捷键格式: `Ctrl+[1-9]`
+   - 变量格式: `{variable_name}`
+
+2. **会话标签**:
+   - 标签名称: 1-20 字符
+   - 颜色: 有效的 hex 颜色代码
+   - 每个会话最多 10 个标签
+   - 系统标签不可删除
+
+3. **自动回复规则**:
+   - 回复内容: 1-1000 字符
+   - 延迟时间: 0-60 秒
+   - 关键词: 1-50 个
+   - 同类型规则最多 20 条
+
+---
+
+## 📈 企业级功能性能要求
+
+### 并发性
+
+- **快捷回复查询**: 支持 100+ 并发
+- **标签操作**: 支持 50+ 并发
+- **自动回复触发**: < 100ms 延迟
+
+### 数据存储
+
+- **快捷回复**: 预计 100-500 条
+- **标签**: 预计 50-200 个(系统 + 自定义)
+- **自动回复规则**: 预计 20-50 条
+
+### 缓存策略
+
+- 快捷回复列表: 缓存 5 分钟
+- 标签列表: 缓存 5 分钟
+- 自动回复规则: 缓存 10 分钟
+
+---
+
+## 📚 相关文档
+
+- **功能参考**: `prd/01_全局指导/REFERENCE_SYSTEMS.md`
+- **任务拆解**: `prd/04_任务拆解/enterprise_features_tasks.md`
+- **约束与原则**: `prd/02_约束与原则/CONSTRAINTS_AND_PRINCIPLES.md` - 约束22
+
+---

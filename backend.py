@@ -68,6 +68,16 @@ from src.shopify_client import (
     extract_source_from_tags
 )
 
+# 导入快捷回复系统模块 (v3.5.0+)
+from src.quick_reply import (
+    QuickReplyManager,
+    QuickReply,
+    QuickReplyCategory,
+    CreateQuickReplyRequest,
+    UpdateQuickReplyRequest,
+    QUICK_REPLY_VARIABLES
+)
+
 # 加载环境变量
 load_dotenv()
 
@@ -120,6 +130,7 @@ session_store: Optional[InMemorySessionStore] = None  # 会话状态存储（P0�
 regulator: Optional[Regulator] = None  # 监管策略引擎（P0）
 agent_manager: Optional[AgentManager] = None  # 坐席账号管理器
 agent_token_manager: Optional[AgentTokenManager] = None  # 坐席 JWT Token 管理器
+quick_reply_manager: Optional[QuickReplyManager] = None  # 快捷回复管理器（v3.5.0+）
 WORKFLOW_ID: str = ""
 APP_ID: str = ""  # AI 应用 ID（应用中嵌入对话流时必需）
 AUTH_MODE: str = ""  # 鉴权模式：OAUTH_JWT 或 PAT
@@ -288,6 +299,18 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"⚠️  Shopify 客户端初始化失败: {str(e)}")
         print(f"   系统将使用 mock 数据")
+
+    # 初始化快捷回复管理器 (v3.5.0+)
+    try:
+        global quick_reply_manager
+        if session_store:
+            quick_reply_manager = QuickReplyManager(session_store)
+            print(f"✅ 快捷回复管理器初始化成功")
+        else:
+            print(f"⚠️  SessionStore 未初始化，快捷回复功能将不可用")
+    except Exception as e:
+        print(f"⚠️  快捷回复管理器初始化失败: {str(e)}")
+        print(f"   快捷回复功能将不可用")
 
     print(f"{'=' * 60}\n")
 
@@ -3933,6 +3956,202 @@ async def get_ticket_by_session(
 
 
 # ==================== End of 工单系统 API ====================
+
+
+# ==================== 快捷回复系统 API (v3.5.0+) ====================
+
+@app.get("/api/quick-replies")
+async def get_quick_replies(
+    category: Optional[QuickReplyCategory] = None,
+    agent: dict = Depends(require_agent)
+):
+    """
+    获取快捷回复列表
+
+    支持按分类筛选，结果按使用次数倒序排序
+
+    权限: require_agent (任何坐席都可以查看)
+    """
+    try:
+        if not quick_reply_manager:
+            raise HTTPException(
+                status_code=503,
+                detail="快捷回复系统未初始化"
+            )
+
+        # 获取快捷回复列表
+        replies = quick_reply_manager.get_all_quick_replies(category=category)
+
+        # 获取分类列表
+        categories = quick_reply_manager.get_categories()
+
+        # 获取支持的变量列表
+        variables = quick_reply_manager.get_supported_variables()
+
+        print(f"✅ 获取快捷回复列表: category={category}, count={len(replies)}, agent={agent.get('username')}")
+
+        return {
+            "success": True,
+            "data": {
+                "items": [reply.model_dump() for reply in replies],
+                "total": len(replies),
+                "categories": categories,
+                "variables": variables
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 获取快捷回复列表失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取快捷回复列表失败: {str(e)}"
+        )
+
+
+@app.post("/api/quick-replies")
+async def create_quick_reply(
+    request: CreateQuickReplyRequest,
+    agent: dict = Depends(require_admin)
+):
+    """
+    创建快捷回复
+
+    权限: require_admin (仅管理员可以创建)
+    """
+    try:
+        if not quick_reply_manager:
+            raise HTTPException(
+                status_code=503,
+                detail="快捷回复系统未初始化"
+            )
+
+        # 创建快捷回复
+        quick_reply = quick_reply_manager.create_quick_reply(
+            category=request.category,
+            title=request.title,
+            content=request.content,
+            created_by=agent.get("agent_id"),
+            shortcut=request.shortcut,
+            is_shared=request.is_shared
+        )
+
+        print(f"✅ 创建快捷回复: {quick_reply.title}, category={quick_reply.category}, agent={agent.get('username')}")
+
+        return {
+            "success": True,
+            "data": quick_reply.model_dump()
+        }
+
+    except ValueError as e:
+        # 快捷键冲突
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 创建快捷回复失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"创建快捷回复失败: {str(e)}"
+        )
+
+
+@app.post("/api/quick-replies/{reply_id}/use")
+async def use_quick_reply(
+    reply_id: str,
+    agent: dict = Depends(require_agent)
+):
+    """
+    记录快捷回复使用次数
+
+    每次使用快捷回复时调用，用于统计使用频率
+
+    权限: require_agent (任何坐席都可以使用)
+    """
+    try:
+        if not quick_reply_manager:
+            raise HTTPException(
+                status_code=503,
+                detail="快捷回复系统未初始化"
+            )
+
+        # 增加使用次数
+        usage_count = quick_reply_manager.increment_usage(reply_id)
+
+        if usage_count is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"快捷回复不存在: {reply_id}"
+            )
+
+        print(f"✅ 使用快捷回复: reply_id={reply_id}, usage_count={usage_count}, agent={agent.get('username')}")
+
+        return {
+            "success": True,
+            "data": {
+                "id": reply_id,
+                "usage_count": usage_count
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 记录快捷回复使用失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"记录使用失败: {str(e)}"
+        )
+
+
+@app.delete("/api/quick-replies/{reply_id}")
+async def delete_quick_reply(
+    reply_id: str,
+    agent: dict = Depends(require_admin)
+):
+    """
+    删除快捷回复
+
+    权限: require_admin (仅管理员可以删除)
+    """
+    try:
+        if not quick_reply_manager:
+            raise HTTPException(
+                status_code=503,
+                detail="快捷回复系统未初始化"
+            )
+
+        # 删除快捷回复
+        success = quick_reply_manager.delete_quick_reply(reply_id)
+
+        if not success:
+            raise HTTPException(
+                status_code=404,
+                detail=f"快捷回复不存在: {reply_id}"
+            )
+
+        print(f"✅ 删除快捷回复: reply_id={reply_id}, agent={agent.get('username')}")
+
+        return {
+            "success": True,
+            "message": "快捷回复已删除"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 删除快捷回复失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"删除快捷回复失败: {str(e)}"
+        )
+
+
+# ==================== End of 快捷回复系统 API ====================
 
 
 if __name__ == "__main__":
