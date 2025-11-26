@@ -3007,6 +3007,326 @@ async def get_customer_profile(
         )
 
 
+@app.get("/api/customers/{customer_id}/orders")
+async def get_customer_orders(
+    customer_id: str,
+    agent: dict = Depends(require_agent)
+):
+    """
+    获取客户订单历史
+
+    【MVP 阶段】返回模拟数据，后续集成 Shopify API
+
+    Args:
+        customer_id: 客户ID（当前为 session_id）
+        agent: 坐席信息（来自 JWT）
+
+    Returns:
+        订单列表（最多返回最近3个订单）
+    """
+    try:
+        # MVP 阶段：返回模拟数据
+        # TODO: 后续集成 Shopify API 获取真实订单数据
+
+        current_time = int(time.time())
+
+        mock_orders = [
+            {
+                "order_id": "order_001",
+                "order_number": "#1001",
+                "status": "in_transit",
+                "created_at": current_time - 86400 * 5,  # 5天前
+                "total_amount": 2299.99,
+                "currency": "EUR",
+                "vat_amount": 365.99,
+                "discount_amount": 100.00,
+                "shipping_fee": 0.00,
+                "customs_fee": 0.00,
+                "payment_method": "PayPal",
+                "warehouse": "DE-Berlin",
+                "items": [
+                    {
+                        "product_id": "fiido_c11_pro",
+                        "sku": "C11PRO-BLK-EU",
+                        "product_name": "Fiido C11 Pro",
+                        "category": "C",
+                        "color": "黑色",
+                        "quantity": 1,
+                        "price": 2299.99,
+                        "configuration": {
+                            "motor_power": "250W",
+                            "battery_capacity": "48V 14.5Ah",
+                            "battery_removable": True,
+                            "max_load": "120kg",
+                            "brake_type": "液压碟刹",
+                            "tire_size": "700×40C",
+                            "assist_modes": 5,
+                            "firmware_version": "v2.3.1"
+                        }
+                    }
+                ],
+                "shipping": {
+                    "tracking_number": "DHL1234567890DE",
+                    "carrier": "DHL Express",
+                    "status": "in_transit",
+                    "estimated_delivery": current_time + 86400 * 2,  # 2天后
+                    "insurance": True,
+                    "customs_cleared": True,
+                    "milestones": [
+                        {
+                            "timestamp": current_time - 3600,
+                            "location": "柏林配送中心",
+                            "status": "out_for_delivery",
+                            "description": "包裹已到达配送中心，即将派送"
+                        },
+                        {
+                            "timestamp": current_time - 86400,
+                            "location": "法兰克福转运中心",
+                            "status": "in_transit",
+                            "description": "包裹已从转运中心发出"
+                        },
+                        {
+                            "timestamp": current_time - 86400 * 3,
+                            "location": "柏林仓库",
+                            "status": "shipped",
+                            "description": "包裹已从仓库发出"
+                        }
+                    ]
+                }
+            },
+            {
+                "order_id": "order_002",
+                "order_number": "#0987",
+                "status": "delivered",
+                "created_at": current_time - 86400 * 45,  # 45天前
+                "total_amount": 1299.99,
+                "currency": "EUR",
+                "vat_amount": 207.99,
+                "shipping_fee": 0.00,
+                "customs_fee": 0.00,
+                "payment_method": "信用卡",
+                "warehouse": "DE-Berlin",
+                "items": [
+                    {
+                        "product_id": "fiido_m1_pro",
+                        "sku": "M1PRO-WHT-EU",
+                        "product_name": "Fiido M1 Pro",
+                        "category": "M",
+                        "color": "白色",
+                        "quantity": 1,
+                        "price": 1299.99
+                    }
+                ],
+                "shipping": {
+                    "tracking_number": "DHL0987654321DE",
+                    "carrier": "DHL Express",
+                    "status": "delivered",
+                    "estimated_delivery": current_time - 86400 * 38,
+                    "actual_delivery": current_time - 86400 * 38,
+                    "insurance": True,
+                    "customs_cleared": True,
+                    "milestones": [
+                        {
+                            "timestamp": current_time - 86400 * 38,
+                            "location": "柏林",
+                            "status": "delivered",
+                            "description": "包裹已签收"
+                        }
+                    ]
+                }
+            }
+        ]
+
+        print(f"✅ 获取客户订单: customer_id={customer_id}, agent={agent.get('username')}, count={len(mock_orders)}")
+
+        return {
+            "success": True,
+            "data": {
+                "orders": mock_orders,
+                "total": len(mock_orders)
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 获取客户订单失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取客户订单失败: {str(e)}"
+        )
+
+
+@app.get("/api/customers/{customer_id}/devices")
+async def get_customer_devices(
+    customer_id: str,
+    agent: dict = Depends(require_agent)
+):
+    """
+    获取客户设备信息
+
+    【MVP 阶段】返回模拟数据，后续集成设备管理系统
+
+    Args:
+        customer_id: 客户ID（当前为 session_id）
+        agent: 坐席信息（来自 JWT）
+
+    Returns:
+        设备列表
+    """
+    try:
+        # MVP 阶段：返回模拟数据
+        # TODO: 后续集成设备管理系统获取真实设备数据
+
+        current_time = int(time.time())
+
+        mock_devices = [
+            {
+                "vin": "FD2025C11PRO123456",
+                "product_name": "Fiido C11 Pro",
+                "activation_date": current_time - 86400 * 38,  # 38天前激活
+                "battery": {
+                    "model": "Samsung 18650",
+                    "serial_number": "BAT2025-C11-001234",
+                    "capacity": "48V 14.5Ah",
+                    "removable": True,
+                    "cycles": 45,
+                    "health_percent": 98,
+                    "warranty_until": current_time + 86400 * 327  # 1年保修剩余327天
+                },
+                "motor": {
+                    "model": "Bafang M200",
+                    "power": "250W",
+                    "location": "中置电机",
+                    "torque": "80Nm"
+                },
+                "firmware": {
+                    "version": "v2.3.1",
+                    "release_date": current_time - 86400 * 60,
+                    "update_available": True,
+                    "latest_version": "v2.4.0"
+                },
+                "warranty": {
+                    "frame": "2年",
+                    "motor": "2年",
+                    "battery": "1年",
+                    "expires_at": current_time + 86400 * 327,
+                    "registration_status": "已注册"
+                }
+            }
+        ]
+
+        print(f"✅ 获取客户设备: customer_id={customer_id}, agent={agent.get('username')}, count={len(mock_devices)}")
+
+        return {
+            "success": True,
+            "data": {
+                "devices": mock_devices,
+                "total": len(mock_devices)
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 获取客户设备失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取客户设备失败: {str(e)}"
+        )
+
+
+@app.get("/api/sessions/{session_name}/history")
+async def get_conversation_history(
+    session_name: str,
+    agent: dict = Depends(require_agent)
+):
+    """
+    获取会话对话历史
+
+    从 Redis 中读取会话的完整对话历史
+
+    Args:
+        session_name: 会话ID
+        agent: 坐席信息（来自 JWT）
+
+    Returns:
+        对话历史消息列表和摘要
+    """
+    try:
+        # 从 session store 获取会话状态
+        session_state = await session_store.get(session_name)
+
+        if not session_state:
+            raise HTTPException(
+                status_code=404,
+                detail=f"会话不存在: {session_name}"
+            )
+
+        # 获取会话历史消息
+        history = session_state.history
+
+        # 计算统计数据
+        user_count = sum(1 for msg in history if msg.role == "user")
+        ai_count = sum(1 for msg in history if msg.role == "assistant")
+        agent_count = sum(1 for msg in history if msg.role == "agent")
+        system_count = sum(1 for msg in history if msg.role == "system")
+
+        # 获取会话创建时间和最后更新时间
+        start_time = int(session_state.created_at)
+        end_time = int(session_state.updated_at) if session_state.status == SessionStatus.CLOSED else None
+
+        # 构造会话摘要
+        summary = {
+            "session_name": session_name,
+            "start_time": start_time,
+            "end_time": end_time,
+            "message_count": len(history),
+            "user_message_count": user_count,
+            "ai_message_count": ai_count,
+            "agent_message_count": agent_count,
+            "status": session_state.status.value,
+            "tags": []  # 可以后续扩展标签功能
+        }
+
+        # 转换消息格式为前端期望的格式
+        messages = []
+        for msg in history:
+            message_dict = {
+                "id": str(uuid.uuid4()),  # 生成唯一ID
+                "role": msg.role,
+                "content": msg.content,
+                "timestamp": int(msg.timestamp),
+            }
+
+            # 如果是坐席消息，添加坐席信息
+            if msg.role == "agent" and msg.agent_id:
+                message_dict["agent_id"] = msg.agent_id
+                message_dict["agent_name"] = msg.agent_name or "未知坐席"
+
+            messages.append(message_dict)
+
+        print(f"✅ 获取对话历史: session_name={session_name}, agent={agent.get('username')}, messages={len(messages)}")
+
+        return {
+            "success": True,
+            "data": {
+                "session_name": session_name,
+                "messages": messages,
+                "summary": summary
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 获取对话历史失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取对话历史失败: {str(e)}"
+        )
+
+
 if __name__ == "__main__":
     import uvicorn
 

@@ -6,7 +6,17 @@ import { useRouter } from 'vue-router'
 import SessionList from '@/components/SessionList.vue'
 import QuickReplies from '@/components/QuickReplies.vue'
 import CustomerProfile from '@/components/customer/CustomerProfile.vue'
-import type { SessionStatus, CustomerProfile as CustomerProfileType } from '@/types'
+import OrderList from '@/components/customer/OrderList.vue'
+import DeviceInfo from '@/components/customer/DeviceInfo.vue'
+import ConversationHistory from '@/components/customer/ConversationHistory.vue'
+import type {
+  SessionStatus,
+  CustomerProfile as CustomerProfileType,
+  Order,
+  Device,
+  HistoryMessage,
+  ConversationSummary
+} from '@/types'
 import { useAgentWorkbenchSSE } from '@/composables/useAgentWorkbenchSSE'
 import axios from 'axios'
 
@@ -17,7 +27,18 @@ const router = useRouter()
 // 客户信息相关状态
 const customerProfile = ref<CustomerProfileType | null>(null)
 const loadingCustomer = ref(false)
-const currentTab = ref<'chat' | 'customer' | 'history'>('chat')  // 右侧 Tab 切换
+const currentTab = ref<'profile' | 'orders' | 'devices' | 'history'>('profile')  // 右侧 Tab 切换
+
+// 订单与设备信息状态
+const customerOrders = ref<Order[]>([])
+const loadingOrders = ref(false)
+const customerDevices = ref<Device[]>([])
+const loadingDevices = ref(false)
+
+// 对话历史状态
+const conversationHistory = ref<HistoryMessage[]>([])
+const conversationSummary = ref<ConversationSummary | undefined>(undefined)
+const loadingHistory = ref(false)
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000'
 
@@ -134,12 +155,116 @@ const fetchCustomerProfile = async (customerId: string) => {
   }
 }
 
+// 获取客户订单
+const fetchCustomerOrders = async (customerId: string) => {
+  try {
+    loadingOrders.value = true
+    const token = localStorage.getItem('access_token')
+
+    const response = await axios.get(
+      `${API_BASE}/api/customers/${customerId}/orders`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    )
+
+    if (response.data.success) {
+      customerOrders.value = response.data.data.orders || []
+    }
+  } catch (error: any) {
+    console.error('获取客户订单失败:', error)
+    customerOrders.value = []
+  } finally {
+    loadingOrders.value = false
+  }
+}
+
+// 获取客户设备
+const fetchCustomerDevices = async (customerId: string) => {
+  try {
+    loadingDevices.value = true
+    const token = localStorage.getItem('access_token')
+
+    const response = await axios.get(
+      `${API_BASE}/api/customers/${customerId}/devices`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    )
+
+    if (response.data.success) {
+      customerDevices.value = response.data.data.devices || []
+    }
+  } catch (error: any) {
+    console.error('获取客户设备失败:', error)
+    customerDevices.value = []
+  } finally {
+    loadingDevices.value = false
+  }
+}
+
+// 获取对话历史
+const fetchConversationHistory = async (sessionName: string) => {
+  try {
+    loadingHistory.value = true
+    const token = localStorage.getItem('access_token')
+
+    const response = await axios.get(
+      `${API_BASE}/api/sessions/${sessionName}/history`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    )
+
+    if (response.data.success) {
+      conversationHistory.value = response.data.data.messages || []
+      conversationSummary.value = response.data.data.summary
+    }
+  } catch (error: any) {
+    console.error('获取对话历史失败:', error)
+    conversationHistory.value = []
+    conversationSummary.value = undefined
+  } finally {
+    loadingHistory.value = false
+  }
+}
+
 // 监听当前会话变化
 watch(() => sessionStore.currentSessionName, (newSession) => {
   if (newSession) {
+    // 加载所有客户相关数据
     fetchCustomerProfile(newSession)
+    fetchCustomerOrders(newSession)
+    fetchCustomerDevices(newSession)
+    fetchConversationHistory(newSession)
   } else {
+    // 清空数据
     customerProfile.value = null
+    customerOrders.value = []
+    customerDevices.value = []
+    conversationHistory.value = []
+    conversationSummary.value = undefined
+  }
+})
+
+// 监听 tab 切换，懒加载数据
+watch(currentTab, (newTab) => {
+  const sessionName = sessionStore.currentSessionName
+  if (!sessionName) return
+
+  // 根据 tab 按需加载数据
+  if (newTab === 'orders' && customerOrders.value.length === 0) {
+    fetchCustomerOrders(sessionName)
+  } else if (newTab === 'devices' && customerDevices.value.length === 0) {
+    fetchCustomerDevices(sessionName)
+  } else if (newTab === 'history' && conversationHistory.value.length === 0) {
+    fetchConversationHistory(sessionName)
   }
 })
 
@@ -552,14 +677,35 @@ onUnmounted(() => {
       <div v-if="sessionStore.currentSession" class="customer-sidebar">
         <div class="sidebar-tabs">
           <button
-            :class="['tab-button', { active: currentTab === 'customer' }]"
-            @click="currentTab = 'customer'"
+            :class="['tab-button', { active: currentTab === 'profile' }]"
+            @click="currentTab = 'profile'"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
               <circle cx="12" cy="7" r="4"></circle>
             </svg>
-            客户信息
+            客户
+          </button>
+          <button
+            :class="['tab-button', { active: currentTab === 'orders' }]"
+            @click="currentTab = 'orders'"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="9" cy="21" r="1"></circle>
+              <circle cx="20" cy="21" r="1"></circle>
+              <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+            </svg>
+            订单
+          </button>
+          <button
+            :class="['tab-button', { active: currentTab === 'devices' }]"
+            @click="currentTab = 'devices'"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+              <line x1="12" y1="18" x2="12.01" y2="18"></line>
+            </svg>
+            设备
           </button>
           <button
             :class="['tab-button', { active: currentTab === 'history' }]"
@@ -569,21 +715,32 @@ onUnmounted(() => {
               <circle cx="12" cy="12" r="10"></circle>
               <polyline points="12 6 12 12 16 14"></polyline>
             </svg>
-            对话历史
+            历史
           </button>
         </div>
 
         <div class="sidebar-content">
           <CustomerProfile
-            v-if="currentTab === 'customer'"
+            v-if="currentTab === 'profile'"
             :customer="customerProfile"
             :loading="loadingCustomer"
           />
-          <div v-else-if="currentTab === 'history'" class="history-panel">
-            <p style="padding: 20px; text-align: center; color: #718096;">
-              对话历史功能开发中...
-            </p>
-          </div>
+          <OrderList
+            v-else-if="currentTab === 'orders'"
+            :orders="customerOrders"
+            :loading="loadingOrders"
+          />
+          <DeviceInfo
+            v-else-if="currentTab === 'devices'"
+            :devices="customerDevices"
+            :loading="loadingDevices"
+          />
+          <ConversationHistory
+            v-else-if="currentTab === 'history'"
+            :messages="conversationHistory"
+            :summary="conversationSummary"
+            :loading="loadingHistory"
+          />
         </div>
       </div>
     </div>
