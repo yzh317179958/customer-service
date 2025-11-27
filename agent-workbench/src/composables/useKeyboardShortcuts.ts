@@ -44,7 +44,7 @@ function isInputFocused(): boolean {
 
 /**
  * 格式化按键组合
- * 例如: Ctrl + f → "Ctrl+f"
+ * 例如: Ctrl + Alt + f → "Ctrl+Alt+f"
  */
 function formatKeyCombo(event: KeyboardEvent): string {
   const parts: string[] = []
@@ -57,8 +57,8 @@ function formatKeyCombo(event: KeyboardEvent): string {
   let key = event.key
   if (key === ' ') key = 'Space'
 
-  // 特殊处理 ? 键
-  if (key === '?') {
+  // 特殊处理 ? 和 / 键（保持原样）
+  if (key === '?' || key === '/') {
     // 保持原样
   } else if (key.length === 1) {
     key = key.toLowerCase()
@@ -151,7 +151,7 @@ export function useKeyboardShortcuts(shortcuts: KeyboardShortcuts) {
 /**
  * 预定义的快捷键配置（P0 基础快捷键）
  *
- * 策略：使用 Ctrl+Shift 双修饰键避免与浏览器原生快捷键冲突
+ * 策略：统一使用 Ctrl+Alt 双修饰键避免与浏览器原生快捷键冲突
  *
  * 浏览器原生快捷键（需避免）：
  * - Ctrl+T: 新标签页
@@ -161,25 +161,26 @@ export function useKeyboardShortcuts(shortcuts: KeyboardShortcuts) {
  * - Ctrl+S: 保存页面
  * - Ctrl+R: 刷新页面
  * - Ctrl+F: 查找
+ * - Ctrl+B: 书签
  *
  * 安全方案：
- * - Ctrl+Shift+字母: 安全，不与浏览器冲突
- * - Ctrl+方向键: 安全，不与浏览器冲突
- * - Ctrl+/: 安全，可用作快捷命令
+ * - Ctrl+Alt+字母: 安全，不与浏览器冲突
+ * - Alt+方向键: 安全，不与浏览器冲突
+ * - Escape: 安全，用于关闭面板
  */
 export const DEFAULT_SHORTCUTS_P0 = {
   // 导航类
-  'Ctrl+Shift+f': {
+  'Ctrl+Alt+f': {
     description: '搜索会话',
     category: 'navigation' as const,
     allowInInput: false
   },
-  'Ctrl+ArrowUp': {
+  'Alt+ArrowUp': {
     description: '上一个会话',
     category: 'navigation' as const,
     allowInInput: false
   },
-  'Ctrl+ArrowDown': {
+  'Alt+ArrowDown': {
     description: '下一个会话',
     category: 'navigation' as const,
     allowInInput: false
@@ -191,29 +192,29 @@ export const DEFAULT_SHORTCUTS_P0 = {
   },
 
   // 操作类
-  'Ctrl+Shift+t': {
+  'Ctrl+Alt+t': {
     description: '转接会话',
     category: 'action' as const,
     allowInInput: false
   },
-  'Ctrl+Shift+r': {
+  'Ctrl+Alt+r': {
     description: '释放会话',
     category: 'action' as const,
     allowInInput: false
   },
 
   // 功能类
-  'Ctrl+Shift+b': {
+  'Ctrl+Alt+b': {
     description: '内部备注',
     category: 'function' as const,
     allowInInput: false
   },
-  'Ctrl+/': {
+  'Ctrl+Alt+/': {
     description: '快捷命令面板',
     category: 'function' as const,
     allowInInput: false
   },
-  '?': {
+  'Ctrl+Alt+?': {
     description: '快捷键帮助',
     category: 'function' as const,
     allowInInput: false
