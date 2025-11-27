@@ -435,22 +435,22 @@ const focusNotesTab = () => {
   }
 }
 
-// 【模块6】注册快捷键（统一使用 Ctrl+Alt 双修饰键避免浏览器冲突）
+// 【模块6】注册快捷键（使用 Ctrl+Shift 双修饰键避免浏览器冲突）
 const shortcuts: KeyboardShortcuts = {
-  // 导航类 - 使用 Ctrl+Alt 或 Alt+Arrow 避免冲突
-  'Ctrl+Alt+f': {
+  // 导航类 - 使用 Ctrl+Shift 或 Ctrl+Arrow 避免冲突
+  'Ctrl+Shift+f': {
     handler: focusSearchInput,
     description: '搜索会话',
     category: 'navigation',
     allowInInput: false
   },
-  'Alt+ArrowUp': {
+  'Ctrl+ArrowUp': {
     handler: selectPreviousSession,
     description: '上一个会话',
     category: 'navigation',
     allowInInput: false
   },
-  'Alt+ArrowDown': {
+  'Ctrl+ArrowDown': {
     handler: selectNextSession,
     description: '下一个会话',
     category: 'navigation',
@@ -463,8 +463,8 @@ const shortcuts: KeyboardShortcuts = {
     allowInInput: true
   },
 
-  // 操作类 - 使用 Ctrl+Alt 双修饰键避免冲突
-  'Ctrl+Alt+t': {
+  // 操作类 - 使用 Ctrl+Shift 双修饰键避免冲突
+  'Ctrl+Shift+t': {
     handler: () => {
       if (sessionStore.currentSession?.status === 'manual_live') {
         openTransferDialog()
@@ -474,7 +474,7 @@ const shortcuts: KeyboardShortcuts = {
     category: 'action',
     allowInInput: false
   },
-  'Ctrl+Alt+r': {
+  'Ctrl+Shift+r': {
     handler: () => {
       if (sessionStore.currentSession?.status === 'manual_live') {
         handleRelease()
@@ -486,19 +486,19 @@ const shortcuts: KeyboardShortcuts = {
   },
 
   // 功能类
-  'Ctrl+Alt+b': {
+  'Ctrl+Shift+b': {
     handler: focusNotesTab,
     description: '内部备注',
     category: 'function',
     allowInInput: false
   },
-  'Ctrl+Alt+/': {
+  'Ctrl+Shift+/': {
     handler: toggleShortcutsHelp,
     description: '快捷命令面板',
     category: 'function',
     allowInInput: false
   },
-  'Ctrl+Alt+?': {
+  'Ctrl+Shift+?': {
     handler: toggleShortcutsHelp,
     description: '快捷键帮助',
     category: 'function',

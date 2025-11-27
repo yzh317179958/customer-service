@@ -151,7 +151,7 @@ export function useKeyboardShortcuts(shortcuts: KeyboardShortcuts) {
 /**
  * 预定义的快捷键配置（P0 基础快捷键）
  *
- * 策略：统一使用 Ctrl+Alt 双修饰键避免与浏览器原生快捷键冲突
+ * 策略：使用 Ctrl+Shift 双修饰键避免与浏览器原生快捷键冲突
  *
  * 浏览器原生快捷键（需避免）：
  * - Ctrl+T: 新标签页
@@ -164,23 +164,23 @@ export function useKeyboardShortcuts(shortcuts: KeyboardShortcuts) {
  * - Ctrl+B: 书签
  *
  * 安全方案：
- * - Ctrl+Alt+字母: 安全，不与浏览器冲突
- * - Alt+方向键: 安全，不与浏览器冲突
+ * - Ctrl+Shift+字母: 安全，不与浏览器冲突
+ * - Ctrl+方向键: 安全，不与浏览器冲突
  * - Escape: 安全，用于关闭面板
  */
 export const DEFAULT_SHORTCUTS_P0 = {
   // 导航类
-  'Ctrl+Alt+f': {
+  'Ctrl+Shift+f': {
     description: '搜索会话',
     category: 'navigation' as const,
     allowInInput: false
   },
-  'Alt+ArrowUp': {
+  'Ctrl+ArrowUp': {
     description: '上一个会话',
     category: 'navigation' as const,
     allowInInput: false
   },
-  'Alt+ArrowDown': {
+  'Ctrl+ArrowDown': {
     description: '下一个会话',
     category: 'navigation' as const,
     allowInInput: false
@@ -192,29 +192,29 @@ export const DEFAULT_SHORTCUTS_P0 = {
   },
 
   // 操作类
-  'Ctrl+Alt+t': {
+  'Ctrl+Shift+t': {
     description: '转接会话',
     category: 'action' as const,
     allowInInput: false
   },
-  'Ctrl+Alt+r': {
+  'Ctrl+Shift+r': {
     description: '释放会话',
     category: 'action' as const,
     allowInInput: false
   },
 
   // 功能类
-  'Ctrl+Alt+b': {
+  'Ctrl+Shift+b': {
     description: '内部备注',
     category: 'function' as const,
     allowInInput: false
   },
-  'Ctrl+Alt+/': {
+  'Ctrl+Shift+/': {
     description: '快捷命令面板',
     category: 'function' as const,
     allowInInput: false
   },
-  'Ctrl+Alt+?': {
+  'Ctrl+Shift+?': {
     description: '快捷键帮助',
     category: 'function' as const,
     allowInInput: false
