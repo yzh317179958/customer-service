@@ -17,7 +17,15 @@ const router = useRouter()
 // 客户信息相关状态
 const customerProfile = ref<CustomerProfileType | null>(null)
 const loadingCustomer = ref(false)
-const currentTab = ref<'chat' | 'customer' | 'history'>('chat')  // 右侧 Tab 切换
+const currentTab = ref<'chat' | 'customer' | 'history' | 'notes'>('chat')  // 右侧 Tab 切换
+
+// 【模块5】内部备注相关状态
+const internalNotes = ref<any[]>([])
+const loadingNotes = ref(false)
+const newNoteContent = ref('')
+const addingNote = ref(false)
+const editingNoteId = ref<string | null>(null)
+const editingNoteContent = ref('')
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000'
 
@@ -141,8 +149,9 @@ const handleLogout = () => {
 // 处理会话选择
 const handleSelectSession = async (sessionName: string) => {
   await sessionStore.fetchSessionDetail(sessionName)
-  // 选中会话后自动加载客户信息
+  // 选中会话后自动加载客户信息和内部备注
   fetchCustomerProfile(sessionName)
+  fetchInternalNotes(sessionName)
 }
 
 // 获取客户画像
@@ -175,10 +184,165 @@ const fetchCustomerProfile = async (customerId: string) => {
 watch(() => sessionStore.currentSessionName, (newSession) => {
   if (newSession) {
     fetchCustomerProfile(newSession)
+    fetchInternalNotes(newSession)
   } else {
     customerProfile.value = null
+    internalNotes.value = []
   }
 })
+
+// 【模块5】获取内部备注列表
+const fetchInternalNotes = async (sessionName: string) => {
+  try {
+    loadingNotes.value = true
+    const token = localStorage.getItem('access_token')
+
+    const response = await axios.get(
+      `${API_BASE}/api/sessions/${sessionName}/notes`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    )
+
+    if (response.data.success) {
+      internalNotes.value = response.data.data || []
+    }
+  } catch (error: any) {
+    console.error('获取内部备注失败:', error)
+    internalNotes.value = []
+  } finally {
+    loadingNotes.value = false
+  }
+}
+
+// 【模块5】添加内部备注
+const handleAddNote = async () => {
+  if (!newNoteContent.value.trim() || !sessionStore.currentSession) return
+
+  try {
+    addingNote.value = true
+    const token = localStorage.getItem('access_token')
+
+    const response = await axios.post(
+      `${API_BASE}/api/sessions/${sessionStore.currentSession.session_name}/notes`,
+      {
+        content: newNoteContent.value.trim(),
+        mentions: []  // TODO: @提醒功能
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    )
+
+    if (response.data.success) {
+      newNoteContent.value = ''
+      // 重新加载备注列表
+      await fetchInternalNotes(sessionStore.currentSession.session_name)
+    }
+  } catch (error: any) {
+    console.error('添加内部备注失败:', error)
+    alert(`添加备注失败: ${error.response?.data?.detail || error.message}`)
+  } finally {
+    addingNote.value = false
+  }
+}
+
+// 【模块5】编辑内部备注
+const handleEditNote = (noteId: string, content: string) => {
+  editingNoteId.value = noteId
+  editingNoteContent.value = content
+}
+
+// 【模块5】保存编辑的备注
+const handleSaveEditNote = async (noteId: string) => {
+  if (!editingNoteContent.value.trim() || !sessionStore.currentSession) return
+
+  try {
+    const token = localStorage.getItem('access_token')
+
+    const response = await axios.put(
+      `${API_BASE}/api/sessions/${sessionStore.currentSession.session_name}/notes/${noteId}`,
+      {
+        content: editingNoteContent.value.trim(),
+        mentions: []
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    )
+
+    if (response.data.success) {
+      editingNoteId.value = null
+      editingNoteContent.value = ''
+      // 重新加载备注列表
+      await fetchInternalNotes(sessionStore.currentSession.session_name)
+    }
+  } catch (error: any) {
+    console.error('更新内部备注失败:', error)
+    alert(`更新备注失败: ${error.response?.data?.detail || error.message}`)
+  }
+}
+
+// 【模块5】取消编辑
+const handleCancelEdit = () => {
+  editingNoteId.value = null
+  editingNoteContent.value = ''
+}
+
+// 【模块5】删除内部备注
+const handleDeleteNote = async (noteId: string) => {
+  if (!confirm('确定要删除这条备注吗？')) return
+
+  if (!sessionStore.currentSession) return
+
+  try {
+    const token = localStorage.getItem('access_token')
+
+    await axios.delete(
+      `${API_BASE}/api/sessions/${sessionStore.currentSession.session_name}/notes/${noteId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    )
+
+    // 重新加载备注列表
+    await fetchInternalNotes(sessionStore.currentSession.session_name)
+  } catch (error: any) {
+    console.error('删除内部备注失败:', error)
+    alert(`删除备注失败: ${error.response?.data?.detail || error.message}`)
+  }
+}
+
+// 【模块5】格式化时间
+const formatNoteTime = (timestamp: number) => {
+  const date = new Date(timestamp * 1000)
+  const now = new Date()
+  const diff = now.getTime() - date.getTime()
+
+  // 1分钟内
+  if (diff < 60000) {
+    return '刚刚'
+  }
+  // 1小时内
+  if (diff < 3600000) {
+    const minutes = Math.floor(diff / 60000)
+    return `${minutes}分钟前`
+  }
+  // 今天
+  if (date.toDateString() === now.toDateString()) {
+    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  }
+  // 其他
+  return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
 
 // 处理接入会话
 const handleTakeover = async (sessionName: string) => {
@@ -659,6 +823,16 @@ onUnmounted(() => {
             客户信息
           </button>
           <button
+            :class="['tab-button', { active: currentTab === 'notes' }]"
+            @click="currentTab = 'notes'"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 20h9"></path>
+              <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path>
+            </svg>
+            内部备注
+          </button>
+          <button
             :class="['tab-button', { active: currentTab === 'history' }]"
             @click="currentTab = 'history'"
           >
@@ -676,6 +850,83 @@ onUnmounted(() => {
             :customer="customerProfile"
             :loading="loadingCustomer"
           />
+          <!-- 【模块5】内部备注面板 -->
+          <div v-else-if="currentTab === 'notes'" class="notes-panel">
+            <div v-if="loadingNotes" class="notes-loading">
+              <div class="spinner"></div>
+              <p>加载中...</p>
+            </div>
+            <div v-else class="notes-content">
+              <!-- 备注列表 -->
+              <div class="notes-list">
+                <div v-if="internalNotes.length === 0" class="no-notes">
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#cbd5e0" stroke-width="1.5">
+                    <path d="M12 20h9"></path>
+                    <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path>
+                  </svg>
+                  <p>暂无内部备注</p>
+                  <p class="hint">记录客户问题关键点和处理过程</p>
+                </div>
+                <div v-else>
+                  <div
+                    v-for="note in internalNotes"
+                    :key="note.id"
+                    class="note-item"
+                  >
+                    <div class="note-header">
+                      <div class="note-author">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                          <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                        {{ note.created_by_name }}
+                      </div>
+                      <div class="note-time">{{ formatNoteTime(note.created_at) }}</div>
+                    </div>
+                    <div class="note-content" v-if="editingNoteId !== note.id">
+                      {{ note.content }}
+                    </div>
+                    <div class="note-edit" v-else>
+                      <textarea
+                        v-model="editingNoteContent"
+                        class="note-textarea"
+                        rows="3"
+                        placeholder="编辑备注内容..."
+                      ></textarea>
+                      <div class="note-edit-actions">
+                        <button @click="handleCancelEdit" class="btn btn-cancel">取消</button>
+                        <button @click="handleSaveEditNote(note.id)" class="btn btn-confirm">保存</button>
+                      </div>
+                    </div>
+                    <div class="note-actions" v-if="editingNoteId !== note.id">
+                      <button @click="handleEditNote(note.id, note.content)" class="btn-text">编辑</button>
+                      <button @click="handleDeleteNote(note.id)" class="btn-text text-danger">删除</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 添加备注 -->
+              <div class="add-note">
+                <textarea
+                  v-model="newNoteContent"
+                  class="note-textarea"
+                  rows="3"
+                  placeholder="添加内部备注（仅坐席可见）..."
+                  :disabled="addingNote"
+                ></textarea>
+                <div class="add-note-actions">
+                  <button
+                    @click="handleAddNote"
+                    :disabled="!newNoteContent.trim() || addingNote"
+                    class="btn btn-primary"
+                  >
+                    {{ addingNote ? '添加中...' : '添加备注' }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
           <div v-else-if="currentTab === 'history'" class="history-panel">
             <p style="padding: 20px; text-align: center; color: #718096;">
               对话历史功能开发中...
@@ -1691,5 +1942,194 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* 【模块5】内部备注面板样式 */
+.notes-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.notes-loading {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #718096;
+}
+
+.notes-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.notes-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.no-notes {
+  text-align: center;
+  padding: 40px 20px;
+  color: #a0aec0;
+}
+
+.no-notes svg {
+  margin-bottom: 16px;
+}
+
+.no-notes p {
+  margin: 8px 0;
+  font-size: 14px;
+}
+
+.no-notes .hint {
+  font-size: 12px;
+  color: #cbd5e0;
+}
+
+.note-item {
+  background: #f7fafc;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.note-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.note-author {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #2d3748;
+}
+
+.note-time {
+  font-size: 11px;
+  color: #a0aec0;
+}
+
+.note-content {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #4a5568;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.note-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.note-edit {
+  margin-top: 8px;
+}
+
+.note-edit-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  justify-content: flex-end;
+}
+
+.add-note {
+  border-top: 1px solid #e5e7eb;
+  padding: 16px;
+  background: white;
+}
+
+.note-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+  font-family: inherit;
+  transition: border-color 0.2s;
+}
+
+.note-textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+.note-textarea:disabled {
+  background: #f7fafc;
+  cursor: not-allowed;
+}
+
+.add-note-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.btn-text {
+  background: none;
+  border: none;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: #3b82f6;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.btn-text:hover {
+  background: #eff6ff;
+}
+
+.btn-text.text-danger {
+  color: #ef4444;
+}
+
+.btn-text.text-danger:hover {
+  background: #fef2f2;
+}
+
+.btn-cancel {
+  padding: 6px 16px;
+  font-size: 13px;
+  border: 1px solid #e2e8f0;
+  background: white;
+  color: #4a5568;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-cancel:hover {
+  background: #f7fafc;
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #e2e8f0;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 </style>

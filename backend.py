@@ -27,7 +27,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from dotenv import load_dotenv
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 from cozepy import Coze, TokenAuth, JWTAuth, JWTOAuthApp
 import httpx
@@ -2225,11 +2225,18 @@ async def transfer_session(
     to_agent_id = transfer_request.get("to_agent_id")
     to_agent_name = transfer_request.get("to_agent_name")
     reason = transfer_request.get("reason", "坐席转接")
+    note = transfer_request.get("note", "")  # ⭐ 新增：转接备注
 
     if not all([from_agent_id, to_agent_id, to_agent_name]):
         raise HTTPException(
             status_code=400,
             detail="from_agent_id, to_agent_id, and to_agent_name are required"
+        )
+
+    if not reason or reason.strip() == "":
+        raise HTTPException(
+            status_code=400,
+            detail="REASON_REQUIRED: 转接原因不能为空"
         )
 
     try:
@@ -2269,6 +2276,23 @@ async def transfer_session(
         )
         session_state.add_message(system_message)
 
+        # ⭐ 新增：记录转接历史
+        transfer_record = {
+            "from_agent": from_agent_id,
+            "from_agent_name": old_agent_name,
+            "to_agent": to_agent_id,
+            "to_agent_name": to_agent_name,
+            "reason": reason,
+            "note": note,
+            "transferred_at": time.time(),
+            "accepted": True,  # 简化实现，自动接受
+            "accepted_at": time.time()
+        }
+
+        if session_name not in transfer_history_store:
+            transfer_history_store[session_name] = []
+        transfer_history_store[session_name].append(transfer_record)
+
         # 保存会话状态
         await session_store.save(session_state)
 
@@ -2280,6 +2304,7 @@ async def transfer_session(
             "to_agent": to_agent_id,
             "to_agent_name": to_agent_name,
             "reason": reason,
+            "note": note,
             "timestamp": int(time.time())
         }, ensure_ascii=False))
 
@@ -3787,6 +3812,287 @@ async def use_quick_reply(
         raise HTTPException(
             status_code=500,
             detail=f"使用失败: {str(e)}"
+        )
+
+
+# ==================== 【模块5】内部备注功能 ====================
+
+# 内存存储（生产环境应使用 Redis）
+internal_notes_store: Dict[str, List[Dict[str, Any]]] = {}
+
+
+class InternalNoteRequest(BaseModel):
+    """创建/更新内部备注请求"""
+    content: str
+    mentions: Optional[List[str]] = []  # @的坐席username列表
+
+
+@app.post("/api/sessions/{session_name}/notes")
+async def create_internal_note(
+    session_name: str,
+    request: InternalNoteRequest,
+    agent: dict = Depends(require_agent)
+):
+    """
+    添加内部备注（仅坐席可见）
+
+    Args:
+        session_name: 会话ID
+        request: 备注内容和@提醒列表
+        agent: 当前登录坐席信息
+
+    Returns:
+        创建的备注信息
+    """
+    try:
+        # 验证会话是否存在
+        if not session_store:
+            raise HTTPException(status_code=503, detail="会话系统未初始化")
+
+        session_state = await session_store.get(session_name)
+        if not session_state:
+            raise HTTPException(
+                status_code=404,
+                detail="SESSION_NOT_FOUND: 会话不存在"
+            )
+
+        # 创建备注
+        note = {
+            "id": f"note_{uuid.uuid4().hex[:16]}",
+            "session_name": session_name,
+            "content": request.content,
+            "created_by": agent.get("username"),
+            "created_by_name": agent.get("name", agent.get("username")),
+            "created_at": time.time(),
+            "updated_at": time.time(),
+            "mentions": request.mentions or []
+        }
+
+        # 保存到存储
+        if session_name not in internal_notes_store:
+            internal_notes_store[session_name] = []
+        internal_notes_store[session_name].append(note)
+
+        print(f"✅ 创建内部备注: {note['id']} for session {session_name} by {agent.get('username')}")
+
+        # TODO: 如果有@提醒，通过SSE推送通知给被@的坐席
+        if request.mentions:
+            print(f"📢 @提醒: {request.mentions}")
+
+        return {
+            "success": True,
+            "data": note
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 创建内部备注失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"创建失败: {str(e)}"
+        )
+
+
+@app.get("/api/sessions/{session_name}/notes")
+async def get_internal_notes(
+    session_name: str,
+    agent: dict = Depends(require_agent)
+):
+    """
+    获取会话的所有内部备注
+
+    Args:
+        session_name: 会话ID
+        agent: 当前登录坐席信息
+
+    Returns:
+        备注列表
+    """
+    try:
+        # 获取备注列表
+        notes = internal_notes_store.get(session_name, [])
+
+        # 按创建时间倒序排序
+        notes_sorted = sorted(notes, key=lambda x: x["created_at"], reverse=True)
+
+        return {
+            "success": True,
+            "data": notes_sorted,
+            "total": len(notes_sorted)
+        }
+
+    except Exception as e:
+        print(f"❌ 获取内部备注失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取失败: {str(e)}"
+        )
+
+
+@app.put("/api/sessions/{session_name}/notes/{note_id}")
+async def update_internal_note(
+    session_name: str,
+    note_id: str,
+    request: InternalNoteRequest,
+    agent: dict = Depends(require_agent)
+):
+    """
+    编辑内部备注（仅创建者和管理员可编辑）
+
+    Args:
+        session_name: 会话ID
+        note_id: 备注ID
+        request: 新的备注内容
+        agent: 当前登录坐席信息
+
+    Returns:
+        更新后的备注信息
+    """
+    try:
+        # 查找备注
+        notes = internal_notes_store.get(session_name, [])
+        note = next((n for n in notes if n["id"] == note_id), None)
+
+        if not note:
+            raise HTTPException(
+                status_code=404,
+                detail="NOTE_NOT_FOUND: 备注不存在"
+            )
+
+        # 权限检查：仅创建者和管理员可编辑
+        if note["created_by"] != agent.get("username") and agent.get("role") != "admin":
+            raise HTTPException(
+                status_code=403,
+                detail="PERMISSION_DENIED: 只有创建者和管理员可以编辑备注"
+            )
+
+        # 更新备注
+        note["content"] = request.content
+        note["mentions"] = request.mentions or []
+        note["updated_at"] = time.time()
+
+        print(f"✅ 更新内部备注: {note_id} by {agent.get('username')}")
+
+        return {
+            "success": True,
+            "data": note
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 更新内部备注失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"更新失败: {str(e)}"
+        )
+
+
+@app.delete("/api/sessions/{session_name}/notes/{note_id}")
+async def delete_internal_note(
+    session_name: str,
+    note_id: str,
+    agent: dict = Depends(require_agent)
+):
+    """
+    删除内部备注（仅创建者和管理员可删除）
+
+    Args:
+        session_name: 会话ID
+        note_id: 备注ID
+        agent: 当前登录坐席信息
+
+    Returns:
+        删除结果
+    """
+    try:
+        # 查找备注
+        notes = internal_notes_store.get(session_name, [])
+        note = next((n for n in notes if n["id"] == note_id), None)
+
+        if not note:
+            raise HTTPException(
+                status_code=404,
+                detail="NOTE_NOT_FOUND: 备注不存在"
+            )
+
+        # 权限检查：仅创建者和管理员可删除
+        if note["created_by"] != agent.get("username") and agent.get("role") != "admin":
+            raise HTTPException(
+                status_code=403,
+                detail="PERMISSION_DENIED: 只有创建者和管理员可以删除备注"
+            )
+
+        # 删除备注
+        internal_notes_store[session_name] = [
+            n for n in notes if n["id"] != note_id
+        ]
+
+        print(f"✅ 删除内部备注: {note_id} by {agent.get('username')}")
+
+        return {
+            "success": True,
+            "message": f"备注 {note_id} 已删除"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 删除内部备注失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"删除失败: {str(e)}"
+        )
+
+
+# ==================== 【模块5】会话转接增强 ====================
+
+class TransferRequestEnhanced(BaseModel):
+    """增强的会话转接请求"""
+    from_agent_id: str
+    to_agent_id: str
+    to_agent_name: str
+    reason: str  # 转接原因
+    note: Optional[str] = ""  # 转接备注（给接收坐席的说明）
+
+
+# 转接历史存储
+transfer_history_store: Dict[str, List[Dict[str, Any]]] = {}
+
+
+@app.get("/api/sessions/{session_name}/transfer-history")
+async def get_transfer_history(
+    session_name: str,
+    agent: dict = Depends(require_agent)
+):
+    """
+    获取会话转接历史
+
+    Args:
+        session_name: 会话ID
+        agent: 当前登录坐席信息
+
+    Returns:
+        转接历史列表
+    """
+    try:
+        history = transfer_history_store.get(session_name, [])
+
+        # 按时间倒序
+        history_sorted = sorted(history, key=lambda x: x["transferred_at"], reverse=True)
+
+        return {
+            "success": True,
+            "data": history_sorted,
+            "total": len(history_sorted)
+        }
+
+    except Exception as e:
+        print(f"❌ 获取转接历史失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取失败: {str(e)}"
         )
 
 

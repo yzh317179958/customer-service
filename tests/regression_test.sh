@@ -389,30 +389,43 @@ else
 fi
 
 echo ""
+echo "=== 【模块5】内部备注功能测试 v3.8.0 ==="
+echo ""
+
+# 测试26: 内部备注完整流程测试
+echo -n "测试26: 内部备注功能... "
+TEST_RESULT=$(/home/yzh/AI客服/鉴权/tests/test_internal_notes.sh 2>&1 | grep -c "所有测试通过")
+if [ "$TEST_RESULT" -gt 0 ]; then
+    echo -e "${GREEN}✅ 通过${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}❌ 失败${NC}"
+    ((FAIL++))
+fi
+
+echo ""
 echo "=== TypeScript类型检查 ==="
 echo ""
 
 # 测试24: TypeScript检查 (agent-workbench)
 echo -n "测试24: TypeScript检查... "
-if cd agent-workbench && npx vue-tsc --noEmit > /dev/null 2>&1; then
+if (cd /home/yzh/AI客服/鉴权/agent-workbench && npx vue-tsc --noEmit > /dev/null 2>&1); then
     echo -e "${GREEN}✅ 通过${NC}"
     ((PASS++))
 else
     echo -e "${RED}❌ 失败${NC}"
     ((FAIL++))
 fi
-cd ..
 
 # 测试25: TypeScript检查 (frontend)
 echo -n "测试25: 用户前端TypeScript检查... "
-if cd frontend && npx vue-tsc --noEmit > /dev/null 2>&1; then
+if (cd /home/yzh/AI客服/鉴权/frontend && npx vue-tsc --noEmit > /dev/null 2>&1); then
     echo -e "${GREEN}✅ 通过${NC}"
     ((PASS++))
 else
     echo -e "${RED}❌ 失败${NC}"
     ((FAIL++))
 fi
-cd ..
 
 echo ""
 echo "=============================================="
