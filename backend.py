@@ -59,6 +59,11 @@ from src.agent_auth import (
     Agent
 )
 
+# 【模块3】导入快捷回复系统模块
+from src.quick_reply import QuickReply, QuickReplyCategory, QUICK_REPLY_CATEGORIES, SUPPORTED_VARIABLES
+from src.quick_reply_store import QuickReplyStore
+from src.variable_replacer import VariableReplacer, build_variable_context
+
 # 加载环境变量
 load_dotenv()
 
@@ -111,6 +116,8 @@ session_store: Optional[InMemorySessionStore] = None  # 会话状态存储（P0�
 regulator: Optional[Regulator] = None  # 监管策略引擎（P0）
 agent_manager: Optional[AgentManager] = None  # 坐席账号管理器
 agent_token_manager: Optional[AgentTokenManager] = None  # 坐席 JWT Token 管理器
+quick_reply_store: Optional['QuickReplyStore'] = None  # 快捷回复存储管理器（模块3）
+variable_replacer: Optional['VariableReplacer'] = None  # 变量替换器（模块3）
 WORKFLOW_ID: str = ""
 APP_ID: str = ""  # AI 应用 ID（应用中嵌入对话流时必需）
 AUTH_MODE: str = ""  # 鉴权模式：OAUTH_JWT 或 PAT
@@ -128,7 +135,7 @@ sse_queues: dict = {}  # type: dict[str, asyncio.Queue]
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
-    global coze_client, token_manager, jwt_oauth_app, session_store, regulator, agent_manager, agent_token_manager, WORKFLOW_ID, APP_ID, AUTH_MODE
+    global coze_client, token_manager, jwt_oauth_app, session_store, regulator, agent_manager, agent_token_manager, quick_reply_store, variable_replacer, WORKFLOW_ID, APP_ID, AUTH_MODE
 
     # 读取配置
     WORKFLOW_ID = os.getenv("COZE_WORKFLOW_ID", "")
@@ -271,6 +278,24 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"⚠️  坐席认证系统初始化失败: {str(e)}")
         print(f"   坐席登录功能将不可用")
+
+    # 【模块3】初始化快捷回复系统
+    try:
+        # 使用session_store中的redis_client
+        if USE_REDIS and hasattr(session_store, 'redis'):
+            quick_reply_store = QuickReplyStore(session_store.redis)
+            variable_replacer = VariableReplacer()
+            print(f"✅ 快捷回复系统初始化成功")
+            print(f"   存储: Redis")
+        else:
+            quick_reply_store = None
+            variable_replacer = VariableReplacer()
+            print(f"⚠️  快捷回复系统：内存存储未实现，功能受限")
+
+    except Exception as e:
+        print(f"⚠️  快捷回复系统初始化失败: {str(e)}")
+        quick_reply_store = None
+        variable_replacer = VariableReplacer()
 
     print(f"{'=' * 60}\n")
 
@@ -3235,6 +3260,533 @@ async def get_customer_profile(
         raise HTTPException(
             status_code=500,
             detail=f"获取客户画像失败: {str(e)}"
+        )
+
+
+# ====================
+# 【模块3】快捷回复系统 API (v3.7.0+)
+# ====================
+
+@app.get("/api/quick-replies/categories")
+async def get_quick_reply_categories(
+    agent: dict = Depends(require_agent)
+):
+    """
+    获取快捷回复分类列表
+
+    Args:
+        agent: 当前登录坐席信息
+
+    Returns:
+        分类列表
+    """
+    try:
+        return {
+            "success": True,
+            "data": {
+                "categories": QUICK_REPLY_CATEGORIES,
+                "supported_variables": SUPPORTED_VARIABLES
+            }
+        }
+
+    except Exception as e:
+        print(f"❌ 获取分类列表失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取失败: {str(e)}"
+        )
+
+
+@app.get("/api/quick-replies/stats")
+async def get_quick_reply_stats(
+    agent: dict = Depends(require_agent)
+):
+    """
+    获取快捷回复使用统计
+
+    权限: 管理员
+
+    Args:
+        agent: 当前登录坐席信息
+
+    Returns:
+        使用统计数据
+    """
+    try:
+        # 权限检查：仅管理员可查看统计
+        if agent.get("role") != "admin":
+            raise HTTPException(
+                status_code=403,
+                detail="PERMISSION_DENIED: 需要管理员权限"
+            )
+
+        if not quick_reply_store:
+            raise HTTPException(status_code=503, detail="快捷回复系统未初始化")
+
+        stats = quick_reply_store.get_stats()
+
+        return {
+            "success": True,
+            "data": stats
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 获取快捷回复统计失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取统计失败: {str(e)}"
+        )
+
+
+@app.get("/api/quick-replies")
+async def get_quick_replies(
+    category: Optional[str] = None,
+    agent_id: Optional[str] = None,
+    include_shared: bool = True,
+    keyword: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0,
+    agent: dict = Depends(require_agent)
+):
+    """
+    获取快捷回复列表
+
+    功能:
+    - 按分类筛选
+    - 按坐席筛选（获取自己创建的 + 团队共享的）
+    - 关键词搜索
+    - 分页
+
+    Args:
+        category: 分类筛选
+        agent_id: 坐席ID筛选（默认为当前登录坐席）
+        include_shared: 是否包含团队共享的快捷回复
+        keyword: 搜索关键词
+        limit: 每页数量
+        offset: 偏移量
+        agent: 当前登录坐席信息
+
+    Returns:
+        快捷回复列表
+    """
+    try:
+        if not quick_reply_store:
+            raise HTTPException(status_code=503, detail="快捷回复系统未初始化")
+
+        # 如果未指定 agent_id，使用当前登录坐席
+        if not agent_id:
+            agent_id = agent.get("agent_id")
+
+        # 关键词搜索
+        if keyword:
+            replies = quick_reply_store.search(
+                keyword=keyword,
+                agent_id=agent_id,
+                category=category,
+                limit=limit
+            )
+        # 按分类查询
+        elif category:
+            replies = quick_reply_store.list_by_category(
+                category=category,
+                limit=limit,
+                offset=offset
+            )
+        # 按坐席查询
+        elif agent_id:
+            replies = quick_reply_store.list_by_agent(
+                agent_id=agent_id,
+                include_shared=include_shared,
+                limit=limit,
+                offset=offset
+            )
+        # 获取全部
+        else:
+            replies = quick_reply_store.list_all(limit=limit, offset=offset)
+
+        return {
+            "success": True,
+            "data": {
+                "items": [r.to_dict() for r in replies],
+                "total": len(replies),
+                "limit": limit,
+                "offset": offset
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 获取快捷回复列表失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取失败: {str(e)}"
+        )
+
+
+@app.post("/api/quick-replies")
+async def create_quick_reply(
+    request: dict,
+    agent: dict = Depends(require_agent)
+):
+    """
+    创建快捷回复
+
+    Body:
+    {
+        "title": "欢迎语",
+        "content": "您好{customer_name}，我是{agent_name}",
+        "category": "greeting",
+        "shortcut_key": "1",
+        "is_shared": false
+    }
+
+    Args:
+        request: 创建请求
+        agent: 当前登录坐席信息
+
+    Returns:
+        创建的快捷回复
+    """
+    try:
+        if not quick_reply_store or not variable_replacer:
+            raise HTTPException(status_code=503, detail="快捷回复系统未初始化")
+
+        # 验证必填字段
+        if not request.get("title") or not request.get("content"):
+            raise HTTPException(
+                status_code=400,
+                detail="MISSING_FIELDS: title 和 content 为必填项"
+            )
+
+        # 验证分类
+        category = request.get("category", "custom")
+        if category not in QUICK_REPLY_CATEGORIES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"INVALID_CATEGORY: 无效的分类 {category}"
+            )
+
+        # 提取模板中使用的变量
+        content = request.get("content")
+        variables = variable_replacer.extract_variables(content)
+
+        # 创建快捷回复对象
+        quick_reply = QuickReply(
+            id="",  # 由 store 自动生成
+            title=request.get("title"),
+            content=content,
+            category=category,
+            variables=variables,
+            shortcut_key=request.get("shortcut_key"),
+            is_shared=request.get("is_shared", False),
+            created_by=agent.get("agent_id")
+        )
+
+        # 保存到存储
+        created = quick_reply_store.create(quick_reply)
+
+        print(f"✅ 创建快捷回复: {created.id} by {agent.get('username')}")
+
+        return {
+            "success": True,
+            "data": created.to_dict()
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 创建快捷回复失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"创建失败: {str(e)}"
+        )
+
+
+@app.get("/api/quick-replies/{reply_id}")
+async def get_quick_reply(
+    reply_id: str,
+    agent: dict = Depends(require_agent)
+):
+    """
+    获取快捷回复详情
+
+    Args:
+        reply_id: 快捷回复ID
+        agent: 当前登录坐席信息
+
+    Returns:
+        快捷回复详情
+    """
+    try:
+        if not quick_reply_store:
+            raise HTTPException(status_code=503, detail="快捷回复系统未初始化")
+
+        reply = quick_reply_store.get(reply_id)
+
+        if not reply:
+            raise HTTPException(
+                status_code=404,
+                detail="QUICK_REPLY_NOT_FOUND: 快捷回复不存在"
+            )
+
+        return {
+            "success": True,
+            "data": reply.to_dict()
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 获取快捷回复详情失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取失败: {str(e)}"
+        )
+
+
+@app.put("/api/quick-replies/{reply_id}")
+async def update_quick_reply(
+    reply_id: str,
+    request: dict,
+    agent: dict = Depends(require_agent)
+):
+    """
+    更新快捷回复
+
+    Body:
+    {
+        "title": "新标题",
+        "content": "新内容",
+        "category": "pre_sales",
+        "shortcut_key": "2",
+        "is_shared": true
+    }
+
+    权限:
+    - 创建者可以修改
+    - 管理员可以修改所有快捷回复
+
+    Args:
+        reply_id: 快捷回复ID
+        request: 更新请求
+        agent: 当前登录坐席信息
+
+    Returns:
+        更新后的快捷回复
+    """
+    try:
+        if not quick_reply_store or not variable_replacer:
+            raise HTTPException(status_code=503, detail="快捷回复系统未初始化")
+
+        # 获取原快捷回复
+        reply = quick_reply_store.get(reply_id)
+
+        if not reply:
+            raise HTTPException(
+                status_code=404,
+                detail="QUICK_REPLY_NOT_FOUND: 快捷回复不存在"
+            )
+
+        # 权限检查：只有创建者或管理员可以修改
+        if reply.created_by != agent.get("agent_id") and agent.get("role") != "admin":
+            raise HTTPException(
+                status_code=403,
+                detail="PERMISSION_DENIED: 只有创建者或管理员可以修改"
+            )
+
+        # 构建更新字典
+        updates = {}
+
+        if "title" in request:
+            updates["title"] = request["title"]
+
+        if "content" in request:
+            updates["content"] = request["content"]
+            # 重新提取变量
+            updates["variables"] = variable_replacer.extract_variables(request["content"])
+
+        if "category" in request:
+            category = request["category"]
+            if category not in QUICK_REPLY_CATEGORIES:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"INVALID_CATEGORY: 无效的分类 {category}"
+                )
+            updates["category"] = category
+
+        if "shortcut_key" in request:
+            updates["shortcut_key"] = request["shortcut_key"]
+
+        if "is_shared" in request:
+            updates["is_shared"] = request["is_shared"]
+
+        # 更新
+        updated = quick_reply_store.update(reply_id, updates)
+
+        if not updated:
+            raise HTTPException(
+                status_code=500,
+                detail="更新失败"
+            )
+
+        print(f"✅ 更新快捷回复: {reply_id} by {agent.get('username')}")
+
+        return {
+            "success": True,
+            "data": updated.to_dict()
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 更新快捷回复失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"更新失败: {str(e)}"
+        )
+
+
+@app.delete("/api/quick-replies/{reply_id}")
+async def delete_quick_reply(
+    reply_id: str,
+    agent: dict = Depends(require_agent)
+):
+    """
+    删除快捷回复
+
+    权限:
+    - 创建者可以删除
+    - 管理员可以删除所有快捷回复
+
+    Args:
+        reply_id: 快捷回复ID
+        agent: 当前登录坐席信息
+
+    Returns:
+        删除结果
+    """
+    try:
+        if not quick_reply_store:
+            raise HTTPException(status_code=503, detail="快捷回复系统未初始化")
+
+        # 获取快捷回复
+        reply = quick_reply_store.get(reply_id)
+
+        if not reply:
+            raise HTTPException(
+                status_code=404,
+                detail="QUICK_REPLY_NOT_FOUND: 快捷回复不存在"
+            )
+
+        # 权限检查：只有创建者或管理员可以删除
+        if reply.created_by != agent.get("agent_id") and agent.get("role") != "admin":
+            raise HTTPException(
+                status_code=403,
+                detail="PERMISSION_DENIED: 只有创建者或管理员可以删除"
+            )
+
+        # 删除
+        result = quick_reply_store.delete(reply_id)
+
+        if not result:
+            raise HTTPException(
+                status_code=500,
+                detail="删除失败"
+            )
+
+        print(f"✅ 删除快捷回复: {reply_id} by {agent.get('username')}")
+
+        return {
+            "success": True,
+            "message": f"快捷回复 {reply_id} 已删除"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 删除快捷回复失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"删除失败: {str(e)}"
+        )
+
+
+@app.post("/api/quick-replies/{reply_id}/use")
+async def use_quick_reply(
+    reply_id: str,
+    request: dict,
+    agent: dict = Depends(require_agent)
+):
+    """
+    使用快捷回复（执行变量替换并增加使用次数）
+
+    Body:
+    {
+        "session_data": {...},  # 会话数据（包含 user_profile）
+        "agent_data": {...},    # 坐席数据
+        "shopify_data": {...}   # Shopify 数据（可选）
+    }
+
+    Args:
+        reply_id: 快捷回复ID
+        request: 使用请求
+        agent: 当前登录坐席信息
+
+    Returns:
+        替换变量后的内容
+    """
+    try:
+        if not quick_reply_store or not variable_replacer:
+            raise HTTPException(status_code=503, detail="快捷回复系统未初始化")
+
+        # 获取快捷回复
+        reply = quick_reply_store.get(reply_id)
+
+        if not reply:
+            raise HTTPException(
+                status_code=404,
+                detail="QUICK_REPLY_NOT_FOUND: 快捷回复不存在"
+            )
+
+        # 构建变量上下文
+        context = build_variable_context(
+            session_data=request.get("session_data"),
+            agent_data=request.get("agent_data"),
+            shopify_data=request.get("shopify_data")
+        )
+
+        # 执行变量替换
+        replaced_content = variable_replacer.replace(
+            template=reply.content,
+            context=context
+        )
+
+        # 增加使用次数
+        quick_reply_store.increment_usage(reply_id)
+
+        print(f"✅ 使用快捷回复: {reply_id} by {agent.get('username')}")
+
+        return {
+            "success": True,
+            "data": {
+                "id": reply.id,
+                "title": reply.title,
+                "original_content": reply.content,
+                "replaced_content": replaced_content,
+                "variables": reply.variables
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 使用快捷回复失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"使用失败: {str(e)}"
         )
 
 
