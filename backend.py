@@ -2823,6 +2823,72 @@ async def get_agents_list(
         )
 
 
+@app.get("/api/agents/available")
+async def get_available_agents(
+    agent: Dict[str, Any] = Depends(require_agent)
+):
+    """
+    获取可转接的坐席列表 (需要坐席权限)
+
+    用于会话转接功能，返回除当前登录坐席外的所有在线坐席
+
+    Args:
+        agent: 当前登录坐席信息
+
+    Returns:
+        items: 可转接的坐席列表（包含 id, name, status, current_sessions）
+    """
+    try:
+        if not agent_manager:
+            raise HTTPException(status_code=500, detail="坐席管理系统未初始化")
+
+        # 获取所有坐席
+        all_agents = agent_manager.get_all_agents()
+
+        # 过滤：排除当前登录坐席，只返回基本信息
+        current_agent_id = agent.get("agent_id")
+        available = []
+
+        for a in all_agents:
+            if a.agent_id != current_agent_id:
+                available.append({
+                    "id": a.agent_id,
+                    "username": a.username,
+                    "name": a.name,
+                    "status": a.status.value,
+                    "role": a.role.value,
+                    "max_sessions": a.max_sessions
+                })
+
+        # 按状态排序：在线优先
+        status_priority = {
+            'online': 1,
+            'busy': 2,
+            'break': 3,
+            'lunch': 4,
+            'training': 5,
+            'offline': 6
+        }
+        available.sort(key=lambda x: status_priority.get(x['status'], 99))
+
+        return {
+            "success": True,
+            "data": {
+                "items": available,
+                "total": len(available)
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 获取可转接坐席列表失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取失败: {str(e)}"
+        )
+
+
 @app.post("/api/agents")
 async def create_agent(
     request: CreateAgentRequest,

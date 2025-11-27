@@ -115,12 +115,18 @@ const transferTargetId = ref('')
 const transferTargetName = ref('')
 const transferReason = ref('')
 
-// 模拟可转接的坐席列表（实际项目应从API获取）
-const availableAgents = ref([
-  { id: 'agent_002', name: '技术支持-小李' },
-  { id: 'agent_003', name: '售后服务-小王' },
-  { id: 'agent_004', name: '高级客服-小张' }
-])
+// 可转接的坐席列表（从API获取真实数据）
+interface AvailableAgent {
+  id: string
+  username: string
+  name: string
+  status: string
+  role: string
+  max_sessions: number
+}
+
+const availableAgents = ref<AvailableAgent[]>([])
+const loadingAgents = ref(false)
 
 // 处理快捷短语选择
 const handleQuickReplySelect = (content: string) => {
@@ -137,6 +143,28 @@ const formatTime = (seconds: number): string => {
   } else {
     return `${Math.round(seconds / 3600)}时`
   }
+}
+
+// 格式化坐席状态标签
+const getStatusLabel = (status: string): string => {
+  const statusMap: Record<string, string> = {
+    'online': '在线',
+    'offline': '离线',
+    'busy': '忙碌',
+    'break': '小休',
+    'lunch': '午休',
+    'training': '培训'
+  }
+  return statusMap[status] || status
+}
+
+// 格式化坐席角色标签
+const getRoleLabel = (role: string): string => {
+  const roleMap: Record<string, string> = {
+    'admin': '管理员',
+    'agent': '客服'
+  }
+  return roleMap[role] || role
 }
 
 const handleLogout = () => {
@@ -427,8 +455,38 @@ const handleKeyPress = (event: KeyboardEvent) => {
   }
 }
 
+// 获取可转接的坐席列表
+const fetchAvailableAgents = async () => {
+  try {
+    loadingAgents.value = true
+    const response = await fetch(`${API_BASE}/api/agents/available`, {
+      headers: {
+        'Authorization': `Bearer ${agentStore.token}`
+      }
+    })
+
+    if (!response.ok) {
+      throw new Error('获取坐席列表失败')
+    }
+
+    const data = await response.json()
+    if (data.success) {
+      availableAgents.value = data.data.items
+      console.log('✅ 获取到可转接坐席:', availableAgents.value.length, '个')
+    }
+  } catch (error) {
+    console.error('❌ 获取坐席列表失败:', error)
+    alert('获取坐席列表失败，请稍后重试')
+  } finally {
+    loadingAgents.value = false
+  }
+}
+
 // 打开转接对话框
-const openTransferDialog = () => {
+const openTransferDialog = async () => {
+  // 先获取最新的坐席列表
+  await fetchAvailableAgents()
+
   // 过滤掉当前坐席
   const filtered = availableAgents.value.filter(a => a.id !== agentStore.agentId)
   if (filtered.length === 0) {
@@ -946,14 +1004,17 @@ onUnmounted(() => {
         <div class="dialog-body">
           <div class="form-group">
             <label>选择坐席</label>
-            <select v-model="transferTargetId" class="form-select">
+            <div v-if="loadingAgents" class="loading-hint">
+              正在加载坐席列表...
+            </div>
+            <select v-else v-model="transferTargetId" class="form-select">
               <option value="">请选择...</option>
               <option
                 v-for="agent in availableAgents.filter(a => a.id !== agentStore.agentId)"
                 :key="agent.id"
                 :value="agent.id"
               >
-                {{ agent.name }}
+                {{ agent.name }} - {{ getStatusLabel(agent.status) }} ({{ getRoleLabel(agent.role) }})
               </option>
             </select>
           </div>
