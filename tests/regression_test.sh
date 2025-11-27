@@ -247,7 +247,7 @@ else
     ((FAIL++))
 fi
 
-# 测试17: 优先级字段存在
+# 测试17: 队列项包含优先级字段
 echo -n "测试17: 队列项包含优先级字段... "
 RESULT=$(curl -s "$BASE_URL/api/sessions/queue" | python3 -c "
 import sys, json
@@ -274,12 +274,39 @@ else
     ((FAIL++))
 fi
 
+# 测试18: 会话列表API包含priority字段（模块2前端显示核心要求）
+echo -n "测试18: 会话列表API返回priority字段... "
+RESULT=$(curl -s "$BASE_URL/api/sessions?status=pending_manual&limit=1" | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    sessions = d.get('data', {}).get('sessions', [])
+    if len(sessions) == 0:
+        print('1')  # 空列表也算通过
+    else:
+        session = sessions[0]
+        priority = session.get('priority')
+        if priority and 'level' in priority and 'is_vip' in priority:
+            print('1')
+        else:
+            print('0')
+except:
+    print('0')
+" || echo '0')
+if [ "$RESULT" = "1" ]; then
+    echo -e "${GREEN}✅ 通过${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}❌ 失败${NC}"
+    ((FAIL++))
+fi
+
 echo ""
 echo "=== TypeScript类型检查 ==="
 echo ""
 
-# 测试18: TypeScript检查 (agent-workbench)
-echo -n "测试18: TypeScript检查... "
+# 测试19: TypeScript检查 (agent-workbench)
+echo -n "测试19: TypeScript检查... "
 if cd agent-workbench && npx vue-tsc --noEmit > /dev/null 2>&1; then
     echo -e "${GREEN}✅ 通过${NC}"
     ((PASS++))
@@ -289,8 +316,8 @@ else
 fi
 cd ..
 
-# 测试19: TypeScript检查 (frontend)
-echo -n "测试19: 用户前端TypeScript检查... "
+# 测试20: TypeScript检查 (frontend)
+echo -n "测试20: 用户前端TypeScript检查... "
 if cd frontend && npx vue-tsc --noEmit > /dev/null 2>&1; then
     echo -e "${GREEN}✅ 通过${NC}"
     ((PASS++))

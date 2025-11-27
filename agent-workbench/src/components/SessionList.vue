@@ -297,6 +297,7 @@ const getPriorityConfig = (level: string) => {
 
 /* 【模块2】优先级标识样式 */
 .priority-badge {
+  display: inline-block;
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 14px;
@@ -316,9 +317,11 @@ const getPriorityConfig = (level: string) => {
 @keyframes pulse-urgent {
   0%, 100% {
     opacity: 1;
+    transform: scale(1);
   }
   50% {
     opacity: 0.7;
+    transform: scale(1.1);
   }
 }
 
