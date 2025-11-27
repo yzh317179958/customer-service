@@ -73,6 +73,23 @@ const truncateMessage = (content: string, maxLength: number = 50) => {
   if (content.length <= maxLength) return content
   return content.slice(0, maxLength) + '...'
 }
+
+// 【模块2】获取优先级配置
+const getPriorityConfig = (level: string) => {
+  const configs: Record<string, { icon: string; class: string; label: string }> = {
+    urgent: {
+      icon: '🔴',
+      class: 'priority-urgent',
+      label: '紧急'
+    },
+    high: {
+      icon: '🟠',
+      class: 'priority-high',
+      label: '重要'
+    }
+  }
+  return configs[level]
+}
 </script>
 
 <template>
@@ -111,6 +128,14 @@ const truncateMessage = (content: string, maxLength: number = 50) => {
               {{ session.user_profile?.nickname || session.session_name.slice(-8) }}
             </span>
             <span v-if="session.user_profile?.vip" class="vip-badge">VIP</span>
+            <!-- 【模块2】优先级标识 -->
+            <span
+              v-if="session.priority && getPriorityConfig(session.priority.level)"
+              :class="['priority-badge', getPriorityConfig(session.priority.level)?.class]"
+              :title="getPriorityConfig(session.priority.level)?.label"
+            >
+              {{ getPriorityConfig(session.priority.level)?.icon }}
+            </span>
           </div>
           <div class="session-status" :class="getStatusConfig(session.status).class">
             <span class="status-icon">{{ getStatusConfig(session.status).icon }}</span>
@@ -268,6 +293,33 @@ const truncateMessage = (content: string, maxLength: number = 50) => {
   border-radius: 4px;
   font-size: 10px;
   font-weight: 600;
+}
+
+/* 【模块2】优先级标识样式 */
+.priority-badge {
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 1;
+  cursor: help;
+}
+
+.priority-urgent {
+  background: #fee2e2;
+  animation: pulse-urgent 2s ease-in-out infinite;
+}
+
+.priority-high {
+  background: #fed7aa;
+}
+
+@keyframes pulse-urgent {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
 }
 
 .session-status {

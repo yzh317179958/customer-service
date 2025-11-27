@@ -220,12 +220,66 @@ else
     ((FAIL++))
 fi
 
+# 【L1-1-Part1-模块2】新增测试: 队列管理与优先级
+echo ""
+echo "=== 【模块2】队列管理与优先级测试 ==="
+echo ""
+
+# 测试15: 队列API可访问性
+echo -n "测试15: 队列API调用... "
+RESULT=$(curl -s "$BASE_URL/api/sessions/queue" | grep -c '"success":true' || true)
+if [ "$RESULT" -gt 0 ]; then
+    echo -e "${GREEN}✅ 通过${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}❌ 失败${NC}"
+    ((FAIL++))
+fi
+
+# 测试16: 队列数据结构
+echo -n "测试16: 队列数据结构完整性... "
+RESULT=$(curl -s "$BASE_URL/api/sessions/queue" | grep -E '"total_count":[0-9]+.*"vip_count":[0-9]+.*"avg_wait_time":[0-9.]+' | wc -l || true)
+if [ "$RESULT" -gt 0 ]; then
+    echo -e "${GREEN}✅ 通过${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}❌ 失败${NC}"
+    ((FAIL++))
+fi
+
+# 测试17: 优先级字段存在
+echo -n "测试17: 队列项包含优先级字段... "
+RESULT=$(curl -s "$BASE_URL/api/sessions/queue" | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    queue = d.get('data', {}).get('queue', [])
+    if len(queue) == 0:
+        print('1')  # 空队列也算通过
+    else:
+        item = queue[0]
+        required = ['session_name', 'position', 'priority_level', 'is_vip', 'wait_time_seconds']
+        if all(f in item for f in required):
+            print('1')
+        else:
+            print('0')
+except:
+    print('0')
+" || echo '0')
+if [ "$RESULT" = "1" ]; then
+    echo -e "${GREEN}✅ 通过${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}❌ 失败${NC}"
+    ((FAIL++))
+fi
+
 echo ""
 echo "=== TypeScript类型检查 ==="
 echo ""
 
-# 测试15: TypeScript检查 (agent-workbench)
-echo -n "测试15: TypeScript检查... "
+# 测试18: TypeScript检查 (agent-workbench)
+echo -n "测试18: TypeScript检查... "
 if cd agent-workbench && npx vue-tsc --noEmit > /dev/null 2>&1; then
     echo -e "${GREEN}✅ 通过${NC}"
     ((PASS++))
@@ -235,8 +289,8 @@ else
 fi
 cd ..
 
-# 测试16: TypeScript检查 (frontend)
-echo -n "测试16: 用户前端TypeScript检查... "
+# 测试19: TypeScript检查 (frontend)
+echo -n "测试19: 用户前端TypeScript检查... "
 if cd frontend && npx vue-tsc --noEmit > /dev/null 2>&1; then
     echo -e "${GREEN}✅ 通过${NC}"
     ((PASS++))

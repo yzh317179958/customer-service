@@ -320,6 +320,14 @@ onMounted(async () => {
 
   // 【L1-1-Part1-模块1】初始加载：应用高级筛选
   await applyAdvancedFilter()
+
+  // 【模块2】加载队列数据
+  await sessionStore.fetchQueue()
+
+  // 【模块2】每30秒刷新队列数据
+  setInterval(async () => {
+    await sessionStore.fetchQueue()
+  }, 30000)
 })
 
 onUnmounted(() => {
@@ -405,6 +413,32 @@ onUnmounted(() => {
           <div class="detail-stat">
             <span class="detail-label">在线坐席</span>
             <span class="detail-value">{{ sessionStore.stats.active_agents }}</span>
+          </div>
+        </div>
+
+        <!-- 【模块2】队列统计信息 -->
+        <div v-if="sessionStore.queueStats.total_count > 0" class="queue-stats">
+          <div class="queue-header">
+            <span class="queue-icon">📋</span>
+            <span class="queue-title">等待队列</span>
+            <span class="queue-count">{{ sessionStore.queueStats.total_count }}人</span>
+          </div>
+          <div class="queue-metrics">
+            <div class="queue-metric">
+              <span class="metric-icon">🔴</span>
+              <span class="metric-label">VIP客户</span>
+              <span class="metric-value">{{ sessionStore.queueStats.vip_count }}</span>
+            </div>
+            <div class="queue-metric">
+              <span class="metric-icon">⏱️</span>
+              <span class="metric-label">平均等待</span>
+              <span class="metric-value">{{ formatTime(sessionStore.queueStats.avg_wait_time) }}</span>
+            </div>
+            <div class="queue-metric">
+              <span class="metric-icon">⚠️</span>
+              <span class="metric-label">最长等待</span>
+              <span class="metric-value">{{ formatTime(sessionStore.queueStats.max_wait_time) }}</span>
+            </div>
           </div>
         </div>
 
@@ -916,6 +950,72 @@ onUnmounted(() => {
   font-size: 13px;
   font-weight: 600;
   color: #2C3E50;
+}
+
+/* 【模块2】队列统计样式 */
+.queue-stats {
+  padding: 12px 16px;
+  border-bottom: 1px solid #E5E7EB;
+  background: linear-gradient(135deg, #FEF3C7 0%, #FED7AA 100%);
+}
+
+.queue-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.queue-icon {
+  font-size: 16px;
+}
+
+.queue-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #92400E;
+}
+
+.queue-count {
+  margin-left: auto;
+  padding: 2px 8px;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #D97706;
+}
+
+.queue-metrics {
+  display: flex;
+  gap: 12px;
+}
+
+.queue-metric {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 6px;
+}
+
+.metric-icon {
+  font-size: 16px;
+  margin-bottom: 2px;
+}
+
+.metric-label {
+  font-size: 10px;
+  color: #92400E;
+  margin-bottom: 2px;
+}
+
+.metric-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: #B45309;
 }
 
 .filter-tabs {

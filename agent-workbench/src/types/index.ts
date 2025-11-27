@@ -12,6 +12,19 @@ export interface LoginRequest {
 // Session 相关类型
 export type SessionStatus = 'bot_active' | 'pending_manual' | 'manual_live' | 'after_hours_email' | 'closed'
 
+// 【模块2】优先级等级
+export type PriorityLevel = 'urgent' | 'high' | 'normal'
+
+// 【模块2】优先级信息
+export interface PriorityInfo {
+  level: PriorityLevel
+  is_vip: boolean
+  wait_time_seconds: number
+  is_timeout: boolean  // 等待超过5分钟
+  is_repeat: boolean   // 二次转接
+  urgent_keywords: string[]
+}
+
 export interface SessionSummary {
   session_name: string
   status: SessionStatus
@@ -31,6 +44,8 @@ export interface SessionSummary {
     waiting_seconds: number
   }
   assigned_agent?: AgentInfo | null
+  // 【模块2】优先级信息（可选，只在队列中有）
+  priority?: PriorityInfo
 }
 
 export interface SessionListResponse {
@@ -214,4 +229,36 @@ export interface CustomerProfile {
 export interface CustomerProfileResponse {
   success: boolean
   data: CustomerProfile
+}
+
+// ====================
+// 【模块2】队列管理类型定义
+// ====================
+
+/** 队列会话信息 */
+export interface QueueSessionInfo {
+  session_name: string
+  position: number
+  priority_level: PriorityLevel
+  is_vip: boolean
+  wait_time_seconds: number
+  is_timeout: boolean
+  urgent_keywords: string[]
+  user_profile: {
+    nickname: string
+    vip: boolean
+  }
+  last_message: string
+}
+
+/** 队列响应 */
+export interface QueueResponse {
+  success: boolean
+  data: {
+    queue: QueueSessionInfo[]
+    total_count: number
+    vip_count: number
+    avg_wait_time: number
+    max_wait_time: number
+  }
 }

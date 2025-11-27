@@ -1737,6 +1737,123 @@ async def get_sessions_stats():
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
 
 
+# ==================== 模块2: 队列管理 API ====================
+
+@app.get("/api/sessions/queue")
+async def get_sessions_queue():
+    """
+    获取等待队列信息（模块2）
+
+    功能:
+    - 获取所有 pending_manual 状态的会话
+    - 按优先级排序（VIP > 等待时长 > 默认）
+    - 返回队列统计信息
+
+    Returns:
+        queue: 队列中的会话列表（按优先级排序）
+        total_count: 总队列数量
+        vip_count: VIP客户数量
+        avg_wait_time: 平均等待时长（秒）
+    """
+    if not session_store:
+        raise HTTPException(status_code=503, detail="SessionStore not initialized")
+
+    try:
+        # 获取所有等待接入的会话
+        pending_sessions = await session_store.list_by_status(
+            status=SessionStatus.PENDING_MANUAL,
+            limit=100  # 限制最多100个排队会话
+        )
+
+        if not pending_sessions:
+            return {
+                "success": True,
+                "data": {
+                    "queue": [],
+                    "total_count": 0,
+                    "vip_count": 0,
+                    "avg_wait_time": 0,
+                    "max_wait_time": 0
+                }
+            }
+
+        # 紧急关键词列表（配置化）
+        urgent_keywords = ["投诉", "退款", "质量问题", "差评", "赔偿"]
+
+        # 更新每个会话的优先级信息
+        current_time = time.time()
+        for session in pending_sessions:
+            session.update_priority(urgent_keywords=urgent_keywords)
+
+        # 按优先级排序
+        # 规则:
+        # 1. VIP客户永远最优先（is_vip=True）
+        # 2. 同级别内按等待时长降序
+        # 3. urgent > high > normal
+        def priority_sort_key(s):
+            priority_weight = {
+                "urgent": 3,
+                "high": 2,
+                "normal": 1
+            }.get(s.priority.level, 1)
+
+            # VIP客户排第一（vip_priority=1），非VIP=0
+            vip_priority = 1 if s.priority.is_vip else 0
+
+            # 返回: (VIP优先倒序, 优先级权重倒序, 等待时长倒序)
+            return (-vip_priority, -priority_weight, -s.priority.wait_time_seconds)
+
+        sorted_sessions = sorted(pending_sessions, key=priority_sort_key)
+
+        # 构建队列数据
+        queue_data = []
+        vip_count = 0
+        total_wait_time = 0
+
+        for position, session in enumerate(sorted_sessions, start=1):
+            is_vip = session.user_profile.vip if session.user_profile else False
+            if is_vip:
+                vip_count += 1
+
+            wait_time = session.priority.wait_time_seconds
+            total_wait_time += wait_time
+
+            queue_data.append({
+                "session_name": session.session_name,
+                "position": position,
+                "priority_level": session.priority.level,
+                "is_vip": is_vip,
+                "wait_time_seconds": round(wait_time, 1),
+                "is_timeout": session.priority.is_timeout,
+                "urgent_keywords": session.priority.urgent_keywords,
+                "user_profile": {
+                    "nickname": session.user_profile.nickname if session.user_profile else "访客",
+                    "vip": is_vip
+                },
+                "last_message": session.history[-1].content[:50] if session.history else ""
+            })
+
+        avg_wait_time = total_wait_time / len(sorted_sessions) if sorted_sessions else 0
+        max_wait_time = max([s.priority.wait_time_seconds for s in sorted_sessions]) if sorted_sessions else 0
+
+        return {
+            "success": True,
+            "data": {
+                "queue": queue_data,
+                "total_count": len(sorted_sessions),
+                "vip_count": vip_count,
+                "avg_wait_time": round(avg_wait_time, 1),
+                "max_wait_time": round(max_wait_time, 1)
+            }
+        }
+
+    except Exception as e:
+        print(f"❌ 获取队列信息失败: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"获取队列失败: {str(e)}")
+
+
 @app.get("/api/sessions/{session_name}")
 async def get_session_state(session_name: str):
     """

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { SessionSummary, SessionDetail, SessionStatus } from '@/types'
+import type { SessionSummary, SessionDetail, SessionStatus, QueueResponse, QueueSessionInfo } from '@/types'
 
 export const useSessionStore = defineStore('session', () => {
   // 会话列表
@@ -40,6 +40,15 @@ export const useSessionStore = defineStore('session', () => {
 
   // 筛选条件
   const filterStatus = ref<SessionStatus | ''>('')
+
+  // 【模块2】队列数据
+  const queueData = ref<QueueSessionInfo[]>([])
+  const queueStats = ref({
+    total_count: 0,
+    vip_count: 0,
+    avg_wait_time: 0,
+    max_wait_time: 0
+  })
 
   // 计算属性
   const pendingCount = computed(() => stats.value.by_status.pending_manual || 0)
@@ -386,6 +395,42 @@ export const useSessionStore = defineStore('session', () => {
     await fetchSessions(status || undefined)
   }
 
+  // 【模块2】获取等待队列
+  async function fetchQueue() {
+    try {
+      const response = await fetch('/api/sessions/queue')
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
+
+      const data: QueueResponse = await response.json()
+
+      if (data.success) {
+        queueData.value = data.data.queue
+        queueStats.value = {
+          total_count: data.data.total_count,
+          vip_count: data.data.vip_count,
+          avg_wait_time: data.data.avg_wait_time,
+          max_wait_time: data.data.max_wait_time
+        }
+        console.log(`✅ 获取队列成功: 总数 ${queueStats.value.total_count}, VIP ${queueStats.value.vip_count}`)
+      } else {
+        throw new Error('获取队列失败')
+      }
+    } catch (err: any) {
+      console.error('❌ 获取队列失败:', err)
+      // 失败时清空队列数据
+      queueData.value = []
+      queueStats.value = {
+        total_count: 0,
+        vip_count: 0,
+        avg_wait_time: 0,
+        max_wait_time: 0
+      }
+    }
+  }
+
   return {
     // 状态
     sessions,
@@ -396,6 +441,9 @@ export const useSessionStore = defineStore('session', () => {
     currentSessionName,
     stats,
     filterStatus,
+    // 【模块2】队列相关状态
+    queueData,
+    queueStats,
 
     // 计算属性
     pendingCount,
@@ -412,6 +460,8 @@ export const useSessionStore = defineStore('session', () => {
     transferSession,
     sendMessage,
     clearCurrentSession,
-    setFilter
+    setFilter,
+    // 【模块2】队列管理方法
+    fetchQueue
   }
 })

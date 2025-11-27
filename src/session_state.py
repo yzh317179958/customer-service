@@ -51,6 +51,13 @@ class EscalationSeverity(str, Enum):
     HIGH = "high"
 
 
+class PriorityLevel(str, Enum):
+    """优先级等级 (模块2)"""
+    URGENT = "urgent"  # 紧急（VIP客户、等待超时）
+    HIGH = "high"      # 重要（关键词触发、二次转接）
+    NORMAL = "normal"  # 普通
+
+
 # ==================== 数据模型 ====================
 
 class Message(BaseModel):
@@ -105,6 +112,34 @@ class MailInfo(BaseModel):
     error: Optional[str] = None
 
 
+class PriorityInfo(BaseModel):
+    """会话优先级信息 (模块2)"""
+    level: PriorityLevel = PriorityLevel.NORMAL  # 优先级等级
+    is_vip: bool = False  # 是否VIP客户
+    wait_time_seconds: float = 0  # 等待时长（秒）
+    is_timeout: bool = False  # 是否等待超时（>5分钟）
+    is_repeat: bool = False  # 是否二次转接
+    urgent_keywords: List[str] = Field(default_factory=list)  # 触发的紧急关键词
+
+    def calculate_priority(self) -> PriorityLevel:
+        """
+        计算优先级等级
+
+        规则：
+        1. VIP客户 → urgent
+        2. 等待超时（>5分钟）→ urgent
+        3. 关键词触发 → high
+        4. 二次转接 → high
+        5. 默认 → normal
+        """
+        if self.is_vip or self.is_timeout:
+            return PriorityLevel.URGENT
+        elif self.urgent_keywords or self.is_repeat:
+            return PriorityLevel.HIGH
+        else:
+            return PriorityLevel.NORMAL
+
+
 class SessionState(BaseModel):
     """会话状态完整模型"""
     session_name: str  # 会话唯一标识 (即 user_id/sessionId)
@@ -124,6 +159,9 @@ class SessionState(BaseModel):
     # 邮件信息
     mail: Optional[MailInfo] = None
 
+    # ⭐ 模块2新增：优先级信息
+    priority: PriorityInfo = Field(default_factory=PriorityInfo)
+
     # 时间戳
     created_at: float = Field(default_factory=lambda: round(datetime.now(timezone.utc).timestamp(), 3))
     updated_at: float = Field(default_factory=lambda: round(datetime.now(timezone.utc).timestamp(), 3))
@@ -142,6 +180,40 @@ class SessionState(BaseModel):
         if len(self.history) > max_history:
             self.history = self.history[-max_history:]
         self.updated_at = round(datetime.now(timezone.utc).timestamp(), 3)
+
+    def update_priority(self, urgent_keywords: List[str] = None):
+        """
+        更新优先级信息 (模块2)
+
+        Args:
+            urgent_keywords: 紧急关键词列表 ["投诉", "退款", "质量问题"]
+        """
+        current_time = round(datetime.now(timezone.utc).timestamp(), 3)
+
+        # 更新 VIP 状态
+        self.priority.is_vip = self.user_profile.vip
+
+        # 计算等待时长
+        if self.escalation and self.status == SessionStatus.PENDING_MANUAL:
+            self.priority.wait_time_seconds = current_time - self.escalation.trigger_at
+            # 判断是否等待超时（>5分钟 = 300秒）
+            self.priority.is_timeout = self.priority.wait_time_seconds > 300
+        else:
+            self.priority.wait_time_seconds = 0
+            self.priority.is_timeout = False
+
+        # 检查紧急关键词
+        if urgent_keywords:
+            found_keywords = []
+            for msg in self.history:
+                if msg.role == MessageRole.USER:
+                    for keyword in urgent_keywords:
+                        if keyword in msg.content:
+                            found_keywords.append(keyword)
+            self.priority.urgent_keywords = list(set(found_keywords))
+
+        # 重新计算优先级等级
+        self.priority.level = self.priority.calculate_priority()
 
     def transition_status(self, new_status: SessionStatus) -> bool:
         """
