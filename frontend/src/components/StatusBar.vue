@@ -48,7 +48,7 @@ const agentInfo = computed(() => chatStore.agentInfo)
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: 10px 20px;
   border-bottom: 1px solid #e5e7eb;
   background: #ffffff;
   transition: all 0.3s ease;
@@ -74,17 +74,9 @@ const agentInfo = computed(() => chatStore.agentInfo)
   background: #10b981;
 }
 
-.status-ai {
-  background: linear-gradient(to right, #f0fdf4, #ffffff);
-}
-
 /* 等待人工 - 橙色 */
 .status-pending .status-dot {
   background: #f59e0b;
-}
-
-.status-pending {
-  background: linear-gradient(to right, #fffbeb, #ffffff);
 }
 
 /* 人工服务中 - 蓝色 */
@@ -92,17 +84,9 @@ const agentInfo = computed(() => chatStore.agentInfo)
   background: #3b82f6;
 }
 
-.status-manual {
-  background: linear-gradient(to right, #eff6ff, #ffffff);
-}
-
 /* 非工作时间 - 灰色 */
 .status-email .status-dot {
   background: #6b7280;
-}
-
-.status-email {
-  background: linear-gradient(to right, #f9fafb, #ffffff);
 }
 
 /* 已关闭 - 红色 */
@@ -110,15 +94,11 @@ const agentInfo = computed(() => chatStore.agentInfo)
   background: #ef4444;
 }
 
-.status-closed {
-  background: linear-gradient(to right, #fef2f2, #ffffff);
-}
-
 /* 状态文本 */
 .status-text {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
-  color: #374151;
+  color: #6b7280;
 }
 
 /* 脉动动画 */
@@ -141,8 +121,8 @@ const agentInfo = computed(() => chatStore.agentInfo)
 }
 
 .agent-avatar {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   overflow: hidden;
   display: flex;
@@ -151,7 +131,7 @@ const agentInfo = computed(() => chatStore.agentInfo)
   background: #3b82f6;
   color: white;
   font-weight: 500;
-  font-size: 14px;
+  font-size: 12px;
 }
 
 .agent-avatar img {
