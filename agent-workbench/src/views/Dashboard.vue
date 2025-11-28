@@ -7,9 +7,11 @@ import SessionList from '@/components/SessionList.vue'
 import QuickReplies from '@/components/QuickReplies.vue'
 import CustomerProfile from '@/components/customer/CustomerProfile.vue'
 import KeyboardShortcutsHelp from '@/components/KeyboardShortcutsHelp.vue'
+import NotificationSettingsDialog from '@/components/NotificationSettingsDialog.vue'
 import type { SessionStatus, CustomerProfile as CustomerProfileType } from '@/types'
 import { useAgentWorkbenchSSE } from '@/composables/useAgentWorkbenchSSE'
 import { useKeyboardShortcuts, type KeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
+import { useNotification } from '@/composables/useNotification'
 import axios from 'axios'
 
 const agentStore = useAgentStore()
@@ -31,6 +33,19 @@ const editingNoteContent = ref('')
 
 // 【模块6】快捷键帮助面板
 const showShortcutsHelp = ref(false)
+
+// 【模块6.2.2】消息提醒系统
+const showNotificationSettings = ref(false)
+const {
+  notificationPermission,
+  unreadCount,
+  requestPermission,
+  notifyNewSession,
+  notifyCustomerReply,
+  notifyTransferRequest,
+  notifyAssistRequest,
+  clearUnreadCount
+} = useNotification()
 
 // 【模块6】搜索框引用
 const searchInputRef = ref<HTMLInputElement | null>(null)
@@ -738,6 +753,15 @@ onUnmounted(() => {
           </svg>
           快捷回复
         </button>
+        <!-- 消息提醒设置按钮 (v3.11.0+) -->
+        <button @click="showNotificationSettings = true" class="notification-settings-button" :class="{ 'has-unread': unreadCount > 0 }">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+          </svg>
+          <span v-if="unreadCount > 0" class="unread-badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+          提醒设置
+        </button>
         <button @click="handleLogout" class="logout-button">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
@@ -1176,6 +1200,9 @@ onUnmounted(() => {
 
     <!-- 【模块6】快捷键帮助面板 -->
     <KeyboardShortcutsHelp v-if="showShortcutsHelp" @close="showShortcutsHelp = false" />
+
+    <!-- 【模块6.2.2】消息提醒设置对话框 -->
+    <NotificationSettingsDialog v-if="showNotificationSettings" @close="showNotificationSettings = false" />
   </div>
 </template>
 
@@ -1297,13 +1324,14 @@ onUnmounted(() => {
 }
 
 /* 快捷回复按钮 (v3.7.0+) */
-.quick-reply-nav-button {
+.quick-reply-nav-button,
+.notification-settings-button {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 7px 14px;
-  background: rgba(52, 152, 219, 0.15);
-  border: 1px solid rgba(52, 152, 219, 0.3);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 4px;
   font-size: 13px;
   color: white;
@@ -1311,11 +1339,42 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all 0.2s ease;
   margin-right: 12px;
+  position: relative;
 }
 
-.quick-reply-nav-button:hover {
-  background: rgba(52, 152, 219, 0.25);
-  border-color: rgba(52, 152, 219, 0.4);
+.quick-reply-nav-button:hover,
+.notification-settings-button:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+/* 消息提醒设置按钮 (v3.11.0+) */
+.notification-settings-button.has-unread {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.unread-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: #ef4444;
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 10px;
+  min-width: 18px;
+  text-align: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
 }
 
 .logout-button {

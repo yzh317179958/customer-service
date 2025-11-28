@@ -918,6 +918,7 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 8px;
   animation: bubbleSlideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 5;
 }
 
 @keyframes bubbleSlideUp {
@@ -1083,6 +1084,8 @@ onUnmounted(() => {
 .chat-input-wrapper {
   display: flex;
   gap: 10px;
+  align-items: center;
+  position: relative;
 }
 
 .chat-input {
@@ -1111,6 +1114,8 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   transition: all 0.3s;
+  flex-shrink: 0;
+  z-index: 10;
 }
 
 .chat-send:hover:not(:disabled) {

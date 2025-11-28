@@ -430,6 +430,20 @@ else
 fi
 
 echo ""
+echo "=== 【模块5】协助请求功能测试 v3.10.0 ==="
+echo ""
+
+# 测试29: 协助请求功能
+echo -n "测试29: 协助请求功能... "
+if bash tests/test_assist_requests.sh > /dev/null 2>&1; then
+    echo -e "${GREEN}✅ 通过${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}❌ 失败${NC}"
+    ((FAIL++))
+fi
+
+echo ""
 echo "=== TypeScript类型检查 ==="
 echo ""
 

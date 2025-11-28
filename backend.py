@@ -64,6 +64,15 @@ from src.quick_reply import QuickReply, QuickReplyCategory, QUICK_REPLY_CATEGORI
 from src.quick_reply_store import QuickReplyStore
 from src.variable_replacer import VariableReplacer, build_variable_context
 
+# 【模块5】导入协助请求模块
+from src.assist_request import (
+    AssistRequest,
+    AssistStatus,
+    CreateAssistRequestRequest,
+    AnswerAssistRequestRequest,
+    assist_request_store
+)
+
 # 加载环境变量
 load_dotenv()
 
@@ -4161,6 +4170,223 @@ async def get_transfer_history(
         raise HTTPException(
             status_code=500,
             detail=f"获取失败: {str(e)}"
+        )
+
+
+# ==================== 【模块5】协助请求功能 ====================
+
+@app.post("/api/assist-requests")
+async def create_assist_request(
+    request: CreateAssistRequestRequest,
+    agent: dict = Depends(require_agent)
+):
+    """
+    创建协助请求
+
+    允许坐席在不转接会话的情况下请求其他坐席协助。
+
+    Args:
+        request: 协助请求信息
+        agent: 当前登录坐席信息
+
+    Returns:
+        创建的协助请求
+    """
+    try:
+        # 验证协助者是否存在
+        assistant_agent = agent_manager.get_agent_by_username(request.assistant)
+        if not assistant_agent:
+            raise HTTPException(
+                status_code=404,
+                detail="ASSISTANT_NOT_FOUND: 协助者不存在"
+            )
+
+        # 验证会话是否存在
+        session_state = session_store.get(request.session_name)
+        if not session_state:
+            raise HTTPException(
+                status_code=404,
+                detail="SESSION_NOT_FOUND: 会话不存在"
+            )
+
+        # 创建协助请求
+        assist_request = AssistRequest(
+            id=f"assist_{int(time.time() * 1000)}_{uuid.uuid4().hex[:8]}",
+            session_name=request.session_name,
+            requester=agent.get("username"),
+            assistant=request.assistant,
+            question=request.question,
+            status=AssistStatus.PENDING,
+            created_at=time.time()
+        )
+
+        # 保存到存储
+        assist_request_store.create(assist_request)
+
+        print(f"✅ 创建协助请求: {assist_request.id} ({agent.get('username')} → {request.assistant})")
+
+        # 推送SSE通知给协助者
+        if request.assistant in sse_queues:
+            await sse_queues[request.assistant].put({
+                "type": "assist_request",
+                "data": {
+                    "id": assist_request.id,
+                    "session_name": assist_request.session_name,
+                    "requester": assist_request.requester,
+                    "question": assist_request.question,
+                    "created_at": assist_request.created_at
+                }
+            })
+
+        return {
+            "success": True,
+            "data": assist_request.model_dump()
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 创建协助请求失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"创建失败: {str(e)}"
+        )
+
+
+@app.get("/api/assist-requests")
+async def get_assist_requests(
+    status: Optional[str] = None,
+    agent: dict = Depends(require_agent)
+):
+    """
+    获取协助请求列表
+
+    坐席可以查看：
+    - 发送给自己的协助请求（作为协助者）
+    - 自己发出的协助请求（作为请求者）
+
+    Args:
+        status: 可选的状态过滤（pending/answered）
+        agent: 当前登录坐席信息
+
+    Returns:
+        协助请求列表（包含收到的和发出的）
+    """
+    try:
+        username = agent.get("username")
+
+        # 验证状态参数
+        filter_status = None
+        if status:
+            try:
+                filter_status = AssistStatus(status)
+            except ValueError:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"INVALID_STATUS: 无效的状态值，必须是 pending 或 answered"
+                )
+
+        # 获取收到的协助请求（我作为协助者）
+        received_requests = assist_request_store.get_by_assistant(username, status=filter_status)
+
+        # 获取发出的协助请求（我作为请求者）
+        sent_requests = assist_request_store.get_by_requester(username, status=filter_status)
+
+        return {
+            "success": True,
+            "data": {
+                "received": [r.model_dump() for r in received_requests],
+                "sent": [r.model_dump() for r in sent_requests]
+            },
+            "count": {
+                "received": len(received_requests),
+                "sent": len(sent_requests),
+                "received_pending": assist_request_store.count_pending_by_assistant(username)
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 获取协助请求失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取失败: {str(e)}"
+        )
+
+
+@app.post("/api/assist-requests/{request_id}/answer")
+async def answer_assist_request(
+    request_id: str,
+    request: AnswerAssistRequestRequest,
+    agent: dict = Depends(require_agent)
+):
+    """
+    回复协助请求
+
+    只有被请求协助的坐席可以回复。
+
+    Args:
+        request_id: 协助请求ID
+        request: 回复内容
+        agent: 当前登录坐席信息
+
+    Returns:
+        更新后的协助请求
+    """
+    try:
+        # 获取协助请求
+        assist_request = assist_request_store.get(request_id)
+        if not assist_request:
+            raise HTTPException(
+                status_code=404,
+                detail="REQUEST_NOT_FOUND: 协助请求不存在"
+            )
+
+        # 权限检查：只有协助者可以回复
+        if assist_request.assistant != agent.get("username"):
+            raise HTTPException(
+                status_code=403,
+                detail="PERMISSION_DENIED: 只有被请求的坐席可以回复"
+            )
+
+        # 检查是否已回复
+        if assist_request.status == AssistStatus.ANSWERED:
+            raise HTTPException(
+                status_code=400,
+                detail="ALREADY_ANSWERED: 该请求已被回复"
+            )
+
+        # 回复协助请求
+        updated_request = assist_request_store.answer(request_id, request.answer)
+
+        print(f"✅ 回复协助请求: {request_id} by {agent.get('username')}")
+
+        # 推送SSE通知给请求者
+        if updated_request.requester in sse_queues:
+            await sse_queues[updated_request.requester].put({
+                "type": "assist_answer",
+                "data": {
+                    "id": updated_request.id,
+                    "session_name": updated_request.session_name,
+                    "assistant": updated_request.assistant,
+                    "answer": updated_request.answer,
+                    "answered_at": updated_request.answered_at
+                }
+            })
+
+        return {
+            "success": True,
+            "data": updated_request.model_dump()
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 回复协助请求失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"回复失败: {str(e)}"
         )
 
 
