@@ -25,13 +25,13 @@ const chatStore = useChatStore()
   justify-content: center;
   padding: 60px 30px;
   text-align: center;
-  animation: welcomeFadeIn 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: welcomeFadeIn 0.4s ease-out;
 }
 
 @keyframes welcomeFadeIn {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
@@ -40,42 +40,19 @@ const chatStore = useChatStore()
 }
 
 .welcome-avatar {
-  width: 90px;
-  height: 90px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+  background: #f3f4f6;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #6366f1;
-  font-weight: 700;
-  font-size: 36px;
-  margin-bottom: 24px;
-  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.15);
+  color: #6b7280;
+  font-weight: 600;
+  font-size: 24px;
+  margin-bottom: 20px;
   padding: 8px;
   overflow: hidden;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-}
-
-.welcome-avatar::before {
-  content: '';
-  position: absolute;
-  inset: -2px;
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-  border-radius: 50%;
-  z-index: -1;
-  opacity: 0;
-  transition: opacity 0.3s;
-}
-
-.welcome-avatar:hover::before {
-  opacity: 1;
-}
-
-.welcome-avatar:hover {
-  transform: scale(1.08) translateY(-4px);
-  box-shadow: 0 12px 32px rgba(99, 102, 241, 0.25);
 }
 
 .welcome-avatar img {
@@ -83,29 +60,19 @@ const chatStore = useChatStore()
   height: 100%;
   object-fit: cover;
   border-radius: 50%;
-  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.welcome-avatar:hover img {
-  transform: scale(1.05);
 }
 
 .welcome-name {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  margin-bottom: 12px;
-  letter-spacing: 0.3px;
+  color: #111827;
+  margin-bottom: 10px;
 }
 
 .welcome-message {
   font-size: 14px;
   color: #6b7280;
-  line-height: 1.7;
-  max-width: 300px;
-  font-weight: 400;
+  line-height: 1.6;
+  max-width: 280px;
 }
 </style>

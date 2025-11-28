@@ -92,7 +92,7 @@ const senderName = computed(() => {
 </template>
 
 <style scoped>
-/* System message styles */
+/* Coze-inspired Message Styles */
 .system-message {
   width: 100%;
   display: flex;
@@ -105,28 +105,28 @@ const senderName = computed(() => {
 .system-divider {
   flex: 1;
   height: 1px;
-  background: linear-gradient(90deg, transparent, #d1d5db, transparent);
+  background: #e5e7eb;
 }
 
 .system-text {
   color: #9ca3af;
   font-size: 12px;
   white-space: nowrap;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 /* Message base styles */
 .message {
-  margin-bottom: 18px;
+  margin-bottom: 16px;
   display: flex;
-  gap: 12px;
-  animation: messageSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  gap: 10px;
+  animation: messageSlideIn 0.2s ease-out;
 }
 
 @keyframes messageSlideIn {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -139,52 +139,43 @@ const senderName = computed(() => {
 }
 
 .message-avatar {
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  background: #ffffff;
+  background: #e5e7eb;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #1f2937;
+  color: #6b7280;
   font-weight: 600;
-  font-size: 14px;
+  font-size: 12px;
   flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  padding: 2px;
   overflow: hidden;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.message-avatar:hover {
-  transform: scale(1.1);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
 }
 
 .message-avatar img {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  border-radius: 50%;
 }
 
 .message.user .message-avatar {
-  background: linear-gradient(135deg, #ec4899 0%, #f472b6 100%);
+  background: #3b82f6;
   color: white;
 }
 
-/* Agent avatar - 渐变紫色 */
+/* Agent avatar */
 .message-avatar.agent-avatar {
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  background: #10b981;
   color: white;
-  font-size: 18px;
+  font-size: 16px;
 }
 
 .message-body {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  max-width: 70%;
+  max-width: 75%;
   min-width: 0;
 }
 
@@ -203,26 +194,22 @@ const senderName = computed(() => {
 }
 
 .message-sender {
-  font-weight: 600;
-  color: #4b5563;
+  font-weight: 500;
+  color: #6b7280;
 }
 
-/* Agent name - 蓝色加粗 */
 .message-sender.agent-name {
   font-weight: 600;
-  color: #6366f1;
-  font-size: 13px;
+  color: #10b981;
 }
 
-/* Agent badge - 人工标签 */
 .agent-badge {
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  background: #10b981;
   color: white;
-  padding: 2px 8px;
-  border-radius: 10px;
+  padding: 2px 6px;
+  border-radius: 8px;
   font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.3px;
 }
 
 .message-time {
@@ -232,50 +219,43 @@ const senderName = computed(() => {
 }
 
 .message-content {
-  padding: 12px 16px;
-  border-radius: 16px;
+  padding: 10px 14px;
+  border-radius: 12px;
   word-wrap: break-word;
-  line-height: 1.6;
+  line-height: 1.5;
   font-size: 14px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
 .message.user .message-content {
-  background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
+  background: #3b82f6;
   color: #ffffff;
   border-bottom-right-radius: 4px;
 }
 
 .message.bot .message-content {
-  background: #ffffff;
-  color: #1f2937;
+  background: #f3f4f6;
+  color: #111827;
   border-bottom-left-radius: 4px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
 }
 
-/* Agent message - 浅蓝色背景 + 左侧渐变边框 */
 .message.agent .message-content {
-  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-  color: #1f2937;
-  border-left: 3px solid transparent;
-  border-image: linear-gradient(180deg, #6366f1 0%, #8b5cf6 100%);
-  border-image-slice: 1;
-  border-radius: 16px 16px 16px 4px;
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.12);
+  background: #d1fae5;
+  color: #065f46;
+  border-bottom-left-radius: 4px;
 }
 
 /* Markdown styles */
 .message-content :deep(h1),
 .message-content :deep(h2),
 .message-content :deep(h3) {
-  margin-top: 12px;
-  margin-bottom: 8px;
+  margin-top: 10px;
+  margin-bottom: 6px;
   font-weight: 600;
   color: inherit;
 }
 
 .message-content :deep(h3) {
-  font-size: 1.05em;
+  font-size: 1em;
 }
 
 .message-content :deep(p) {
@@ -284,12 +264,12 @@ const senderName = computed(() => {
 
 .message-content :deep(ul),
 .message-content :deep(ol) {
-  margin: 8px 0;
-  padding-left: 20px;
+  margin: 6px 0;
+  padding-left: 18px;
 }
 
 .message-content :deep(li) {
-  margin: 4px 0;
+  margin: 3px 0;
 }
 
 .message-content :deep(strong) {
@@ -301,32 +281,32 @@ const senderName = computed(() => {
 }
 
 .message-content :deep(a) {
-  color: #6366f1;
+  color: #3b82f6;
   text-decoration: underline;
   transition: color 0.2s;
 }
 
 .message-content :deep(a:hover) {
-  color: #8b5cf6;
+  color: #2563eb;
 }
 
 .message.user .message-content :deep(a) {
-  color: #93c5fd;
+  color: #dbeafe;
 }
 
 .message.user .message-content :deep(a:hover) {
-  color: #bfdbfe;
+  color: #ffffff;
 }
 
 .message-content :deep(code) {
   background: rgba(0, 0, 0, 0.05);
-  padding: 2px 6px;
-  border-radius: 4px;
+  padding: 2px 5px;
+  border-radius: 3px;
   font-size: 0.9em;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
 }
 
 .message.user .message-content :deep(code) {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.2);
 }
 </style>
