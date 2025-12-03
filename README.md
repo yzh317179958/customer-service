@@ -1,4 +1,4 @@
-# Fiido 智能客服系统
+# Fifo 智能客服系统
 
 ## 项目概述
 
@@ -59,7 +59,7 @@ bot_active → pending_manual → manual_live → bot_active
 **最新更新**:
 - ✅ 管理员功能完整实现（坐席 CRUD、权限控制）- v3.1.1
 - ✅ 坐席自助功能（修改密码、修改资料）- v3.1.2/v3.1.3
-- ✅ Fiido E-bike 业务需求整合 - v3.1.0
+- ✅ Fifo E-bike 业务需求整合 - v3.1.0
 - ✅ 修复会话隔离 SSL 超时问题 - v3.1.3
 
 **已完成功能**: P0 核心功能 + P0 管理员功能 + P1 自助功能 + P1 增强功能
@@ -112,7 +112,7 @@ AI 回答: "你是子豪" ← 这是错误的！应该不知道
 
 ### 前端特性
 - ✅ **Vue 3 框架版本** - 现代化的前端架构
-- ✅ **Fiido 官网设计** - 完全复刻 fiido.com 界面风格
+- ✅ **Fifo 官网设计** - 完全复刻 fifo.com 界面风格
 - ✅ **流式响应** - 逐字显示AI回复
 - ✅ **Markdown 渲染** - 支持富文本消息
 - ✅ **气泡菜单** - 优雅的浮动操作菜单
@@ -240,14 +240,14 @@ npm run dev
 ## 📁 项目结构
 
 ```
-fiido-customer-service/
+fifo-customer-service/
 ├── README.md                       # 项目说明
 ├── requirements.txt                # Python 依赖
 ├── .env                            # 环境变量配置
 ├── private_key.pem                 # OAuth 私钥
 │
 ├── backend.py                      # FastAPI 后端主程序
-├── fiido2.png                      # 客服头像
+├── fifo2.png                      # 客服头像
 ├── 启动-Vue前端.sh                  # Vue 启动脚本
 │
 ├── frontend/                       # Vue 3 前端
@@ -272,7 +272,7 @@ fiido-customer-service/
 │   │   └── assets/
 │   │       └── main.css            # 全局样式
 │   ├── public/
-│   │   └── fiido2.png              # 客服头像
+│   │   └── fifo2.png              # 客服头像
 │   ├── index.html                  # HTML 入口
 │   ├── vite.config.ts              # Vite 配置
 │   ├── package.json                # 依赖配置
@@ -400,8 +400,8 @@ GET /api/bot/info
 {
   "success": true,
   "bot": {
-    "name": "Fiido 客服",
-    "description": "Fiido 智能客服助手",
+    "name": "Fifo 客服",
+    "description": "Fifo 智能客服助手",
     "icon_url": "https://..."
   }
 }
@@ -1052,7 +1052,7 @@ python3 tests/test_session_name.py
 
 ---
 
-### v3.1.0 (2025-11-25) - Fiido E-bike 业务需求整合 v3.1 ⭐ P0 功能完成
+### v3.1.0 (2025-11-25) - Fifo E-bike 业务需求整合 v3.1 ⭐ P0 功能完成
 
 **主要更新**:
 
@@ -1143,7 +1143,7 @@ python3 tests/test_session_name.py
 - ✅ 实时消息推送 - SSE 长连接
 - ✅ 会话隔离 - 基于 session_name
 - ✅ 历史回填 - 刷新保持上下文
-- ✅ 品牌设计 - Fiido 官方风格
+- ✅ 品牌设计 - Fifo 官方风格
 - ✅ 局域网访问 - 支持多设备访问
 - ✅ **Redis 数据持久化** - 服务器重启不丢失数据 ⭐ 新增
 - ✅ **水平扩展支持** - 多台服务器共享数据 ⭐ 新增
@@ -1182,7 +1182,7 @@ python3 tests/test_session_name.py
 ---
 
 ### v2.3.3 (2025-11-24) - UI 美化与品牌升级
-- 坐席工作台 Fiido 品牌设计
+- 坐席工作台 Fifo 品牌设计
 - 用户端人工接管 UI 完善
 - 网络访问配置优化
 - **GitHub**: Commit `ab42735`, Tag `v2.3.3`
@@ -1229,7 +1229,7 @@ python3 tests/test_session_name.py
 ### v2.1.0 (2025-11-19) - 三前端版本发布
 - 后端新增多个API接口
 - 三个前端版本：Vue 3、Chat SDK、增强版HTML
-- 完全复刻 Fiido.com 设计
+- 完全复刻 Fifo.com 设计
 - **GitHub**: Tag `v2.1.0`
 
 ---
