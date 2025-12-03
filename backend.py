@@ -3263,8 +3263,35 @@ async def transfer_session(
             "timestamp": int(created_at)
         }, ensure_ascii=False))
 
+        # 【修复】推送SSE通知给目标坐席（实时通知）
         if agent_manager:
             agent_manager.update_last_active(from_agent_id)
+
+            # 获取目标坐席对象（用于获取username）
+            target_agent = agent_manager.get_agent_by_id(to_agent_id)
+            if not target_agent:
+                # 兼容：to_agent_id 可能直接是 username
+                target_agent = agent_manager.get_agent_by_username(to_agent_id)
+
+            if target_agent:
+                # 推送SSE事件到目标坐席
+                await enqueue_sse_message(target_agent.username, {
+                    "type": "transfer_request",
+                    "data": {
+                        "id": request_id,
+                        "session_name": session_name,
+                        "from_agent": from_agent_id,
+                        "from_agent_name": old_agent_name,
+                        "to_agent": to_agent_id,
+                        "to_agent_name": to_agent_name,
+                        "reason": reason,
+                        "note": note,
+                        "created_at": created_at
+                    }
+                })
+                print(f"✅ 推送转接通知 SSE: {target_agent.username} (request_id={request_id})")
+            else:
+                print(f"⚠️  目标坐席不存在，无法推送SSE: {to_agent_id}")
 
         return {
             "success": True,
