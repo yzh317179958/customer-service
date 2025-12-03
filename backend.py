@@ -22,8 +22,9 @@ import hashlib
 from datetime import datetime, timezone
 import csv
 import io
+from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -80,7 +81,12 @@ from src.ticket import (
     TicketCommentType,
 )
 from src.ticket_store import TicketStore
+from src.audit_log import AuditLogStore
 from src.ticket_assignment import SmartAssignmentEngine
+from src.ticket_template import TicketTemplateStore, TicketTemplate
+
+# 【增量3-1】导入 SLA 计时器模块
+from src.sla_timer import SLATimer, calculate_ticket_sla, SLAStatus
 
 # 【模块5】导入协助请求模块
 from src.assist_request import (
@@ -129,6 +135,39 @@ HTTP_TIMEOUT = httpx.Timeout(
     write=10.0,
     pool=10.0
 )
+
+ATTACHMENTS_DIR = Path(os.getenv("ATTACHMENTS_DIR", "attachments")).resolve()
+ATTACHMENTS_DIR.mkdir(parents=True, exist_ok=True)
+
+ATTACHMENT_RULES = [
+    {
+        "name": "image",
+        "max_size": 10 * 1024 * 1024,
+        "content_types": {"image/jpeg", "image/png", "image/webp", "image/gif"},
+        "extensions": {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+    },
+    {
+        "name": "document",
+        "max_size": 20 * 1024 * 1024,
+        "content_types": {
+            "application/pdf",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.ms-excel",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "text/plain"
+        },
+        "extensions": {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".txt"}
+    },
+    {
+        "name": "video",
+        "max_size": 50 * 1024 * 1024,
+        "content_types": {"video/mp4"},
+        "extensions": {".mp4"}
+    }
+]
+
+MAX_ATTACHMENT_SIZE_FALLBACK = 5 * 1024 * 1024
 
 
 class ChatRequest(BaseModel):
@@ -217,6 +256,20 @@ class TicketCommentRequest(BaseModel):
     content: str = Field(..., max_length=2000)
     comment_type: TicketCommentType = TicketCommentType.INTERNAL
     notify_agent_id: Optional[str] = Field(default=None, max_length=100)
+    mentions: Optional[List[str]] = Field(default=None, description="被@提醒的坐席ID列表")
+
+
+class TicketTemplateRequest(BaseModel):
+    name: str = Field(..., max_length=100)
+    ticket_type: TicketType = TicketType.AFTER_SALE
+    category: str = Field(..., max_length=100)
+    priority: TicketPriority = TicketPriority.MEDIUM
+    title_template: str = Field(..., max_length=200)
+    description_template: str = Field(..., max_length=5000)
+
+
+class TicketTemplateRenderRequest(BaseModel):
+    customer_name: Optional[str] = None
 
 
 class ReopenTicketRequest(BaseModel):
@@ -439,6 +492,104 @@ def _tickets_to_csv_bytes(tickets: List['Ticket']) -> bytes:
 # P0-5: SSE 消息队列 - 用于人工消息推送
 # 结构: {session_name: asyncio.Queue()}
 sse_queues: dict = {}  # type: dict[str, asyncio.Queue]
+audit_log_store: Optional[AuditLogStore] = None
+ticket_template_store: Optional[TicketTemplateStore] = None
+
+
+async def enqueue_sse_message(target: str, payload: dict):
+    """将消息放入指定目标的 SSE 队列中，队列满时丢弃最旧的数据"""
+    global sse_queues
+    if target not in sse_queues:
+        sse_queues[target] = asyncio.Queue()
+        print(f"✅ 创建全局SSE队列: {target}")
+
+    queue = sse_queues[target]
+    try:
+        queue.put_nowait(payload)
+    except asyncio.QueueFull:
+        try:
+            queue.get_nowait()
+        except asyncio.QueueEmpty:
+            pass
+        queue.put_nowait(payload)
+
+
+def _resolve_attachment_rule(filename: str, content_type: Optional[str]):
+    extension = Path(filename or "").suffix.lower()
+    for rule in ATTACHMENT_RULES:
+        if (content_type and content_type in rule["content_types"]) or (extension and extension in rule["extensions"]):
+            return rule
+    return None
+
+
+async def _save_attachment_file(upload: UploadFile, dest: Path, max_size: int) -> int:
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    size = 0
+
+    try:
+        with dest.open("wb") as buffer:
+            while True:
+                chunk = await upload.read(1024 * 1024)
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > max_size:
+                    raise ValueError("FILE_TOO_LARGE")
+                buffer.write(chunk)
+    except Exception:
+        if dest.exists():
+            dest.unlink()
+        raise
+    finally:
+        await upload.seek(0)
+
+    return size
+
+
+def _is_path_within(base: Path, target: Path) -> bool:
+    try:
+        target.resolve().relative_to(base.resolve())
+        return True
+    except ValueError:
+        return False
+
+
+def _attachment_response(ticket_id: str, attachment):
+    data = attachment.dict()
+    data["download_url"] = f"/api/tickets/{ticket_id}/attachments/{attachment.attachment_id}"
+    return data
+
+
+def log_ticket_event(
+    event_type: str,
+    ticket_id: str,
+    operator: Optional[Dict[str, Any]],
+    details: Optional[Dict[str, Any]] = None
+):
+    global audit_log_store
+    if not audit_log_store:
+        return
+    operator_id = "system"
+    operator_name = "system"
+    if operator:
+        operator_id = operator.get("agent_id") or operator.get("username") or "system"
+        operator_name = operator.get("username") or operator_id
+    try:
+        audit_log_store.add_log(
+            ticket_id=ticket_id,
+            event_type=event_type,  # type: ignore[arg-type]
+            operator_id=operator_id,
+            operator_name=operator_name,
+            details=details or {}
+        )
+    except Exception as exc:
+        print(f"⚠️ 记录协作日志失败: {exc}")
+    except asyncio.QueueFull:
+        try:
+            queue.get_nowait()
+        except asyncio.QueueEmpty:
+            pass
+        queue.put_nowait(payload)
 
 # 坐席状态相关配置
 AGENT_AUTO_BUSY_SECONDS = int(os.getenv("AGENT_AUTO_BUSY_SECONDS", "300"))
@@ -597,10 +748,87 @@ def _auto_adjust_agent_status(agent_obj: Agent) -> Agent:
     return agent_obj
 
 
+# 【增量3-4】SLA 预警后台任务配置
+SLA_CHECK_INTERVAL = int(os.getenv("SLA_CHECK_INTERVAL", "60"))  # 默认60秒检查一次
+_sla_task: Optional[asyncio.Task] = None  # 后台任务引用
+
+
+async def sla_alert_background_task():
+    """
+    SLA 预警后台任务
+
+    定期检查所有活跃工单的 SLA 状态，向负责坐席推送预警
+    """
+    global ticket_store, agent_manager, sse_queues
+
+    print(f"🔔 SLA 预警后台任务启动 (间隔: {SLA_CHECK_INTERVAL}秒)")
+
+    while True:
+        try:
+            await asyncio.sleep(SLA_CHECK_INTERVAL)
+
+            if not ticket_store:
+                continue
+
+            # 获取所有预警（只关注 warning/urgent/violated）
+            result = ticket_store.detect_sla_alerts(
+                status_filter=["warning", "urgent", "violated"]
+            )
+            alerts = result.get("alerts", [])
+
+            if not alerts:
+                continue
+
+            # 按负责坐席分组推送
+            alerts_by_agent: Dict[str, list] = {}
+            for alert in alerts:
+                agent_id = alert.get("assigned_to")
+                if agent_id:
+                    if agent_id not in alerts_by_agent:
+                        alerts_by_agent[agent_id] = []
+                    alerts_by_agent[agent_id].append(alert)
+
+            # 推送给各坐席
+            for agent_id, agent_alerts in alerts_by_agent.items():
+                # 查找坐席 username（SSE 队列以 username 为 key）
+                if agent_manager:
+                    agent = agent_manager.get_agent_by_id(agent_id)
+                    if agent and agent.username in sse_queues:
+                        try:
+                            await sse_queues[agent.username].put({
+                                "type": "sla_alert",
+                                "alerts": agent_alerts,
+                                "count": len(agent_alerts),
+                                "timestamp": time.time()
+                            })
+                        except Exception as push_err:
+                            print(f"⚠️ SLA预警推送失败 ({agent.username}): {push_err}")
+
+            # 同时广播给所有在线管理员
+            if agent_manager:
+                for agent in agent_manager.get_all_agents():
+                    if agent.role == "admin" and agent.username in sse_queues:
+                        try:
+                            await sse_queues[agent.username].put({
+                                "type": "sla_alert_summary",
+                                "summary": result.get("summary", {}),
+                                "timestamp": time.time()
+                            })
+                        except Exception:
+                            pass
+
+        except asyncio.CancelledError:
+            print("🔔 SLA 预警后台任务已停止")
+            break
+        except Exception as e:
+            print(f"❌ SLA 预警检查异常: {e}")
+            await asyncio.sleep(5)  # 出错后短暂等待再重试
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
-    global coze_client, token_manager, jwt_oauth_app, session_store, regulator, agent_manager, agent_token_manager, quick_reply_store, variable_replacer, ticket_store, smart_assignment_engine, WORKFLOW_ID, APP_ID, AUTH_MODE
+    global coze_client, token_manager, jwt_oauth_app, session_store, regulator, agent_manager, agent_token_manager, quick_reply_store, variable_replacer, ticket_store, smart_assignment_engine, audit_log_store, ticket_template_store, WORKFLOW_ID, APP_ID, AUTH_MODE, _sla_task
 
     # 读取配置
     WORKFLOW_ID = os.getenv("COZE_WORKFLOW_ID", "")
@@ -778,6 +1006,30 @@ async def lifespan(app: FastAPI):
         ticket_store = TicketStore()
         print(f"⚠️  工单系统初始化失败，回退到内存存储: {str(e)}")
 
+    # 初始化协作日志存储
+    try:
+        if USE_REDIS and hasattr(session_store, 'redis'):
+            audit_log_store = AuditLogStore(session_store.redis)
+            print("✅ 协作日志存储初始化成功 (Redis)")
+        else:
+            audit_log_store = AuditLogStore()
+            print("⚠️ 协作日志使用内存存储，仅用于开发/测试")
+    except Exception as e:
+        audit_log_store = AuditLogStore()
+        print(f"⚠️ 协作日志初始化失败，使用内存存储: {str(e)}")
+
+    # 初始化工单模板存储
+    try:
+        if USE_REDIS and hasattr(session_store, 'redis'):
+            ticket_template_store = TicketTemplateStore(session_store.redis)
+            print("✅ 工单模板存储初始化成功 (Redis)")
+        else:
+            ticket_template_store = TicketTemplateStore()
+            print("⚠️ 工单模板使用内存存储，仅用于开发/测试")
+    except Exception as e:
+        ticket_template_store = TicketTemplateStore()
+        print(f"⚠️ 工单模板初始化失败，使用内存存储: {str(e)}")
+
     # 智能分配引擎
     try:
         if agent_manager and session_store:
@@ -795,9 +1047,19 @@ async def lifespan(app: FastAPI):
 
     print(f"{'=' * 60}\n")
 
+    # 【增量3-4】启动 SLA 预警后台任务
+    global _sla_task
+    _sla_task = asyncio.create_task(sla_alert_background_task())
+
     yield
 
     # 关闭时清理
+    if _sla_task:
+        _sla_task.cancel()
+        try:
+            await _sla_task
+        except asyncio.CancelledError:
+            pass
     print("👋 关闭 Coze 客户端")
 
 
@@ -1782,6 +2044,44 @@ async def chat_stream(request: ChatRequest):
                 "content": f"服务器错误: {error_msg}"
             }
             yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
+@app.get("/api/agent/events")
+async def agent_events(agent: dict = Depends(require_agent)):
+    """
+    坐席事件 SSE 流
+    用于接收 @提醒、协助请求等实时事件
+    """
+    username = agent.get("username")
+    if not username:
+        raise HTTPException(status_code=400, detail="INVALID_AGENT")
+
+    global sse_queues
+    if username not in sse_queues:
+        sse_queues[username] = asyncio.Queue()
+        print(f"✅ 创建坐席事件SSE队列: {username}")
+
+    async def event_generator():
+        queue = sse_queues[username]
+        try:
+            while True:
+                payload = await queue.get()
+                yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+        except asyncio.CancelledError:
+            print(f"⏹️  坐席事件 SSE 断开: {username}")
+            raise
+        except Exception as exc:
+            print(f"❌ 坐席事件 SSE 异常: {str(exc)}")
 
     return StreamingResponse(
         event_generator(),
@@ -3073,6 +3373,19 @@ async def create_ticket_endpoint(
             metadata=request.metadata
         )
 
+        log_ticket_event(
+            "created",
+            ticket.ticket_id,
+            agent,
+            {
+                "title": ticket.title,
+                "ticket_type": ticket.ticket_type,
+                "priority": ticket.priority,
+                "assigned_agent_id": ticket.assigned_agent_id,
+                "assigned_agent_name": ticket.assigned_agent_name
+            }
+        )
+
         return {
             "success": True,
             "data": ticket.to_dict()
@@ -3107,6 +3420,19 @@ async def create_manual_ticket_endpoint(
             assigned_agent_id=request.assigned_agent_id,
             assigned_agent_name=request.assigned_agent_name,
             metadata=request.metadata
+        )
+
+        log_ticket_event(
+            "created",
+            ticket.ticket_id,
+            agent,
+            {
+                "title": ticket.title,
+                "ticket_type": ticket.ticket_type,
+                "priority": ticket.priority,
+                "assigned_agent_id": ticket.assigned_agent_id,
+                "assigned_agent_name": ticket.assigned_agent_name
+            }
         )
 
         return {
@@ -3385,6 +3711,17 @@ async def get_ticket_detail(ticket_id: str, agent: Dict[str, Any] = Depends(requ
     if not ticket:
         raise HTTPException(status_code=404, detail="工单不存在")
 
+    log_ticket_event(
+        "assigned",
+        ticket.ticket_id,
+        agent,
+        {
+            "assigned_agent_id": ticket.assigned_agent_id,
+            "assigned_agent_name": ticket.assigned_agent_name,
+            "note": request.note
+        }
+    )
+
     return {
         "success": True,
         "data": ticket.to_dict()
@@ -3401,6 +3738,7 @@ async def update_ticket_endpoint(
     if not ticket_store:
         raise HTTPException(status_code=503, detail="工单系统未初始化")
 
+    original_ticket = ticket_store.get(ticket_id) if ticket_store else None
     try:
         ticket = ticket_store.update_ticket(
             ticket_id,
@@ -3418,6 +3756,41 @@ async def update_ticket_endpoint(
 
     if not ticket:
         raise HTTPException(status_code=404, detail="工单不存在")
+
+    if original_ticket and request.status and ticket.status != original_ticket.status:
+        log_ticket_event(
+            "status_changed",
+            ticket.ticket_id,
+            agent,
+            {
+                "from_status": original_ticket.status,
+                "to_status": ticket.status,
+                "change_reason": request.change_reason
+            }
+        )
+    if original_ticket and request.priority and ticket.priority != original_ticket.priority:
+        log_ticket_event(
+            "priority_changed",
+            ticket.ticket_id,
+            agent,
+            {
+                "from_priority": original_ticket.priority,
+                "to_priority": ticket.priority,
+                "change_reason": request.change_reason
+            }
+        )
+    if original_ticket and (request.assigned_agent_id or request.assigned_agent_name):
+        if ticket.assigned_agent_id != original_ticket.assigned_agent_id or ticket.assigned_agent_name != original_ticket.assigned_agent_name:
+            log_ticket_event(
+                "assigned",
+                ticket.ticket_id,
+                agent,
+                {
+                    "assigned_agent_id": ticket.assigned_agent_id,
+                    "assigned_agent_name": ticket.assigned_agent_name,
+                    "note": request.note
+                }
+            )
 
     return {
         "success": True,
@@ -3543,10 +3916,17 @@ async def batch_assign_tickets_endpoint(
 
     updated_dicts = [ticket.to_dict() for ticket in result["tickets"]]
     for ticket in result["tickets"]:
-        try:
-            upserted = ticket.to_dict()
-        except Exception:
-            upserted = {}
+        log_ticket_event(
+            "assigned",
+            ticket.ticket_id,
+            agent,
+            {
+                "assigned_agent_id": ticket.assigned_agent_id,
+                "assigned_agent_name": ticket.assigned_agent_name,
+                "note": request.note,
+                "batch": True
+            }
+        )
 
     return {
         "success": True,
@@ -3580,6 +3960,19 @@ async def batch_close_tickets_endpoint(
         raise HTTPException(status_code=400, detail=str(exc))
 
     closed_tickets = [ticket.to_dict() for ticket in result["tickets"]]
+    for ticket in result["tickets"]:
+        log_ticket_event(
+            "status_changed",
+            ticket.ticket_id,
+            agent,
+            {
+                "from_status": "resolved",
+                "to_status": "closed",
+                "reason": request.close_reason,
+                "comment": request.comment,
+                "batch": True
+            }
+        )
     return {
         "success": True,
         "data": {
@@ -3612,6 +4005,17 @@ async def batch_update_priority_endpoint(
         raise HTTPException(status_code=400, detail=str(exc))
 
     updated_tickets = [ticket.to_dict() for ticket in result["tickets"]]
+    for ticket in result["tickets"]:
+        log_ticket_event(
+            "priority_changed",
+            ticket.ticket_id,
+            agent,
+            {
+                "to_priority": ticket.priority,
+                "reason": request.reason,
+                "batch": True
+            }
+        )
     return {
         "success": True,
         "data": {
@@ -3638,13 +4042,41 @@ async def add_ticket_comment(
             content=request.content.strip(),
             author_id=agent.get("agent_id") or agent.get("username") or "system",
             author_name=agent.get("username"),
-            comment_type=request.comment_type
+            comment_type=request.comment_type,
+            mentions=request.mentions or []
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
     if not comment:
         raise HTTPException(status_code=404, detail="工单不存在")
+
+    if request.mentions:
+        sender_name = agent.get("username") or agent.get("name") or "system"
+        preview = comment.content[:120]
+        for username in set(request.mentions):
+            if not username:
+                continue
+            await enqueue_sse_message(username, {
+                "type": "mention",
+                "source": "ticket_comment",
+                "ticket_id": ticket_id,
+                "comment_id": comment.comment_id,
+                "from_agent": sender_name,
+                "content": preview,
+                "created_at": comment.created_at
+            })
+
+    log_ticket_event(
+        "commented",
+        ticket_id,
+        agent,
+        {
+            "comment_id": comment.comment_id,
+            "comment_type": comment.comment_type,
+            "mentions": request.mentions or []
+        }
+    )
 
     return {
         "success": True,
@@ -3665,6 +4097,146 @@ async def list_ticket_comments(ticket_id: str, agent: Dict[str, Any] = Depends(r
     return {
         "success": True,
         "data": [comment.dict() for comment in comments]
+    }
+
+
+@app.get("/api/tickets/{ticket_id}/attachments")
+async def list_ticket_attachments(ticket_id: str, agent: Dict[str, Any] = Depends(require_agent)):
+    """获取工单附件列表"""
+    if not ticket_store:
+        raise HTTPException(status_code=503, detail="工单系统未初始化")
+
+    attachments = ticket_store.list_attachments(ticket_id)
+    if attachments is None:
+        raise HTTPException(status_code=404, detail="工单不存在")
+
+    return {
+        "success": True,
+        "data": [_attachment_response(ticket_id, attachment) for attachment in attachments]
+    }
+
+
+@app.get("/api/templates")
+async def list_ticket_templates(agent: Dict[str, Any] = Depends(require_agent)):
+    if not ticket_template_store:
+        raise HTTPException(status_code=503, detail="模板存储未初始化")
+    templates = ticket_template_store.list()
+    return {
+        "success": True,
+        "data": [template.dict() for template in templates]
+    }
+
+
+@app.post("/api/templates")
+async def create_ticket_template(
+    request: TicketTemplateRequest,
+    agent: Dict[str, Any] = Depends(require_agent)
+):
+    if not ticket_template_store:
+        raise HTTPException(status_code=503, detail="模板存储未初始化")
+    template = ticket_template_store.create(
+        name=request.name.strip(),
+        ticket_type=request.ticket_type,
+        category=request.category.strip(),
+        priority=request.priority,
+        title_template=request.title_template.strip(),
+        description_template=request.description_template.strip(),
+        created_by=agent.get("agent_id") or agent.get("username") or "system"
+    )
+    return {
+        "success": True,
+        "data": template.dict()
+    }
+
+
+@app.get("/api/templates/{template_id}")
+async def get_ticket_template(template_id: str, agent: Dict[str, Any] = Depends(require_agent)):
+    if not ticket_template_store:
+        raise HTTPException(status_code=503, detail="模板存储未初始化")
+    template = ticket_template_store.get(template_id)
+    if not template:
+        raise HTTPException(status_code=404, detail="模板不存在")
+    return {
+        "success": True,
+        "data": template.dict()
+    }
+
+
+@app.put("/api/templates/{template_id}")
+async def update_ticket_template(
+    template_id: str,
+    request: TicketTemplateRequest,
+    agent: Dict[str, Any] = Depends(require_agent)
+):
+    if not ticket_template_store:
+        raise HTTPException(status_code=503, detail="模板存储未初始化")
+    template = ticket_template_store.update(
+        template_id,
+        name=request.name.strip(),
+        ticket_type=request.ticket_type,
+        category=request.category.strip(),
+        priority=request.priority,
+        title_template=request.title_template.strip(),
+        description_template=request.description_template.strip()
+    )
+    if not template:
+        raise HTTPException(status_code=404, detail="模板不存在")
+    return {
+        "success": True,
+        "data": template.dict()
+    }
+
+
+@app.delete("/api/templates/{template_id}")
+async def delete_ticket_template(template_id: str, agent: Dict[str, Any] = Depends(require_agent)):
+    if not ticket_template_store:
+        raise HTTPException(status_code=503, detail="模板存储未初始化")
+    deleted = ticket_template_store.delete(template_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="模板不存在")
+    return {"success": True}
+
+
+@app.post("/api/templates/{template_id}/render")
+async def render_ticket_template(
+    template_id: str,
+    request: TicketTemplateRenderRequest,
+    agent: Dict[str, Any] = Depends(require_agent)
+):
+    if not ticket_template_store:
+        raise HTTPException(status_code=503, detail="模板存储未初始化")
+    template = ticket_template_store.get(template_id)
+    if not template:
+        raise HTTPException(status_code=404, detail="模板不存在")
+    rendered = ticket_template_store.render_template(
+        template,
+        {
+            "customer_name": request.customer_name or ""
+        }
+    )
+    return {
+        "success": True,
+        "data": rendered
+    }
+
+
+@app.get("/api/tickets/{ticket_id}/audit-logs")
+async def list_ticket_audit_logs(
+    ticket_id: str,
+    limit: int = 100,
+    agent: Dict[str, Any] = Depends(require_agent)
+):
+    """获取工单协作日志"""
+    if not ticket_store:
+        raise HTTPException(status_code=503, detail="工单系统未初始化")
+
+    if not audit_log_store:
+        return {"success": True, "data": []}
+
+    logs = audit_log_store.list_logs(ticket_id, limit=limit)
+    return {
+        "success": True,
+        "data": [log.dict() for log in logs]
     }
 
 
@@ -3692,6 +4264,106 @@ async def delete_ticket_comment(
     return {"success": True}
 
 
+@app.post("/api/tickets/{ticket_id}/attachments")
+async def upload_ticket_attachment(
+    ticket_id: str,
+    comment_type: str = Form("internal"),
+    file: UploadFile = File(...),
+    agent: Dict[str, Any] = Depends(require_agent)
+):
+    """上传工单附件"""
+    if not ticket_store:
+        raise HTTPException(status_code=503, detail="工单系统未初始化")
+
+    if not file or not file.filename:
+        raise HTTPException(status_code=400, detail="MISSING_FILE: 未选择文件")
+
+    try:
+        comment_type_enum = TicketCommentType(comment_type)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="INVALID_COMMENT_TYPE")
+
+    rule = _resolve_attachment_rule(file.filename, file.content_type)
+    if not rule:
+        raise HTTPException(status_code=400, detail="UNSUPPORTED_FILE_TYPE")
+
+    stored_filename = f"{uuid.uuid4().hex}_{Path(file.filename).name}"
+    stored_path = ATTACHMENTS_DIR / ticket_id / stored_filename
+
+    try:
+        saved_size = await _save_attachment_file(file, stored_path, rule["max_size"])
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"FILE_TOO_LARGE: 文件超过限制（{rule['max_size'] // (1024 * 1024)}MB）"
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"UPLOAD_FAILED: {str(exc)}")
+
+    try:
+        attachment = ticket_store.add_attachment(
+            ticket_id,
+            filename=file.filename,
+            stored_path=str(stored_path),
+            size=saved_size,
+            content_type=file.content_type,
+            comment_type=comment_type_enum,
+            uploader_id=agent.get("agent_id") or agent.get("username") or "system",
+            uploader_name=agent.get("username")
+        )
+        if not attachment:
+            raise HTTPException(status_code=404, detail="工单不存在")
+    except Exception as exc:
+        if stored_path.exists():
+            stored_path.unlink()
+        if isinstance(exc, HTTPException):
+            raise
+        raise HTTPException(status_code=500, detail=f"保存附件失败: {str(exc)}")
+
+    response_data = _attachment_response(ticket_id, attachment)
+    log_ticket_event(
+        "attachment_uploaded",
+        ticket_id,
+        agent,
+        {
+            "attachment_id": attachment.attachment_id,
+            "filename": attachment.filename,
+            "comment_type": attachment.comment_type,
+            "size": attachment.size
+        }
+    )
+
+    return {
+        "success": True,
+        "data": response_data
+    }
+
+
+@app.get("/api/tickets/{ticket_id}/attachments/{attachment_id}")
+async def download_ticket_attachment(
+    ticket_id: str,
+    attachment_id: str,
+    agent: Dict[str, Any] = Depends(require_agent)
+):
+    """下载工单附件"""
+    if not ticket_store:
+        raise HTTPException(status_code=503, detail="工单系统未初始化")
+
+    attachment = ticket_store.get_attachment(ticket_id, attachment_id)
+    if not attachment:
+        raise HTTPException(status_code=404, detail="附件不存在")
+
+    file_path = Path(attachment.stored_path)
+    if not _is_path_within(ATTACHMENTS_DIR, file_path) or not file_path.exists():
+        raise HTTPException(status_code=404, detail="文件不存在或已删除")
+
+    return FileResponse(
+        file_path,
+        media_type=attachment.content_type or "application/octet-stream",
+        filename=attachment.filename
+    )
+
+
 @app.post("/api/tickets/{ticket_id}/reopen")
 async def reopen_ticket_endpoint(
     ticket_id: str,
@@ -3708,6 +4380,17 @@ async def reopen_ticket_endpoint(
             agent_id=agent.get("agent_id") or agent.get("username") or "system",
             reason=request.reason,
             comment=request.comment
+        )
+        log_ticket_event(
+            "status_changed",
+            ticket.ticket_id,
+            agent,
+            {
+                "from_status": TicketStatus.CLOSED,
+                "to_status": ticket.status,
+                "reason": request.reason,
+                "comment": request.comment
+            }
         )
         return {"success": True, "data": ticket.to_dict()}
     except ValueError as e:
@@ -3733,6 +4416,16 @@ async def archive_ticket_endpoint(
             agent_id=agent.get("agent_id") or agent.get("username") or "system",
             reason=request.reason
         )
+        log_ticket_event(
+            "status_changed",
+            ticket.ticket_id,
+            agent,
+            {
+                "from_status": TicketStatus.CLOSED,
+                "to_status": TicketStatus.ARCHIVED,
+                "reason": request.reason or "archive"
+            }
+        )
         return {"success": True, "data": ticket.to_dict()}
     except ValueError as e:
         msg = str(e)
@@ -3756,6 +4449,17 @@ async def auto_archive_tickets(
         older_than_seconds=seconds,
         agent_id=admin.get("agent_id") or admin.get("username") or "system"
     )
+    for ticket_id in result.get("ticket_ids", []):
+        log_ticket_event(
+            "status_changed",
+            ticket_id,
+            admin,
+            {
+                "from_status": TicketStatus.CLOSED,
+                "to_status": TicketStatus.ARCHIVED,
+                "reason": f"auto_archive_{older_days}d"
+            }
+        )
     return {
         "success": True,
         "data": {
@@ -3835,6 +4539,128 @@ async def get_ticket_sla_alerts(agent: Dict[str, Any] = Depends(require_agent)):
     return {
         "success": True,
         "data": alerts
+    }
+
+
+# 【增量3-1】SLA 计时器 API
+@app.get("/api/tickets/{ticket_id}/sla")
+async def get_ticket_sla_info(
+    ticket_id: str,
+    agent: Dict[str, Any] = Depends(require_agent)
+):
+    """
+    获取单个工单的 SLA 详细信息
+
+    返回:
+    - frt_*: 首次响应时效相关
+    - rt_*: 解决时效相关
+    - 状态: normal/warning/urgent/violated/completed
+    """
+    if not ticket_store:
+        raise HTTPException(status_code=503, detail="工单系统未初始化")
+
+    ticket = ticket_store.get(ticket_id)
+    if not ticket:
+        raise HTTPException(status_code=404, detail="TICKET_NOT_FOUND")
+
+    sla_info = calculate_ticket_sla(ticket)
+    return {
+        "success": True,
+        "data": {
+            "ticket_id": ticket_id,
+            "priority": ticket.priority.value,
+            "ticket_type": ticket.ticket_type.value,
+            "status": ticket.status.value,
+            "sla": sla_info
+        }
+    }
+
+
+@app.get("/api/tickets/sla-dashboard")
+async def get_sla_dashboard(
+    agent: Dict[str, Any] = Depends(require_agent)
+):
+    """
+    获取 SLA 仪表盘数据
+
+    返回:
+    - 所有未完成工单的 SLA 状态统计
+    - 告警列表（按紧急程度排序）
+    - 平均首次响应时间
+    - 平均解决时间
+    """
+    if not ticket_store:
+        raise HTTPException(status_code=503, detail="工单系统未初始化")
+
+    # 获取所有未完成的工单
+    _, tickets = ticket_store.filter_tickets(
+        statuses=[
+            TicketStatus.PENDING,
+            TicketStatus.IN_PROGRESS,
+            TicketStatus.WAITING_CUSTOMER,
+            TicketStatus.WAITING_VENDOR,
+        ],
+        limit=200
+    )
+
+    # 统计 SLA 状态
+    frt_stats = {"normal": 0, "warning": 0, "urgent": 0, "violated": 0, "completed": 0}
+    rt_stats = {"normal": 0, "warning": 0, "urgent": 0, "violated": 0, "completed": 0}
+    alerts = []
+    now = time.time()
+
+    for ticket in tickets:
+        timer = SLATimer(ticket)
+        sla_info = timer.get_sla_info(now)
+
+        # 统计首次响应状态
+        frt_status = sla_info.frt_status.value
+        if frt_status in frt_stats:
+            frt_stats[frt_status] += 1
+
+        # 统计解决时效状态
+        rt_status = sla_info.rt_status.value
+        if rt_status in rt_stats:
+            rt_stats[rt_status] += 1
+
+        # 收集告警
+        should_alert = timer.should_alert(now)
+        if should_alert["frt_alert"] or should_alert["rt_alert"]:
+            alerts.append({
+                "ticket_id": ticket.ticket_id,
+                "title": ticket.title,
+                "priority": ticket.priority.value,
+                "status": ticket.status.value,
+                "frt_alert": should_alert["frt_alert"],
+                "frt_remaining_minutes": round(sla_info.frt_remaining_seconds / 60, 1),
+                "frt_status": sla_info.frt_status.value,
+                "rt_alert": should_alert["rt_alert"],
+                "rt_remaining_hours": round(sla_info.rt_remaining_seconds / 3600, 2),
+                "rt_status": sla_info.rt_status.value,
+                "assigned_agent_name": ticket.assigned_agent_name,
+            })
+
+    # 按紧急程度排序（先显示 violated，再 urgent）
+    priority_order = {"violated": 0, "urgent": 1, "warning": 2, "normal": 3, "completed": 4}
+    alerts.sort(key=lambda x: (
+        priority_order.get(x.get("rt_status", "normal"), 3),
+        priority_order.get(x.get("frt_status", "normal"), 3),
+        x.get("rt_remaining_hours", 999)
+    ))
+
+    # 获取 SLA 概览统计
+    summary = ticket_store.get_sla_summary()
+
+    return {
+        "success": True,
+        "data": {
+            "total_open_tickets": len(tickets),
+            "frt_stats": frt_stats,
+            "rt_stats": rt_stats,
+            "alerts": alerts[:50],  # 最多返回50个告警
+            "alerts_count": len(alerts),
+            "summary": summary
+        }
     }
 
 
@@ -5425,9 +6251,22 @@ async def create_internal_note(
 
         print(f"✅ 创建内部备注: {note['id']} for session {session_name} by {agent.get('username')}")
 
-        # TODO: 如果有@提醒，通过SSE推送通知给被@的坐席
+        # 如果有@提醒，通过SSE推送通知给被@的坐席
         if request.mentions:
-            print(f"📢 @提醒: {request.mentions}")
+            unique_mentions = set(request.mentions)
+            print(f"📢 @提醒: {unique_mentions}")
+            for username in unique_mentions:
+                if not username:
+                    continue
+                await enqueue_sse_message(username, {
+                    "type": "mention",
+                    "source": "session_note",
+                    "session_name": session_name,
+                    "note_id": note["id"],
+                    "from_agent": agent.get("name") or agent.get("username"),
+                    "content": note["content"],
+                    "created_at": note["created_at"]
+                })
 
         return {
             "success": True,
@@ -5911,17 +6750,16 @@ async def create_assist_request(
         print(f"✅ 创建协助请求: {assist_request.id} ({agent.get('username')} → {request.assistant})")
 
         # 推送SSE通知给协助者
-        if request.assistant in sse_queues:
-            await sse_queues[request.assistant].put({
-                "type": "assist_request",
-                "data": {
-                    "id": assist_request.id,
-                    "session_name": assist_request.session_name,
-                    "requester": assist_request.requester,
-                    "question": assist_request.question,
-                    "created_at": assist_request.created_at
-                }
-            })
+        await enqueue_sse_message(request.assistant, {
+            "type": "assist_request",
+            "data": {
+                "id": assist_request.id,
+                "session_name": assist_request.session_name,
+                "requester": assist_request.requester,
+                "question": assist_request.question,
+                "created_at": assist_request.created_at
+            }
+        })
 
         return {
             "success": True,
@@ -6048,17 +6886,16 @@ async def answer_assist_request(
         print(f"✅ 回复协助请求: {request_id} by {agent.get('username')}")
 
         # 推送SSE通知给请求者
-        if updated_request.requester in sse_queues:
-            await sse_queues[updated_request.requester].put({
-                "type": "assist_answer",
-                "data": {
-                    "id": updated_request.id,
-                    "session_name": updated_request.session_name,
-                    "assistant": updated_request.assistant,
-                    "answer": updated_request.answer,
-                    "answered_at": updated_request.answered_at
-                }
-            })
+        await enqueue_sse_message(updated_request.requester, {
+            "type": "assist_answer",
+            "data": {
+                "id": updated_request.id,
+                "session_name": updated_request.session_name,
+                "assistant": updated_request.assistant,
+                "answer": updated_request.answer,
+                "answered_at": updated_request.answered_at
+            }
+        })
 
         return {
             "success": True,

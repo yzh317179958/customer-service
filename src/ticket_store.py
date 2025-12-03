@@ -22,8 +22,10 @@ from src.ticket import (
     TicketCustomerInfo,
     TicketType,
     TicketCommentType,
+    TicketAttachment,
     generate_ticket_id,
 )
+from src.sla_timer import check_sla_alerts, SLAAlert
 
 
 class TicketStore:
@@ -318,6 +320,49 @@ class TicketStore:
         ticket.updated_at = time.time()
         self._save_ticket(ticket)
         return comment
+
+    def add_attachment(
+        self,
+        ticket_id: str,
+        *,
+        filename: str,
+        stored_path: str,
+        size: int,
+        content_type: Optional[str],
+        comment_type: TicketCommentType,
+        uploader_id: str,
+        uploader_name: Optional[str]
+    ) -> Optional[TicketAttachment]:
+        ticket = self._load_ticket(ticket_id)
+        if not ticket:
+            return None
+        if ticket.status == TicketStatus.ARCHIVED:
+            raise ValueError("ARCHIVED_TICKET: 无法对归档工单添加附件")
+
+        attachment = ticket.add_attachment(
+            filename=filename,
+            stored_path=stored_path,
+            size=size,
+            content_type=content_type,
+            comment_type=comment_type,
+            uploader_id=uploader_id,
+            uploader_name=uploader_name
+        )
+        ticket.updated_at = time.time()
+        self._save_ticket(ticket)
+        return attachment
+
+    def list_attachments(self, ticket_id: str) -> Optional[List[TicketAttachment]]:
+        ticket = self._load_ticket(ticket_id)
+        if not ticket:
+            return None
+        return ticket.attachments
+
+    def get_attachment(self, ticket_id: str, attachment_id: str) -> Optional[TicketAttachment]:
+        ticket = self._load_ticket(ticket_id)
+        if not ticket:
+            return None
+        return ticket.get_attachment(attachment_id)
 
     def delete_comment(self, ticket_id: str, comment_id: str) -> bool:
         ticket = self._load_ticket(ticket_id)
@@ -685,43 +730,64 @@ class TicketStore:
     def detect_sla_alerts(
         self,
         *,
-        critical_first_response_seconds: int = 600,
-        critical_resolution_seconds: int = 86400
+        status_filter: Optional[List[str]] = None
     ) -> Dict[str, Any]:
-        """检测超出 SLA 的工单"""
+        """
+        检测工单 SLA 预警
+
+        使用基于优先级的 SLA 目标，返回按状态分组的预警列表
+
+        Args:
+            status_filter: 可选的状态过滤列表，如 ["warning", "urgent", "violated"]
+
+        Returns:
+            {
+                "alerts": [...],  # 所有预警列表
+                "summary": {
+                    "total": int,
+                    "by_status": {"warning": int, "urgent": int, "violated": int},
+                    "by_type": {"frt": int, "rt": int}
+                }
+            }
+        """
         now = time.time()
-        first_response_alerts = []
-        resolution_alerts = []
+        all_alerts: List[Dict[str, Any]] = []
 
         for ticket_id in self._load_all_ids():
             ticket = self._load_ticket(ticket_id)
             if not ticket:
                 continue
-            if not ticket.first_response_at:
-                elapsed = now - ticket.created_at
-                if elapsed > critical_first_response_seconds:
-                    first_response_alerts.append({
-                        "ticket_id": ticket.ticket_id,
-                        "elapsed_seconds": elapsed,
-                        "priority": ticket.priority
-                    })
-            if ticket.status in {
-                TicketStatus.PENDING,
-                TicketStatus.IN_PROGRESS,
-                TicketStatus.WAITING_CUSTOMER,
-                TicketStatus.WAITING_VENDOR
-            }:
-                elapsed = now - ticket.created_at
-                if elapsed > critical_resolution_seconds:
-                    resolution_alerts.append({
-                        "ticket_id": ticket.ticket_id,
-                        "elapsed_seconds": elapsed,
-                        "priority": ticket.priority
-                    })
+
+            # 只检查未完成的工单
+            if ticket.status in {TicketStatus.CLOSED, TicketStatus.ARCHIVED}:
+                continue
+
+            # 使用新的 SLA 预警检查函数
+            ticket_alerts = check_sla_alerts(ticket, now)
+            for alert in ticket_alerts:
+                alert_dict = alert.to_dict()
+                # 应用状态过滤
+                if status_filter and alert_dict["status"] not in status_filter:
+                    continue
+                all_alerts.append(alert_dict)
+
+        # 统计汇总
+        summary = {
+            "total": len(all_alerts),
+            "by_status": {"warning": 0, "urgent": 0, "violated": 0},
+            "by_type": {"frt": 0, "rt": 0}
+        }
+        for alert in all_alerts:
+            status = alert.get("status", "")
+            alert_type = alert.get("alert_type", "")
+            if status in summary["by_status"]:
+                summary["by_status"][status] += 1
+            if alert_type in summary["by_type"]:
+                summary["by_type"][alert_type] += 1
 
         return {
-            "first_response_alerts": first_response_alerts,
-            "resolution_alerts": resolution_alerts
+            "alerts": all_alerts,
+            "summary": summary
         }
 
     def batch_assign(

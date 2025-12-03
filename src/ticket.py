@@ -65,6 +65,18 @@ class TicketComment(BaseModel):
     mentions: List[str] = Field(default_factory=list)
 
 
+class TicketAttachment(BaseModel):
+    attachment_id: str
+    filename: str
+    stored_path: str
+    content_type: Optional[str] = None
+    size: int
+    comment_type: TicketCommentType = TicketCommentType.INTERNAL
+    uploader_id: str
+    uploader_name: Optional[str] = None
+    created_at: float = Field(default_factory=lambda: time.time())
+
+
 class TicketAssignmentRecord(BaseModel):
     """工单指派历史"""
     agent_id: Optional[str] = None
@@ -110,6 +122,7 @@ class Ticket(BaseModel):
     resolved_at: Optional[float] = None
     assignments: List[TicketAssignmentRecord] = Field(default_factory=list)
     comments: List[TicketComment] = Field(default_factory=list)
+    attachments: List[TicketAttachment] = Field(default_factory=list)
     created_at: float = Field(default_factory=lambda: time.time())
     updated_at: float = Field(default_factory=lambda: time.time())
 
@@ -120,6 +133,7 @@ class Ticket(BaseModel):
         data["history"] = [record.dict() for record in self.history]
         data["assignments"] = [record.dict() for record in self.assignments]
         data["comments"] = [record.dict() for record in self.comments]
+        data["attachments"] = [record.dict() for record in self.attachments]
         return data
 
     @classmethod
@@ -150,6 +164,14 @@ class Ticket(BaseModel):
                 else:
                     comment_records.append(record)
             data["comments"] = comment_records
+        if data.get("attachments"):
+            attachment_records = []
+            for record in data["attachments"]:
+                if not isinstance(record, TicketAttachment):
+                    attachment_records.append(TicketAttachment(**record))
+                else:
+                    attachment_records.append(record)
+            data["attachments"] = attachment_records
         return cls(**data)
 
     def add_status_history(
@@ -207,6 +229,36 @@ class Ticket(BaseModel):
         )
         self.comments.append(comment)
         return comment
+
+    def add_attachment(
+        self,
+        *,
+        filename: str,
+        stored_path: str,
+        size: int,
+        content_type: Optional[str],
+        comment_type: TicketCommentType,
+        uploader_id: str,
+        uploader_name: Optional[str]
+    ) -> TicketAttachment:
+        attachment = TicketAttachment(
+            attachment_id=f"attach_{uuid.uuid4().hex[:12]}",
+            filename=filename,
+            stored_path=stored_path,
+            size=size,
+            content_type=content_type,
+            comment_type=comment_type,
+            uploader_id=uploader_id,
+            uploader_name=uploader_name
+        )
+        self.attachments.append(attachment)
+        return attachment
+
+    def get_attachment(self, attachment_id: str) -> Optional[TicketAttachment]:
+        for attachment in self.attachments:
+            if attachment.attachment_id == attachment_id:
+                return attachment
+        return None
 
     @staticmethod
     def _normalize_mentions(mentions: List[str]) -> List[str]:
