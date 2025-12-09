@@ -1,0 +1,26 @@
+[Unit]
+Description=Fiido AI Customer Service Backend
+After=network.target redis-server.service
+Wants=redis-server.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/fiido-ai-service
+Environment="PATH=/opt/fiido-ai-service/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONPATH=/opt/fiido-ai-service"
+EnvironmentFile=/opt/fiido-ai-service/.env
+ExecStart=/opt/fiido-ai-service/venv/bin/uvicorn backend:app --host 127.0.0.1 --port 8000 --workers 1
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# 资源限制（适配2核2G服务器）
+MemoryMax=512M
+CPUQuota=150%
+
+[Install]
+WantedBy=multi-user.target

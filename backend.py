@@ -72,6 +72,10 @@ from src.agent_auth import (
 from src.quick_reply import QuickReply, QuickReplyCategory, QUICK_REPLY_CATEGORIES, SUPPORTED_VARIABLES
 from src.quick_reply_store import QuickReplyStore
 from src.variable_replacer import VariableReplacer, build_variable_context
+
+# 【Shopify UK】导入 Shopify UK 订单服务
+from src.shopify_uk_service import ShopifyUKService, get_shopify_uk_service
+from src.shopify_uk_client import ShopifyAPIError
 from src.ticket import (
     Ticket,
     TicketPriority,
@@ -7063,6 +7067,272 @@ async def answer_assist_request(
             status_code=500,
             detail=f"回复失败: {str(e)}"
         )
+
+
+# ==================== Shopify UK 订单查询 API ====================
+
+
+@app.get("/api/shopify/orders")
+async def get_shopify_orders(
+    email: str,
+    limit: int = 10,
+    status: str = "any"
+):
+    """
+    按客户邮箱查询订单列表
+
+    Args:
+        email: 客户邮箱
+        limit: 返回数量限制 (1-50)
+        status: 订单状态筛选 (open/closed/cancelled/any)
+
+    Returns:
+        订单列表
+    """
+    try:
+        # 参数验证
+        if limit < 1 or limit > 50:
+            raise HTTPException(
+                status_code=400,
+                detail="INVALID_LIMIT: limit 必须在 1-50 之间"
+            )
+
+        if status not in ["open", "closed", "cancelled", "any"]:
+            raise HTTPException(
+                status_code=400,
+                detail="INVALID_STATUS: status 必须是 open/closed/cancelled/any"
+            )
+
+        # 调用服务
+        service = get_shopify_uk_service()
+        result = await service.get_orders_by_email(email, limit=limit, status=status)
+
+        return {
+            "success": True,
+            "data": result
+        }
+
+    except ShopifyAPIError as e:
+        print(f"❌ Shopify API 错误: {e.message}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"SHOPIFY_ERROR: {e.message}"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 查询订单列表失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"查询失败: {str(e)}"
+        )
+
+
+@app.get("/api/shopify/orders/search")
+async def search_shopify_order(
+    q: str
+):
+    """
+    按订单号搜索订单
+
+    Args:
+        q: 订单号关键词 (支持 #UK22080 或 UK22080 格式)
+
+    Returns:
+        订单详情
+    """
+    try:
+        # 参数验证
+        if len(q) < 3:
+            raise HTTPException(
+                status_code=400,
+                detail="INVALID_QUERY: 订单号至少需要3个字符"
+            )
+
+        # 调用服务
+        service = get_shopify_uk_service()
+        result = await service.search_order_by_number(q)
+
+        if result is None:
+            raise HTTPException(
+                status_code=404,
+                detail="ORDER_NOT_FOUND: 订单不存在"
+            )
+
+        return {
+            "success": True,
+            "data": result
+        }
+
+    except ShopifyAPIError as e:
+        print(f"❌ Shopify API 错误: {e.message}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"SHOPIFY_ERROR: {e.message}"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 搜索订单失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"搜索失败: {str(e)}"
+        )
+
+
+@app.get("/api/shopify/orders/count")
+async def get_shopify_order_count(
+    status: str = "any"
+):
+    """
+    获取订单数量统计
+
+    Args:
+        status: 订单状态筛选 (open/closed/cancelled/any)
+
+    Returns:
+        订单数量
+    """
+    try:
+        if status not in ["open", "closed", "cancelled", "any"]:
+            raise HTTPException(
+                status_code=400,
+                detail="INVALID_STATUS: status 必须是 open/closed/cancelled/any"
+            )
+
+        service = get_shopify_uk_service()
+        result = await service.get_order_count(status=status)
+
+        return {
+            "success": True,
+            "data": result
+        }
+
+    except ShopifyAPIError as e:
+        print(f"❌ Shopify API 错误: {e.message}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"SHOPIFY_ERROR: {e.message}"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 获取订单数量失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取失败: {str(e)}"
+        )
+
+
+@app.get("/api/shopify/orders/{order_id}")
+async def get_shopify_order_detail(
+    order_id: str
+):
+    """
+    获取订单详情
+
+    Args:
+        order_id: Shopify 订单 ID
+
+    Returns:
+        订单详情
+    """
+    try:
+        service = get_shopify_uk_service()
+        result = await service.get_order_detail(order_id)
+
+        return {
+            "success": True,
+            "data": result
+        }
+
+    except ShopifyAPIError as e:
+        if e.code == 5002:  # ORDER_NOT_FOUND
+            raise HTTPException(
+                status_code=404,
+                detail="ORDER_NOT_FOUND: 订单不存在"
+            )
+        print(f"❌ Shopify API 错误: {e.message}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"SHOPIFY_ERROR: {e.message}"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 获取订单详情失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取失败: {str(e)}"
+        )
+
+
+@app.get("/api/shopify/orders/{order_id}/tracking")
+async def get_shopify_order_tracking(
+    order_id: str
+):
+    """
+    获取订单物流信息
+
+    Args:
+        order_id: Shopify 订单 ID
+
+    Returns:
+        物流信息
+    """
+    try:
+        service = get_shopify_uk_service()
+        result = await service.get_order_tracking(order_id)
+
+        return {
+            "success": True,
+            "data": result
+        }
+
+    except ShopifyAPIError as e:
+        if e.code == 5002:  # ORDER_NOT_FOUND
+            raise HTTPException(
+                status_code=404,
+                detail="ORDER_NOT_FOUND: 订单不存在"
+            )
+        print(f"❌ Shopify API 错误: {e.message}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"SHOPIFY_ERROR: {e.message}"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 获取物流信息失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取失败: {str(e)}"
+        )
+
+
+@app.get("/api/shopify/health")
+async def shopify_health_check():
+    """
+    Shopify UK 服务健康检查
+
+    Returns:
+        健康状态信息
+    """
+    try:
+        service = get_shopify_uk_service()
+        result = await service.health_check()
+
+        return {
+            "success": True,
+            "data": result
+        }
+
+    except Exception as e:
+        print(f"❌ Shopify 健康检查失败: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
 
 
 if __name__ == "__main__":

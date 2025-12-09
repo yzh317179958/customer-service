@@ -444,6 +444,54 @@ else
 fi
 
 echo ""
+echo "=== 【Shopify UK】订单查询功能测试 v3.9.0 ==="
+echo ""
+
+# 测试30: Shopify UK 健康检查
+echo -n "测试30: Shopify UK 健康检查... "
+RESPONSE=$(curl -s "$BASE_URL/api/shopify/health")
+if echo "$RESPONSE" | grep -q '"success":true'; then
+    echo -e "${GREEN}✅ 通过${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}❌ 失败${NC}"
+    ((FAIL++))
+fi
+
+# 测试31: Shopify UK 订单数量
+echo -n "测试31: Shopify UK 订单数量... "
+RESPONSE=$(curl -s "$BASE_URL/api/shopify/orders/count")
+if echo "$RESPONSE" | grep -q '"count"'; then
+    echo -e "${GREEN}✅ 通过${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}❌ 失败${NC}"
+    ((FAIL++))
+fi
+
+# 测试32: Shopify UK 订单搜索不存在
+echo -n "测试32: Shopify UK 订单不存在返回404... "
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/api/shopify/orders/search?q=NOTEXIST999999")
+if [ "$HTTP_CODE" = "404" ]; then
+    echo -e "${GREEN}✅ 通过${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}❌ 失败${NC}"
+    ((FAIL++))
+fi
+
+# 测试33: Shopify UK 参数验证
+echo -n "测试33: Shopify UK 参数验证... "
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/api/shopify/orders?email=test@test.com&limit=100")
+if [ "$HTTP_CODE" = "400" ]; then
+    echo -e "${GREEN}✅ 通过${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}❌ 失败${NC}"
+    ((FAIL++))
+fi
+
+echo ""
 echo "=== TypeScript类型检查 ==="
 echo ""
 

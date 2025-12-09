@@ -25,7 +25,7 @@ from src.ticket import (
     TicketAttachment,
     generate_ticket_id,
 )
-from src.sla_timer import check_sla_alerts, SLAAlert
+from src.sla_timer import check_sla_alerts, SLAAlert, SLA_PAUSE_STATUSES
 
 
 class TicketStore:
@@ -101,6 +101,39 @@ class TicketStore:
         if self._memory_store:
             return list(self._memory_store.keys())
         return []
+
+    def _handle_sla_pause_transition(
+        self,
+        ticket: Ticket,
+        previous_status: TicketStatus,
+        new_status: TicketStatus
+    ):
+        """
+        根据工单状态变化记录 SLA 暂停/恢复信息
+        """
+        metadata = ticket.metadata or {}
+        ticket.metadata = metadata
+        pause_key = "sla_pause_started_at"
+        paused_duration_key = "sla_paused_duration"
+
+        if previous_status in SLA_PAUSE_STATUSES and new_status not in SLA_PAUSE_STATUSES:
+            pause_started = metadata.pop(pause_key, None)
+            if pause_started is not None:
+                try:
+                    paused_seconds = max(0.0, time.time() - float(pause_started))
+                except (TypeError, ValueError):
+                    paused_seconds = 0.0
+                accumulated_raw = metadata.get(paused_duration_key, 0.0) or 0.0
+                try:
+                    accumulated = float(accumulated_raw)
+                except (TypeError, ValueError):
+                    accumulated = 0.0
+                metadata[paused_duration_key] = accumulated + paused_seconds
+        elif (
+            new_status in SLA_PAUSE_STATUSES and
+            previous_status not in SLA_PAUSE_STATUSES
+        ):
+            metadata[pause_key] = time.time()
 
     # ------------------
     # 对外接口
@@ -241,6 +274,7 @@ class TicketStore:
         if ticket.status == TicketStatus.ARCHIVED:
             raise ValueError("ARCHIVED_TICKET: 已归档工单不可编辑")
 
+        previous_status = ticket.status
         if status and ticket.status != status:
             ticket.add_status_history(
                 from_status=ticket.status,
@@ -249,6 +283,7 @@ class TicketStore:
                 change_reason=change_reason,
                 comment=note
             )
+            self._handle_sla_pause_transition(ticket, previous_status, status)
             ticket.status = status
             if status == TicketStatus.CLOSED:
                 ticket.closed_at = time.time()
