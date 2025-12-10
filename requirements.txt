@@ -29,3 +29,6 @@ cryptography==44.0.0
 # aiofiles==24.1.0  # 异步文件操作
 # python-multipart==0.0.20  # 文件上传支持
 redis>=5.0.0
+
+# APScheduler - 定时任务调度 (用于缓存预热)
+apscheduler>=3.10.0

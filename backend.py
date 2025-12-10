@@ -798,6 +798,10 @@ AGENT_OFFLINE_THRESHOLD = int(os.getenv("AGENT_OFFLINE_THRESHOLD", "30"))  # 默
 AGENT_CHECK_INTERVAL = int(os.getenv("AGENT_CHECK_INTERVAL", "10"))  # 默认10秒检查一次
 _agent_heartbeat_task: Optional[asyncio.Task] = None  # 后台任务引用
 
+# 【缓存预热调度】配置
+_warmup_scheduler = None  # APScheduler 调度器
+WARMUP_ENABLED = os.getenv("WARMUP_ENABLED", "true").lower() == "true"
+
 
 async def sla_alert_background_task():
     """
@@ -920,7 +924,7 @@ async def agent_heartbeat_monitor_task():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
-    global coze_client, token_manager, jwt_oauth_app, session_store, regulator, agent_manager, agent_token_manager, quick_reply_store, variable_replacer, ticket_store, smart_assignment_engine, audit_log_store, ticket_template_store, WORKFLOW_ID, APP_ID, AUTH_MODE, _sla_task, _agent_heartbeat_task, customer_reply_auto_reopen
+    global coze_client, token_manager, jwt_oauth_app, session_store, regulator, agent_manager, agent_token_manager, quick_reply_store, variable_replacer, ticket_store, smart_assignment_engine, audit_log_store, ticket_template_store, WORKFLOW_ID, APP_ID, AUTH_MODE, _sla_task, _agent_heartbeat_task, customer_reply_auto_reopen, _warmup_scheduler
 
     # 读取配置
     WORKFLOW_ID = os.getenv("COZE_WORKFLOW_ID", "")
@@ -1158,6 +1162,64 @@ async def lifespan(app: FastAPI):
     # 【心跳超时自动离线】启动坐席心跳监控任务
     _agent_heartbeat_task = asyncio.create_task(agent_heartbeat_monitor_task())
 
+    # 【缓存预热】启动 APScheduler 调度器
+    if WARMUP_ENABLED:
+        try:
+            from apscheduler.schedulers.asyncio import AsyncIOScheduler
+            from apscheduler.triggers.cron import CronTrigger
+            from src.warmup_service import get_warmup_service
+
+            warmup_service = get_warmup_service()
+            _warmup_scheduler = AsyncIOScheduler()
+
+            # 配置预热任务调度
+            # 02:00 UTC (10:00 北京时间) - 全量预热
+            _warmup_scheduler.add_job(
+                warmup_service.full_warmup,
+                CronTrigger(hour=2, minute=0),
+                id="warmup_full",
+                name="全量预热 (7天订单)",
+                replace_existing=True
+            )
+
+            # 08:00 UTC (16:00 北京时间) - 增量预热
+            _warmup_scheduler.add_job(
+                warmup_service.incremental_warmup,
+                CronTrigger(hour=8, minute=0),
+                id="warmup_incremental_08",
+                name="增量预热 (08:00 UTC)",
+                replace_existing=True
+            )
+
+            # 14:00 UTC (22:00 北京时间) - 增量预热
+            _warmup_scheduler.add_job(
+                warmup_service.incremental_warmup,
+                CronTrigger(hour=14, minute=0),
+                id="warmup_incremental_14",
+                name="增量预热 (14:00 UTC)",
+                replace_existing=True
+            )
+
+            # 20:00 UTC (04:00 北京时间) - 增量预热
+            _warmup_scheduler.add_job(
+                warmup_service.incremental_warmup,
+                CronTrigger(hour=20, minute=0),
+                id="warmup_incremental_20",
+                name="增量预热 (20:00 UTC)",
+                replace_existing=True
+            )
+
+            _warmup_scheduler.start()
+            print("✅ 缓存预热调度器启动")
+            print("   📅 全量预热: 02:00 UTC (每天)")
+            print("   📅 增量预热: 08:00/14:00/20:00 UTC")
+
+        except Exception as e:
+            print(f"⚠️ 缓存预热调度器启动失败: {e}")
+            _warmup_scheduler = None
+    else:
+        print("⏭️ 缓存预热已禁用 (WARMUP_ENABLED=false)")
+
     yield
 
     # 关闭时清理
@@ -1174,6 +1236,11 @@ async def lifespan(app: FastAPI):
             await _agent_heartbeat_task
         except asyncio.CancelledError:
             pass
+
+    # 关闭预热调度器
+    if _warmup_scheduler:
+        _warmup_scheduler.shutdown(wait=False)
+        print("⏹️ 缓存预热调度器已关闭")
 
     print("👋 关闭 Coze 客户端")
 
@@ -7341,6 +7408,168 @@ async def shopify_health_check():
 
     except Exception as e:
         print(f"❌ Shopify 健康检查失败: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+# ==================== 缓存预热管理 API ====================
+
+
+@app.get("/api/warmup/status")
+async def get_warmup_status():
+    """
+    获取预热服务状态
+
+    Returns:
+        预热服务状态信息
+    """
+    try:
+        from src.warmup_service import get_warmup_service
+        warmup_service = get_warmup_service()
+
+        status = warmup_service.get_status()
+
+        # 添加调度器信息
+        if _warmup_scheduler:
+            jobs = []
+            for job in _warmup_scheduler.get_jobs():
+                jobs.append({
+                    "id": job.id,
+                    "name": job.name,
+                    "next_run": job.next_run_time.isoformat() if job.next_run_time else None
+                })
+            status["scheduler"] = {
+                "running": _warmup_scheduler.running,
+                "jobs": jobs
+            }
+        else:
+            status["scheduler"] = None
+
+        return {
+            "success": True,
+            "data": status
+        }
+
+    except Exception as e:
+        print(f"❌ 获取预热状态失败: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+@app.post("/api/warmup/trigger")
+async def trigger_warmup(
+    warmup_type: str = "incremental",
+    days: int = 7
+):
+    """
+    手动触发预热任务
+
+    Args:
+        warmup_type: 预热类型 (full/incremental)
+        days: 预热天数 (仅全量预热生效)
+
+    Returns:
+        触发结果
+    """
+    try:
+        from src.warmup_service import get_warmup_service
+        warmup_service = get_warmup_service()
+
+        if warmup_service.is_running:
+            return {
+                "success": False,
+                "error": "预热任务正在执行中",
+                "message": "请等待当前任务完成后再触发"
+            }
+
+        # 异步启动预热任务
+        import asyncio
+        if warmup_type == "full":
+            task = asyncio.create_task(warmup_service.full_warmup(days=days))
+            message = f"全量预热任务已启动 ({days} 天)"
+        else:
+            task = asyncio.create_task(warmup_service.incremental_warmup())
+            message = "增量预热任务已启动"
+
+        return {
+            "success": True,
+            "message": message,
+            "warmup_type": warmup_type,
+            "task_id": f"warmup_{warmup_type}_{int(time.time())}"
+        }
+
+    except Exception as e:
+        print(f"❌ 触发预热失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"触发失败: {str(e)}"
+        )
+
+
+@app.get("/api/warmup/history")
+async def get_warmup_history(limit: int = 10):
+    """
+    获取预热历史记录
+
+    Args:
+        limit: 返回数量限制
+
+    Returns:
+        预热历史列表
+    """
+    try:
+        from src.warmup_service import get_warmup_service
+        warmup_service = get_warmup_service()
+
+        history = warmup_service.get_history(limit=limit)
+
+        return {
+            "success": True,
+            "data": {
+                "history": history,
+                "total": len(history)
+            }
+        }
+
+    except Exception as e:
+        print(f"❌ 获取预热历史失败: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+@app.post("/api/warmup/stop")
+async def stop_warmup():
+    """
+    停止当前预热任务
+
+    Returns:
+        停止结果
+    """
+    try:
+        from src.warmup_service import get_warmup_service
+        warmup_service = get_warmup_service()
+
+        if not warmup_service.is_running:
+            return {
+                "success": False,
+                "message": "没有正在运行的预热任务"
+            }
+
+        warmup_service.stop()
+
+        return {
+            "success": True,
+            "message": "已发送停止信号，任务将在当前订单处理完成后停止"
+        }
+
+    except Exception as e:
+        print(f"❌ 停止预热失败: {str(e)}")
         return {
             "success": False,
             "error": str(e)

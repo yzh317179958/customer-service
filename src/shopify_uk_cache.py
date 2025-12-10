@@ -3,11 +3,17 @@ Shopify UK 订单缓存层
 
 基于 Redis 实现订单数据缓存，减少 Shopify API 调用频率。
 
-缓存策略：
+缓存策略 (v4.2.0 - 预热优化版)：
 - 订单列表: 5 分钟 (用户可能频繁查询)
-- 订单详情: 10 分钟 (相对稳定)
-- 物流信息: 30 分钟 (更新频率低)
+- 订单详情: 48 小时 (订单信息稳定，适合预热)
+- 订单搜索: 48 小时 (按订单号查询，适合预热)
+- 物流信息: 6 小时 (物流状态会更新，需要适度刷新)
 - 订单数量: 60 分钟 (统计数据)
+
+预热机制说明：
+- 全量预热: 每天 02:00 UTC 预热 7 天内的订单
+- 增量预热: 每 6 小时刷新新订单和即将过期的缓存
+- 预热速率: 0.5 次/秒，用户请求优先
 
 遵循 CLAUDE.md 规范：
 - 使用连接池限制并发
@@ -39,12 +45,13 @@ class ShopifyUKCache:
     # 缓存键前缀
     PREFIX = "shopify:uk"
 
-    # 默认 TTL 配置 (秒)
+    # 默认 TTL 配置 (秒) - v4.2.0 预热优化版
     DEFAULT_TTL = {
-        "order_list": 300,      # 5 分钟
-        "order_detail": 600,    # 10 分钟
-        "tracking": 1800,       # 30 分钟
-        "order_count": 3600,    # 60 分钟
+        "order_list": 300,         # 5 分钟 - 用户频繁查询
+        "order_detail": 172800,    # 48 小时 - 订单信息稳定，适合预热
+        "order_search": 172800,    # 48 小时 - 按订单号查询，适合预热
+        "tracking": 21600,         # 6 小时 - 物流状态会更新
+        "order_count": 3600,       # 60 分钟 - 统计数据
     }
 
     def __init__(self, redis_client: Optional[redis.Redis] = None):
@@ -75,6 +82,7 @@ class ShopifyUKCache:
         self.ttl = {
             "order_list": int(os.getenv("SHOPIFY_UK_CACHE_ORDER_LIST", self.DEFAULT_TTL["order_list"])),
             "order_detail": int(os.getenv("SHOPIFY_UK_CACHE_ORDER_DETAIL", self.DEFAULT_TTL["order_detail"])),
+            "order_search": int(os.getenv("SHOPIFY_UK_CACHE_ORDER_SEARCH", self.DEFAULT_TTL["order_search"])),
             "tracking": int(os.getenv("SHOPIFY_UK_CACHE_TRACKING", self.DEFAULT_TTL["tracking"])),
             "order_count": int(os.getenv("SHOPIFY_UK_CACHE_COUNT", self.DEFAULT_TTL["order_count"])),
         }
@@ -239,8 +247,8 @@ class ShopifyUKCache:
                 logger.debug(f"💾 缓存写入: 订单不存在 ({order_number}, TTL=60s)")
             else:
                 data = json.dumps(order, ensure_ascii=False, default=str)
-                self.redis.setex(key, self.ttl["order_detail"], data)
-                logger.debug(f"💾 缓存写入: 订单搜索 ({order_number}, TTL={self.ttl['order_detail']}s)")
+                self.redis.setex(key, self.ttl["order_search"], data)
+                logger.debug(f"💾 缓存写入: 订单搜索 ({order_number}, TTL={self.ttl['order_search']}s)")
 
             return True
         except Exception as e:
