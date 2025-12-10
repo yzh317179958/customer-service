@@ -1,26 +1,24 @@
 openapi: 3.0.0
 info:
   title: Fiido UK Shopify 订单查询
-  version: 1.0.0
+  version: 1.2.0
   description: |
     用于查询 Fiido UK Shopify 店铺的订单和物流信息。
 
     ## 功能列表
-    - 按客户邮箱查询订单列表
     - 按订单号搜索订单详情
+    - 按客户邮箱查询订单列表
     - 获取订单物流追踪信息
     - 获取订单数量统计
+    - API 健康检查
 
-    ## 使用说明
-    1. 当用户询问订单状态时，先尝试提取订单号
-    2. 如果没有订单号，询问用户的邮箱
-    3. 查询结果包含中英文翻译和客服话术模板
+    ## 注意事项
+    - 此版本已展开所有 $ref 引用，以兼容 Coze 平台
+    - 所有字段类型均与后端 API 实际返回匹配
 
 servers:
-  - url: http://223.4.251.97/ai
-    description: 生产环境 (阿里云ECS)
-  - url: http://localhost:8000
-    description: 本地开发环境
+  - url: https://ai.fiido.com
+    description: Fiido UK 智能客服 API
 
 paths:
   /api/shopify/orders/search:
@@ -29,15 +27,15 @@ paths:
       summary: 按订单号搜索订单
       description: |
         根据订单号搜索订单详情。
-        支持 #UK22080 或 UK22080 格式的订单号。
+        - 支持 UK22080 或 #UK22080 格式
+        - 返回订单完整信息包括商品、地址、物流
       parameters:
         - name: q
           in: query
           required: true
           schema:
             type: string
-            minLength: 3
-          description: 订单号关键词（如 UK22080 或 #UK22080）
+          description: 订单号关键词（如 UK22080）
           example: "UK22080"
       responses:
         '200':
@@ -45,26 +43,155 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OrderSearchResponse'
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    description: 请求是否成功
+                  data:
+                    type: object
+                    properties:
+                      order:
+                        type: object
+                        description: 订单详情对象
+                        properties:
+                          order_id:
+                            type: string
+                            description: Shopify 订单 ID（用于查询物流）
+                          order_number:
+                            type: string
+                            description: 订单号（如 #UK22080）
+                          created_at:
+                            type: string
+                            description: 下单时间
+                          financial_status:
+                            type: string
+                            description: 支付状态（paid/pending/refunded）
+                          fulfillment_status:
+                            type: string
+                            description: 发货状态（fulfilled/partial/null）
+                          total_price:
+                            type: string
+                            description: 订单总金额
+                          currency:
+                            type: string
+                            description: 货币代码（GBP）
+                          items_count:
+                            type: integer
+                            description: 商品数量
+                          customer_email:
+                            type: string
+                            description: 客户邮箱
+                          customer_name:
+                            type: string
+                            description: 客户姓名
+                          subtotal_price:
+                            type: string
+                            description: 商品小计
+                          total_shipping:
+                            type: string
+                            description: 运费
+                          total_discounts:
+                            type: string
+                            description: 折扣金额
+                          total_tax:
+                            type: string
+                            description: 税费
+                          note:
+                            type: string
+                            description: 订单备注
+                          tags:
+                            type: string
+                            description: 订单标签
+                          discount_codes:
+                            type: array
+                            description: 使用的优惠码
+                            items:
+                              type: string
+                          line_items:
+                            type: array
+                            description: 商品列表
+                            items:
+                              type: object
+                              properties:
+                                title:
+                                  type: string
+                                  description: 商品名称
+                                variant_title:
+                                  type: string
+                                  description: 规格
+                                sku:
+                                  type: string
+                                  description: SKU
+                                quantity:
+                                  type: integer
+                                  description: 数量
+                                price:
+                                  type: string
+                                  description: 单价
+                          shipping_address:
+                            type: object
+                            description: 收货地址
+                            properties:
+                              address1:
+                                type: string
+                              address2:
+                                type: string
+                              city:
+                                type: string
+                              province:
+                                type: string
+                              country:
+                                type: string
+                              zip:
+                                type: string
+                          fulfillments:
+                            type: array
+                            description: 发货记录
+                            items:
+                              type: object
+                              properties:
+                                id:
+                                  type: integer
+                                  description: 发货记录ID
+                                status:
+                                  type: string
+                                  description: 发货状态
+                                tracking_company:
+                                  type: string
+                                  description: 承运商
+                                tracking_number:
+                                  type: string
+                                  description: 运单号
+                                tracking_url:
+                                  type: string
+                                  description: 追踪链接
+                                created_at:
+                                  type: string
+                                  description: 发货时间
+                      cached:
+                        type: boolean
+                        description: 是否来自缓存
+                      cache_ttl:
+                        type: integer
+                        description: 缓存有效期（秒）
         '404':
           description: 订单不存在
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
 
   /api/shopify/orders:
     get:
       operationId: getOrdersByEmail
       summary: 按客户邮箱查询订单列表
-      description: 根据客户邮箱查询所有订单记录
+      description: |
+        根据客户邮箱查询所有订单记录。
+        - 返回该邮箱下的所有订单摘要
+        - 支持分页限制
       parameters:
         - name: email
           in: query
           required: true
           schema:
             type: string
-            format: email
           description: 客户邮箱地址
           example: "customer@example.com"
         - name: limit
@@ -72,25 +199,71 @@ paths:
           required: false
           schema:
             type: integer
-            minimum: 1
-            maximum: 50
             default: 10
-          description: 返回订单数量限制
+          description: 返回订单数量限制（默认10）
         - name: status
           in: query
           required: false
           schema:
             type: string
-            enum: [open, closed, cancelled, any]
             default: any
-          description: 订单状态筛选
+          description: 订单状态筛选（open/closed/cancelled/any）
       responses:
         '200':
           description: 订单列表
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OrderListResponse'
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      orders:
+                        type: array
+                        description: 订单列表
+                        items:
+                          type: object
+                          properties:
+                            order_id:
+                              type: string
+                              description: Shopify 订单 ID
+                            order_number:
+                              type: string
+                              description: 订单号
+                            created_at:
+                              type: string
+                              description: 下单时间
+                            financial_status:
+                              type: string
+                              description: 支付状态
+                            fulfillment_status:
+                              type: string
+                              description: 发货状态
+                            total_price:
+                              type: string
+                              description: 订单总金额
+                            currency:
+                              type: string
+                              description: 货币代码
+                            items_count:
+                              type: integer
+                              description: 商品数量
+                            customer_email:
+                              type: string
+                              description: 客户邮箱
+                            customer_name:
+                              type: string
+                              description: 客户姓名
+                      total:
+                        type: integer
+                        description: 总订单数
+                      cached:
+                        type: boolean
+                      cache_ttl:
+                        type: integer
 
   /api/shopify/orders/{order_id}/tracking:
     get:
@@ -98,19 +271,15 @@ paths:
       summary: 获取订单物流信息
       description: |
         获取订单的物流追踪信息。
-        返回结果包含：
-        - 承运商信息
-        - 运单号
-        - 追踪链接
-        - 状态中英文翻译
-        - 客服话术模板
+        - 需要使用 order_id（Shopify内部ID），不是订单号
+        - 返回承运商、运单号、状态翻译、客服话术模板
       parameters:
         - name: order_id
           in: path
           required: true
           schema:
             type: string
-          description: Shopify 订单 ID（数字格式）
+          description: Shopify 订单 ID（数字格式，如 6615015620909）
           example: "6615015620909"
       responses:
         '200':
@@ -118,19 +287,99 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TrackingResponse'
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      tracking:
+                        type: object
+                        description: 物流追踪信息
+                        properties:
+                          order_id:
+                            type: string
+                            description: 订单ID
+                          order_number:
+                            type: string
+                            description: 订单号
+                          fulfillment_status:
+                            type: string
+                            description: 发货状态
+                          fulfillment_status_zh:
+                            type: string
+                            description: 发货状态（中文）
+                          fulfillment_status_en:
+                            type: string
+                            description: 发货状态（英文）
+                          primary_tracking:
+                            type: object
+                            description: 主要物流信息
+                            properties:
+                              company:
+                                type: string
+                                description: 承运商
+                              company_normalized:
+                                type: string
+                                description: 标准化承运商名称
+                              number:
+                                type: string
+                                description: 运单号
+                              url:
+                                type: string
+                                description: 追踪链接
+                              status:
+                                type: string
+                                description: 物流状态
+                              status_zh:
+                                type: string
+                                description: 物流状态（中文）
+                              status_en:
+                                type: string
+                                description: 物流状态（英文）
+                              shipped_at:
+                                type: string
+                                description: 发货时间
+                          fulfillments:
+                            type: array
+                            description: 所有发货记录
+                            items:
+                              type: object
+                              properties:
+                                id:
+                                  type: integer
+                                status:
+                                  type: string
+                                tracking_company:
+                                  type: string
+                                tracking_number:
+                                  type: string
+                                tracking_url:
+                                  type: string
+                                created_at:
+                                  type: string
+                          message_template_zh:
+                            type: string
+                            description: 中文客服话术模板
+                          message_template_en:
+                            type: string
+                            description: 英文客服话术模板
+                      cached:
+                        type: boolean
+                      cache_ttl:
+                        type: integer
         '404':
           description: 订单不存在
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
 
   /api/shopify/orders/{order_id}:
     get:
       operationId: getOrderDetail
       summary: 获取订单详情
-      description: 获取订单的完整详细信息
+      description: |
+        根据 order_id 获取订单的完整详细信息。
+        - 与 searchOrderByNumber 返回相同结构
+        - 用于已知 order_id 时直接查询
       parameters:
         - name: order_id
           in: path
@@ -138,13 +387,110 @@ paths:
           schema:
             type: string
           description: Shopify 订单 ID
+          example: "6615015620909"
       responses:
         '200':
           description: 订单详情
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OrderDetailResponse'
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      order:
+                        type: object
+                        properties:
+                          order_id:
+                            type: string
+                          order_number:
+                            type: string
+                          created_at:
+                            type: string
+                          financial_status:
+                            type: string
+                          fulfillment_status:
+                            type: string
+                          total_price:
+                            type: string
+                          currency:
+                            type: string
+                          items_count:
+                            type: integer
+                          customer_email:
+                            type: string
+                          customer_name:
+                            type: string
+                          subtotal_price:
+                            type: string
+                          total_shipping:
+                            type: string
+                          total_discounts:
+                            type: string
+                          total_tax:
+                            type: string
+                          note:
+                            type: string
+                          tags:
+                            type: string
+                          discount_codes:
+                            type: array
+                            items:
+                              type: string
+                          line_items:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                title:
+                                  type: string
+                                variant_title:
+                                  type: string
+                                sku:
+                                  type: string
+                                quantity:
+                                  type: integer
+                                price:
+                                  type: string
+                          shipping_address:
+                            type: object
+                            properties:
+                              address1:
+                                type: string
+                              address2:
+                                type: string
+                              city:
+                                type: string
+                              province:
+                                type: string
+                              country:
+                                type: string
+                              zip:
+                                type: string
+                          fulfillments:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                id:
+                                  type: integer
+                                status:
+                                  type: string
+                                tracking_company:
+                                  type: string
+                                tracking_number:
+                                  type: string
+                                tracking_url:
+                                  type: string
+                                created_at:
+                                  type: string
+                      cached:
+                        type: boolean
+                      cache_ttl:
+                        type: integer
         '404':
           description: 订单不存在
 
@@ -152,329 +498,87 @@ paths:
     get:
       operationId: getOrderCount
       summary: 获取订单数量统计
+      description: 获取店铺订单总数，可按状态筛选
       parameters:
         - name: status
           in: query
           required: false
           schema:
             type: string
-            enum: [open, closed, cancelled, any]
             default: any
-          description: 订单状态筛选
+          description: 订单状态筛选（open/closed/cancelled/any）
       responses:
         '200':
           description: 订单数量
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CountResponse'
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      count:
+                        type: integer
+                        description: 订单数量
+                      status:
+                        type: string
+                        description: 筛选的状态
+                      cached:
+                        type: boolean
+                      cache_ttl:
+                        type: integer
 
   /api/shopify/health:
     get:
       operationId: healthCheck
       summary: 健康检查
-      description: 检查 Shopify API 连接状态
+      description: 检查 Shopify API 连接状态和缓存情况
       responses:
         '200':
           description: 健康状态
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HealthResponse'
-
-components:
-  schemas:
-    OrderSearchResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-          example: true
-        data:
-          type: object
-          properties:
-            order:
-              $ref: '#/components/schemas/OrderDetail'
-            cached:
-              type: boolean
-              description: 是否来自缓存
-            cache_ttl:
-              type: integer
-              description: 缓存有效期（秒）
-
-    OrderListResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-        data:
-          type: object
-          properties:
-            orders:
-              type: array
-              items:
-                $ref: '#/components/schemas/OrderSummary'
-            total:
-              type: integer
-              description: 总订单数
-            cached:
-              type: boolean
-            cache_ttl:
-              type: integer
-
-    OrderDetailResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-        data:
-          type: object
-          properties:
-            order:
-              $ref: '#/components/schemas/OrderDetail'
-            cached:
-              type: boolean
-            cache_ttl:
-              type: integer
-
-    TrackingResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-        data:
-          type: object
-          properties:
-            tracking:
-              $ref: '#/components/schemas/TrackingInfo'
-            cached:
-              type: boolean
-            cache_ttl:
-              type: integer
-
-    CountResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-        data:
-          type: object
-          properties:
-            count:
-              type: integer
-              description: 订单数量
-            status:
-              type: string
-            cached:
-              type: boolean
-            cache_ttl:
-              type: integer
-
-    HealthResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-        data:
-          type: object
-          properties:
-            api:
-              type: object
-              properties:
-                status:
-                  type: string
-                  enum: [healthy, unhealthy]
-                shop_domain:
-                  type: string
-                total_orders:
-                  type: integer
-            cache:
-              type: object
-              properties:
-                total:
-                  type: integer
-
-    OrderSummary:
-      type: object
-      description: 订单摘要
-      properties:
-        order_id:
-          type: string
-          description: Shopify 订单 ID
-        order_number:
-          type: string
-          description: 订单号（如 #UK22080）
-        created_at:
-          type: string
-          description: 下单时间
-        financial_status:
-          type: string
-          description: 支付状态
-        fulfillment_status:
-          type: string
-          nullable: true
-          description: 发货状态
-        total_price:
-          type: string
-          description: 订单总金额
-        currency:
-          type: string
-          description: 货币代码
-        items_count:
-          type: integer
-          description: 商品数量
-        customer_email:
-          type: string
-          nullable: true
-        customer_name:
-          type: string
-          nullable: true
-
-    OrderDetail:
-      allOf:
-        - $ref: '#/components/schemas/OrderSummary'
-        - type: object
-          properties:
-            line_items:
-              type: array
-              items:
-                $ref: '#/components/schemas/LineItem'
-            subtotal_price:
-              type: string
-            total_shipping:
-              type: string
-            total_discounts:
-              type: string
-            total_tax:
-              type: string
-            shipping_address:
-              $ref: '#/components/schemas/ShippingAddress'
-            fulfillments:
-              type: array
-              items:
-                $ref: '#/components/schemas/Fulfillment'
-            note:
-              type: string
-              nullable: true
-            tags:
-              type: string
-              nullable: true
-            discount_codes:
-              type: array
-              items:
-                type: string
-
-    LineItem:
-      type: object
-      properties:
-        title:
-          type: string
-          description: 商品名称
-        variant_title:
-          type: string
-          nullable: true
-          description: 规格
-        sku:
-          type: string
-          nullable: true
-        quantity:
-          type: integer
-        price:
-          type: string
-
-    ShippingAddress:
-      type: object
-      properties:
-        address1:
-          type: string
-        address2:
-          type: string
-          nullable: true
-        city:
-          type: string
-        province:
-          type: string
-        country:
-          type: string
-        zip:
-          type: string
-
-    Fulfillment:
-      type: object
-      properties:
-        id:
-          type: integer
-        status:
-          type: string
-        tracking_company:
-          type: string
-          nullable: true
-        tracking_number:
-          type: string
-          nullable: true
-        tracking_url:
-          type: string
-          nullable: true
-        created_at:
-          type: string
-
-    TrackingInfo:
-      type: object
-      properties:
-        order_id:
-          type: string
-        order_number:
-          type: string
-        fulfillment_status:
-          type: string
-          nullable: true
-        fulfillment_status_zh:
-          type: string
-          description: 发货状态中文
-        fulfillment_status_en:
-          type: string
-          description: 发货状态英文
-        fulfillments:
-          type: array
-          items:
-            $ref: '#/components/schemas/Fulfillment'
-        primary_tracking:
-          type: object
-          nullable: true
-          properties:
-            company:
-              type: string
-              description: 承运商
-            company_normalized:
-              type: string
-              description: 标准化承运商名称
-            number:
-              type: string
-              description: 运单号
-            url:
-              type: string
-              nullable: true
-            tracking_url_generated:
-              type: string
-              description: 生成的追踪链接
-            status:
-              type: string
-            status_zh:
-              type: string
-            status_en:
-              type: string
-            shipped_at:
-              type: string
-        message_template_zh:
-          type: string
-          description: 中文客服话术模板
-        message_template_en:
-          type: string
-          description: 英文客服话术模板
-
-    ErrorResponse:
-      type: object
-      properties:
-        detail:
-          type: string
-          description: 错误详情
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      api:
+                        type: object
+                        description: API 状态
+                        properties:
+                          status:
+                            type: string
+                            description: 健康状态（healthy/unhealthy）
+                          shop_domain:
+                            type: string
+                            description: 店铺域名
+                          api_version:
+                            type: string
+                            description: Shopify API 版本
+                          total_orders:
+                            type: integer
+                            description: 总订单数
+                      cache:
+                        type: object
+                        description: 缓存状态
+                        properties:
+                          order_list:
+                            type: integer
+                          order_detail:
+                            type: integer
+                          order_search:
+                            type: integer
+                          tracking:
+                            type: integer
+                          order_count:
+                            type: integer
+                          total:
+                            type: integer
+                            description: 缓存总数

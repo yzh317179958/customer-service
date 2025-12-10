@@ -19,6 +19,12 @@ CARRIER_TRACKING_URLS = {
     "Yodel": "https://www.yodel.co.uk/tracking/{tracking_number}",
     "Parcelforce": "https://www.parcelforce.com/track-trace?trackNumber={tracking_number}",
 
+    # DX (大件物流)
+    "DX": "https://www.dxdelivery.com/track/?ref={tracking_number}",
+    "DX Freight": "https://www.dxdelivery.com/track/?ref={tracking_number}",
+    "DX FREIGHT": "https://www.dxdelivery.com/track/?ref={tracking_number}",
+    "DX Delivery": "https://www.dxdelivery.com/track/?ref={tracking_number}",
+
     # 国际承运商
     "UPS": "https://www.ups.com/track?tracknum={tracking_number}",
     "DHL": "https://www.dhl.com/en/express/tracking.html?AWB={tracking_number}",
@@ -54,6 +60,15 @@ CARRIER_ALIASES = {
     "hermes": "Evri",
     "evri": "Evri",
     "myhermes": "Evri",
+
+    # DX (大件物流)
+    "dx": "DX",
+    "dx freight": "DX FREIGHT",
+    "dxfreight": "DX FREIGHT",
+    "dx-freight": "DX FREIGHT",
+    "dx_freight": "DX FREIGHT",
+    "dx delivery": "DX Delivery",
+    "dxdelivery": "DX Delivery",
 
     # DHL
     "dhl": "DHL",
@@ -327,11 +342,14 @@ def enrich_tracking_data(tracking_data: Dict) -> Dict:
             # 标准化承运商名称
             primary["company_normalized"] = normalize_carrier_name(primary["company"])
 
-            # 生成追踪链接
+            # 生成追踪链接（如果原始链接为空）
             if primary.get("number"):
                 tracking_url = get_tracking_url(primary["company"], primary["number"])
                 if tracking_url:
                     primary["tracking_url_generated"] = tracking_url
+                    # 如果原始 url 为空，使用生成的链接
+                    if not primary.get("url"):
+                        primary["url"] = tracking_url
 
         if primary.get("status"):
             primary["status_zh"] = translate_tracking_status(primary["status"], "zh")
