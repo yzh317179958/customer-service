@@ -13,7 +13,15 @@ const inputRef = ref<HTMLInputElement | null>(null)
 const showMenu = ref(false)
 let statusPollInterval: number | null = null
 
-const API_BASE_URL = computed(() => `http://${window.location.hostname}:8000`)
+// 生产环境使用相对路径（通过nginx代理），本地开发使用8000端口
+const API_BASE_URL = computed(() => {
+  const hostname = window.location.hostname
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return 'http://localhost:8000'
+  }
+  // 生产环境使用同域名，通过 nginx 代理 /api
+  return ''
+})
 
 // 🔴 P0-9.5: 输入框禁用逻辑
 const isInputDisabled = computed(() => {
