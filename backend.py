@@ -1205,6 +1205,18 @@ try:
 except Exception as e:
     print(f"⚠️  静态文件挂载失败: {e}")
 
+# 挂载素材目录（产品图片、Logo 等）
+# 访问方式：https://ai.fiido.com/assets/products/c11-pro.webp
+ASSETS_DIR = os.path.join(CURRENT_DIR, "assets")
+if os.path.exists(ASSETS_DIR):
+    try:
+        app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets")
+        print(f"✅ 素材目录已挂载: /assets -> {ASSETS_DIR}")
+    except Exception as e:
+        print(f"⚠️  素材目录挂载失败: {e}")
+else:
+    print(f"⚠️  素材目录不存在: {ASSETS_DIR}")
+
 
 # ====================
 # JWT 权限中间件 (Agent Authorization Middleware)

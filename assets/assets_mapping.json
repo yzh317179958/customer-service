@@ -1,0 +1,201 @@
+{
+  "version": "1.0.0",
+  "updated_at": "2025-12-10T14:22:02.136190",
+  "base_url": "https://ai.fiido.com/assets",
+  "products": {
+    "air-carbon-fiber": {
+      "title": "Fiido Air Ultra-Light Carbon Fiber E-Bike",
+      "handle": "fiido-air-carbon-fiber-electric-bike",
+      "skus": [
+        "C31-51S-US",
+        "C31-54S-US",
+        "C31-58S-US"
+      ],
+      "main_image": "products/air-carbon-fiber.webp",
+      "image_count": 10,
+      "product_url": "https://www.fiido.com/products/fiido-air-carbon-fiber-electric-bike"
+    },
+    "c11-electric-commute": {
+      "title": "Fiido C11 City E-Bike",
+      "handle": "fiido-c11-electric-commuter-bike",
+      "skus": [
+        "C11-104B1-US",
+        "C11-104W1-US"
+      ],
+      "main_image": "products/c11-electric-commute.webp",
+      "image_count": 14,
+      "product_url": "https://www.fiido.com/products/fiido-c11-electric-commuter-bike"
+    },
+    "c11-pro": {
+      "title": "Fiido C11 Pro City E-Bike",
+      "handle": "fiido-c11-pro-city-e-bike",
+      "skus": [
+        "C11PRO-104B-US"
+      ],
+      "main_image": "products/c11-pro.webp",
+      "image_count": 12,
+      "product_url": "https://www.fiido.com/products/fiido-c11-pro-city-e-bike"
+    },
+    "c21-lightweight-step": {
+      "title": "Fiido C21 Gravel & City E-Bike",
+      "handle": "fiido-c21-lightweight-step-over-urban-gravel-ebikes",
+      "skus": [
+        "C21-55B-US",
+        "C21-61B-US",
+        "C21-51B-US"
+      ],
+      "main_image": "products/c21-lightweight-step.webp",
+      "image_count": 10,
+      "product_url": "https://www.fiido.com/products/fiido-c21-lightweight-step-over-urban-gravel-ebikes"
+    },
+    "d3-pro-mini": {
+      "title": "Fiido D3 Pro Mini Electric Bike",
+      "handle": "fiido-d3-pro-mini-electric-bike",
+      "skus": [
+        "D3PRO-78WC-US",
+        "D3PRO-78BC-US"
+      ],
+      "main_image": "products/d3-pro-mini.webp",
+      "image_count": 12,
+      "product_url": "https://www.fiido.com/products/fiido-d3-pro-mini-electric-bike"
+    },
+    "l3-long-range": {
+      "title": "Fiido L3 Long Range Electric Bike",
+      "handle": "fiido-l3-long-range-electric-bike",
+      "skus": [
+        "L3-232G-US"
+      ],
+      "main_image": "products/l3-long-range.webp",
+      "image_count": 8,
+      "product_url": "https://www.fiido.com/products/fiido-l3-long-range-electric-bike"
+    },
+    "m1-pro-fat-tire": {
+      "title": "Fiido M1 Pro Fat Tire Electric Bike",
+      "handle": "fiido-m1-pro-fat-tire-electric-bike",
+      "skus": [
+        "M1PRO-128B-US"
+      ],
+      "main_image": "products/m1-pro-fat-tire.webp",
+      "image_count": 11,
+      "product_url": "https://www.fiido.com/products/fiido-m1-pro-fat-tire-electric-bike"
+    },
+    "nomads-trekking": {
+      "title": "Fiido Nomads Touring E-bike",
+      "handle": "fiido-nomads-trekking-e-bike",
+      "skus": [
+        "M23-46Y-US",
+        "M23-51Y-US-1",
+        "M23-46Y-US-1",
+        "M23-51Y-US"
+      ],
+      "main_image": "products/nomads-trekking.webp",
+      "image_count": 13,
+      "product_url": "https://www.fiido.com/products/fiido-nomads-trekking-e-bike"
+    },
+    "t1": {
+      "title": "Fiido T1 Pro Utility Electric Bike",
+      "handle": "fiido-t1-utility-electric-bike",
+      "skus": [
+        "T1-20Y-US"
+      ],
+      "main_image": "products/t1.webp",
+      "image_count": 11,
+      "product_url": "https://www.fiido.com/products/fiido-t1-utility-electric-bike"
+    },
+    "t2-longtail-cargo-fo": {
+      "title": "Fiido T2 Longtail Cargo E-bike",
+      "handle": "fiido-t2-longtail-cargo-ebike-for-versatile-all-terrain",
+      "skus": [
+        "T2-20G-US",
+        "T2-20B-US",
+        "T2-20G1-US",
+        "T2-20B1-US"
+      ],
+      "main_image": "products/t2-longtail-cargo-fo.webp",
+      "image_count": 15,
+      "product_url": "https://www.fiido.com/products/fiido-t2-longtail-cargo-ebike-for-versatile-all-terrain"
+    },
+    "titan-robust-cargo-w": {
+      "title": "Titan Fat Tire Touring Ebike - Long Range",
+      "handle": "fiido-titan-robust-cargo-electric-bike-with-ul-certified",
+      "skus": [
+        "M25-145H-US",
+        "M25-145H-US-1"
+      ],
+      "main_image": "products/titan-robust-cargo-w.webp",
+      "image_count": 11,
+      "product_url": "https://www.fiido.com/products/fiido-titan-robust-cargo-electric-bike-with-ul-certified"
+    }
+  },
+  "accessories": {},
+  "brand": {
+    "logo": {
+      "description": "Fiido Logo",
+      "image": "brand/logo.png"
+    },
+    "logo_white": {
+      "description": "Fiido Logo (白色版)",
+      "image": "brand/logo_white.png"
+    }
+  },
+  "scenes": {
+    "welcome": {
+      "description": "欢迎/问候场景",
+      "assets": [
+        "brand/logo"
+      ],
+      "trigger_keywords": [
+        "hello",
+        "hi",
+        "你好",
+        "嗨"
+      ]
+    },
+    "order_query": {
+      "description": "订单查询场景",
+      "assets": [
+        "products/*"
+      ],
+      "trigger_intents": [
+        "order_query",
+        "order_list"
+      ]
+    },
+    "product_consult": {
+      "description": "产品咨询场景",
+      "assets": [
+        "products/*"
+      ],
+      "trigger_intents": [
+        "product_consult"
+      ]
+    },
+    "after_sales": {
+      "description": "售后服务场景",
+      "assets": [
+        "accessories/*",
+        "products/*"
+      ],
+      "trigger_keywords": [
+        "repair",
+        "维修",
+        "warranty",
+        "质保",
+        "broken",
+        "坏了"
+      ]
+    },
+    "goodbye": {
+      "description": "告别场景",
+      "assets": [
+        "brand/logo"
+      ],
+      "trigger_keywords": [
+        "bye",
+        "goodbye",
+        "再见",
+        "谢谢"
+      ]
+    }
+  }
+}
