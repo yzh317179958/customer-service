@@ -43,6 +43,13 @@ class ShopifyLineItem(BaseModel):
     sku: Optional[str] = None
     quantity: int
     price: str
+    fulfillment_status: Optional[str] = None  # 商品级别发货状态: fulfilled/null
+
+
+class FulfillmentLineItem(BaseModel):
+    """发货记录中的商品项"""
+    title: str
+    quantity: int
 
 
 class ShopifyFulfillment(BaseModel):
@@ -53,6 +60,14 @@ class ShopifyFulfillment(BaseModel):
     tracking_number: Optional[str] = None
     tracking_url: Optional[str] = None
     created_at: Optional[str] = None
+    line_items: List[FulfillmentLineItem] = []  # 该发货记录包含的商品
+
+
+class PrimaryProduct(BaseModel):
+    """主商品信息（用于订单列表展示）"""
+    title: str
+    image_url: Optional[str] = None
+    product_url: Optional[str] = None
 
 
 class ShopifyOrderSummary(BaseModel):
@@ -67,6 +82,7 @@ class ShopifyOrderSummary(BaseModel):
     items_count: int
     customer_email: Optional[str] = None
     customer_name: Optional[str] = None
+    primary_product: Optional[PrimaryProduct] = None  # 主商品（用于图文展示）
 
 
 class ShopifyOrderDetail(ShopifyOrderSummary):
@@ -363,6 +379,32 @@ class ShopifyUKClient:
         customer = order.get("customer", {}) or {}
         line_items = order.get("line_items", [])
 
+        # 提取主商品信息（第一个非服务类商品）
+        primary_product = None
+        service_keywords = ['worry-free', 'protection', 'insurance', 'warranty', 'service']
+
+        for item in line_items:
+            title = item.get("title", "")
+            # 跳过服务类商品
+            if any(kw in title.lower() for kw in service_keywords):
+                continue
+
+            # 通过商品名称关键词匹配图片 URL
+            image_url = self._get_product_image_by_title(title)
+
+            # 构建商品详情页 URL
+            product_url = None
+            product_id = item.get("product_id")
+            if product_id:
+                product_url = f"https://www.fiido.com/products/{product_id}"
+
+            primary_product = PrimaryProduct(
+                title=title,
+                image_url=image_url,
+                product_url=product_url
+            )
+            break  # 只取第一个主商品
+
         return ShopifyOrderSummary(
             order_id=str(order.get("id")),
             order_number=order.get("name", ""),
@@ -373,21 +415,74 @@ class ShopifyUKClient:
             currency=order.get("currency", "GBP"),
             items_count=sum(item.get("quantity", 0) for item in line_items),
             customer_email=customer.get("email"),
-            customer_name=f"{customer.get('first_name', '')} {customer.get('last_name', '')}".strip()
+            customer_name=f"{customer.get('first_name', '')} {customer.get('last_name', '')}".strip(),
+            primary_product=primary_product
         )
+
+    def _get_product_image_by_title(self, title: str) -> Optional[str]:
+        """根据商品名称关键词匹配图片 URL"""
+        title_lower = title.lower()
+
+        # 产品图片映射表（按优先级排序）
+        product_images = [
+            ("titan", "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/1-titan.webp?v=1755064725"),
+            ("c11 pro", "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/1-c11-pro_dce92f31-e919-4a94-b8b0-f9cb9b037d75.webp?v=1740465827"),
+            ("c11", "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/1-c11.png?v=1763374439"),
+            ("c21", "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/1-L.webp?v=1739848641"),
+            ("c22", "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/1-L.webp?v=1739848641"),
+            ("air", "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/c31-img-1.webp?v=1750820407"),
+            ("d3 pro", "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/d3pro-2024-1.jpg?v=1709777461"),
+            ("d3", "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/d3pro-2024-1.jpg?v=1709777461"),
+            ("d11", "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/d11-2024-1.webp?v=1709777461"),
+            ("d21", "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/d11-2024-1.webp?v=1709777461"),
+            ("l3", "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/l3-main-1.jpg?v=1727161438"),
+            ("m1 pro", "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/7-m1-pro_a8e3269b-7ec7-4f38-a211-1cb2649c18ee.webp?v=1755851713"),
+            ("m1", "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/7-m1-pro_a8e3269b-7ec7-4f38-a211-1cb2649c18ee.webp?v=1755851713"),
+            ("nomads", "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/11-sunstone-yellow-m.webp?v=1751939345"),
+            ("t1", "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/t1pro-main-1_56e88db4-5144-4e04-bf86-310a6bfa75d8.jpg?v=1719560237"),
+            ("t2", "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/t2-main-1-green.jpg?v=1712557682"),
+        ]
+
+        # 配件图片映射表
+        accessory_images = [
+            ("pannier bag", "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/bike-rack-pannier-bag.jpg?v=1690970482"),
+            ("rack bag", "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/bike-rack-pannier-bag.jpg?v=1690970482"),
+            ("helmet", "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/1_2e3a8c93-9e21-42ba-9e2d-20185a8446eb.jpg?v=1710150097"),
+            ("brake pad", "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/Fiido-Electric-Bike-BrakePads.jpg?v=1656662379"),
+            ("charger", "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/Fiido-Electric-Bike-Charger-for-EU.jpg?v=1656905714"),
+            ("fender", "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/M1_a985f037-e887-4f3c-8d49-8338e04bce73.jpg?v=1723106303"),
+            ("phone holder", "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/phone-holder.jpg?v=1690970482"),
+            ("battery", "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/battery-pack.jpg?v=1690970482"),
+            ("basket", "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/front-basket.jpg?v=1690970482"),
+            ("mirror", "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/rearview-mirror.jpg?v=1690970482"),
+            ("cap", "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/fiido-cap.jpg?v=1690970482"),
+        ]
+
+        # 先匹配产品
+        for keyword, url in product_images:
+            if keyword in title_lower:
+                return url
+
+        # 再匹配配件
+        for keyword, url in accessory_images:
+            if keyword in title_lower:
+                return url
+
+        return None
 
     def _parse_order_detail(self, order: Dict) -> ShopifyOrderDetail:
         """解析订单详情"""
         summary = self._parse_order_summary(order)
 
-        # 解析商品列表
+        # 解析商品列表（包含商品级别的发货状态）
         line_items = [
             ShopifyLineItem(
                 title=item.get("title", ""),
                 variant_title=item.get("variant_title"),
                 sku=item.get("sku"),
                 quantity=item.get("quantity", 1),
-                price=item.get("price", "0")
+                price=item.get("price", "0"),
+                fulfillment_status=item.get("fulfillment_status")  # fulfilled/null
             )
             for item in order.get("line_items", [])
         ]
@@ -403,18 +498,26 @@ class ShopifyUKClient:
             zip=shipping.get("zip")
         ) if shipping else None
 
-        # 解析发货信息
-        fulfillments = [
-            ShopifyFulfillment(
+        # 解析发货信息（包含每个发货记录的商品列表）
+        fulfillments = []
+        for f in order.get("fulfillments", []):
+            # 提取该发货记录包含的商品
+            fulfillment_line_items = [
+                FulfillmentLineItem(
+                    title=item.get("title", ""),
+                    quantity=item.get("quantity", 1)
+                )
+                for item in f.get("line_items", [])
+            ]
+            fulfillments.append(ShopifyFulfillment(
                 id=f.get("id"),
                 status=f.get("status", ""),
                 tracking_company=f.get("tracking_company"),
                 tracking_number=f.get("tracking_number"),
                 tracking_url=f.get("tracking_url"),
-                created_at=f.get("created_at")
-            )
-            for f in order.get("fulfillments", [])
-        ]
+                created_at=f.get("created_at"),
+                line_items=fulfillment_line_items
+            ))
 
         # 解析折扣码
         discount_codes = [

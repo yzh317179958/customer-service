@@ -723,7 +723,7 @@ async def chat(request: ChatRequest):
 8. **不要允许** 坐席修改自己的 role、username、max_sessions 等敏感字段
 9. **不要跳过** 旧密码验证直接修改密码
 10. **不要混用** JWT 权限级别（如用 require_agent 保护管理员 API）
-11. **不要自动** 执行 git commit、git push 操作，除非用户明确要求提交或推送
+11. **不要自动** 执行 git commit、git push 操作 - 必须等待用户明确说"提交"或"推送"后才能执行，开发完成后只准备好代码，不主动提交
 
 ---
 
@@ -913,3 +913,4 @@ prd/
 
 **文档版本**: v2.0
 **最后更新**: 2025-12-09
+- to memorize
