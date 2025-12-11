@@ -1,7 +1,7 @@
 openapi: 3.0.0
 info:
   title: Fiido UK Shopify 订单查询
-  version: 1.2.0
+  version: 1.3.0
   description: |
     用于查询 Fiido UK Shopify 店铺的订单和物流信息。
 
@@ -11,6 +11,10 @@ info:
     - 获取订单物流追踪信息
     - 获取订单数量统计
     - API 健康检查
+
+    ## v1.3.0 更新
+    - line_items 新增 image_url 字段（商品图片 CDN URL）
+    - line_items 新增 product_url 字段（商品详情页链接）
 
     ## 注意事项
     - 此版本已展开所有 $ref 引用，以兼容 Coze 平台
@@ -129,6 +133,12 @@ paths:
                                 price:
                                   type: string
                                   description: 单价
+                                image_url:
+                                  type: string
+                                  description: 商品图片 URL（Shopify CDN）
+                                product_url:
+                                  type: string
+                                  description: 商品详情页 URL
                           shipping_address:
                             type: object
                             description: 收货地址
@@ -455,6 +465,12 @@ paths:
                                   type: integer
                                 price:
                                   type: string
+                                image_url:
+                                  type: string
+                                  description: 商品图片 URL（Shopify CDN）
+                                product_url:
+                                  type: string
+                                  description: 商品详情页 URL
                           shipping_address:
                             type: object
                             properties:
