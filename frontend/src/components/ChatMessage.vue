@@ -337,4 +337,80 @@ const senderName = computed(() => {
 .message.user .message-content :deep(code) {
   background: rgba(255, 255, 255, 0.2);
 }
+
+/* Product image styles - 精致小巧的产品图片 */
+.message-content :deep(img) {
+  max-width: 100px;
+  max-height: 100px;
+  width: auto;
+  height: auto;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  object-fit: cover;
+  display: inline-block;
+  vertical-align: middle;
+  margin: 4px 8px 4px 0;
+  transition: all 0.2s ease;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.message-content :deep(img:hover) {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* 表格中的图片更小 */
+.message-content :deep(table img) {
+  max-width: 60px;
+  max-height: 60px;
+  margin: 2px 0;
+}
+
+/* 表格样式优化 */
+.message-content :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 13px;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.message-content :deep(th),
+.message-content :deep(td) {
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+  text-align: left;
+}
+
+.message-content :deep(th) {
+  background: linear-gradient(to bottom, #f9fafb, #f3f4f6);
+  font-weight: 600;
+  color: #374151;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.message-content :deep(td) {
+  background: #ffffff;
+  vertical-align: middle;
+}
+
+.message-content :deep(tr:hover td) {
+  background: #f9fafb;
+}
+
+/* 价格列右对齐 */
+.message-content :deep(td:last-child) {
+  text-align: right;
+  font-weight: 500;
+  color: #059669;
+}
+
+/* 数量列居中 */
+.message-content :deep(td:nth-child(2)) {
+  text-align: center;
+}
 </style>
