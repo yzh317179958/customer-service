@@ -66,26 +66,65 @@ def match_product_image(
     use_thumb: bool = True
 ) -> Optional[Dict]:
     """
-    根据产品名称或 SKU 匹配产品图片
+    根据产品名称或 SKU 匹配产品或配件图片
 
     Args:
-        product_name: 产品名称（如 "Titan Fat Tire Touring Ebike"）
-        sku: 产品 SKU（如 "M25-145H-US"）
+        product_name: 产品/配件名称（如 "Titan Fat Tire Touring Ebike" 或 "Bike Rack Pannier Bag"）
+        sku: 产品/配件 SKU（如 "M25-145H-US" 或 "A5901"）
         base_url: 素材基础 URL
-        use_thumb: 是否使用缩略图
+        use_thumb: 是否使用缩略图（仅产品支持）
 
     Returns:
         匹配结果，包含 title, image_url, product_url 等
     """
     mapping = load_mapping()
     products = mapping.get("products", {})
+    accessories = mapping.get("accessories", {})
 
-    if not products:
+    if not products and not accessories:
         return None
 
     best_match = None
     best_score = 0.0
+    is_accessory = False
 
+    # 先搜索配件（SKU匹配通常更准确）
+    for key, acc_info in accessories.items():
+        score = 0.0
+
+        # SKU 匹配（最高优先级）
+        if sku:
+            acc_skus = acc_info.get("skus", [])
+            for acc_sku in acc_skus:
+                if sku.upper() == acc_sku.upper():
+                    score = 1.0  # 精确匹配
+                    break
+                elif sku.upper() in acc_sku.upper() or acc_sku.upper() in sku.upper():
+                    score = 0.95  # 部分匹配
+                    break
+
+        # 配件名称匹配
+        if score < 1.0 and product_name:
+            title = acc_info.get("title", "")
+
+            # 精确匹配
+            if product_name.lower() == title.lower():
+                score = 0.95
+            else:
+                # 模糊匹配
+                name_score = SequenceMatcher(
+                    None,
+                    product_name.lower(),
+                    title.lower()
+                ).ratio()
+                score = max(score, min(name_score, 0.9))
+
+        if score > best_score:
+            best_score = score
+            best_match = (key, acc_info)
+            is_accessory = True
+
+    # 再搜索产品
     for key, product_info in products.items():
         score = 0.0
 
@@ -123,24 +162,38 @@ def match_product_image(
         if score > best_score:
             best_score = score
             best_match = (key, product_info)
+            is_accessory = False
 
     # 只有匹配度大于 0.5 才返回
     if best_match and best_score > 0.5:
-        key, product_info = best_match
+        key, item_info = best_match
 
-        # 选择图片版本
-        image_file = product_info.get("main_image", "")
-        if use_thumb:
-            # 使用缩略图
-            image_file = image_file.replace(".webp", "_thumb.webp")
+        if is_accessory:
+            # 配件图片（没有缩略图）
+            image_file = item_info.get("image", "")
+            return {
+                "title": item_info.get("title"),
+                "image_url": get_asset_url(image_file, base_url),
+                "image_url_full": get_asset_url(image_file, base_url),
+                "product_url": f"https://www.fiido.com/products/{item_info.get('handle', '')}",
+                "match_score": best_score,
+                "type": "accessory",
+            }
+        else:
+            # 产品图片
+            image_file = item_info.get("main_image", "")
+            if use_thumb:
+                # 使用缩略图
+                image_file = image_file.replace(".webp", "_thumb.webp")
 
-        return {
-            "title": product_info.get("title"),
-            "image_url": get_asset_url(image_file, base_url),
-            "image_url_full": get_asset_url(product_info.get("main_image", ""), base_url),
-            "product_url": product_info.get("product_url"),
-            "match_score": best_score,
-        }
+            return {
+                "title": item_info.get("title"),
+                "image_url": get_asset_url(image_file, base_url),
+                "image_url_full": get_asset_url(item_info.get("main_image", ""), base_url),
+                "product_url": item_info.get("product_url"),
+                "match_score": best_score,
+                "type": "product",
+            }
 
     return None
 
@@ -332,7 +385,12 @@ if __name__ == "__main__":
         ("Titan Fat Tire Touring Ebike", None),
         ("Fiido C11 Pro", None),
         ("Unknown Product", "C11PRO-104B-US"),
-        ("Bike Rack Pannier Bag", None),  # 配件，应该匹配不到
+        # 配件测试
+        ("Bike Rack Pannier Bag", None),
+        ("Bike Rack Pannier Bag", "A5901"),  # 精确 SKU
+        ("Fiido Electric Bike Display for D4S", None),
+        ("Unknown", "3.005.000068"),  # D4S Display SKU
+        ("Fiido Electric Bike Brake Pads", None),
     ]
 
     base_url = "https://ai.fiido.com/assets"
@@ -340,12 +398,14 @@ if __name__ == "__main__":
     for name, sku in test_cases:
         result = match_product_image(name, sku, base_url)
         if result:
-            print(f"✅ {name}")
+            item_type = result.get('type', 'unknown')
+            print(f"✅ {name} (SKU: {sku})")
+            print(f"   类型: {item_type}")
             print(f"   匹配: {result['title']}")
             print(f"   图片: {result['image_url']}")
             print(f"   分数: {result['match_score']:.2f}")
         else:
-            print(f"❌ {name} - 未匹配")
+            print(f"❌ {name} (SKU: {sku}) - 未匹配")
         print()
 
     # 测试 Markdown 生成
