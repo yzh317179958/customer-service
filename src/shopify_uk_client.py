@@ -379,22 +379,48 @@ class ShopifyUKClient:
         customer = order.get("customer", {}) or {}
         line_items = order.get("line_items", [])
 
-        # 提取主商品信息（第一个非服务类商品）
+        # 提取主商品信息（优先选择电动车，其次是配件）
         primary_product = None
         service_keywords = ['worry-free', 'protection', 'insurance', 'warranty', 'service']
 
+        # 电动车产品关键词（Fiido 产品线）
+        ebike_keywords = ['titan', 'c11', 'c21', 'c22', 'air', 'd3', 'd11', 'd21',
+                         'l3', 'm1', 'nomads', 't1', 't2', 'ebike', 'e-bike', 'electric bike']
+
+        ebike_item = None  # 电动车商品
+        accessory_item = None  # 配件商品（备选）
+
         for item in line_items:
             title = item.get("title", "")
+            title_lower = title.lower()
+
             # 跳过服务类商品
-            if any(kw in title.lower() for kw in service_keywords):
+            if any(kw in title_lower for kw in service_keywords):
                 continue
 
+            # 判断是否是电动车
+            is_ebike = any(kw in title_lower for kw in ebike_keywords)
+
+            if is_ebike and ebike_item is None:
+                ebike_item = item
+            elif not is_ebike and accessory_item is None:
+                accessory_item = item
+
+            # 如果已经找到电动车，可以提前退出
+            if ebike_item is not None:
+                break
+
+        # 优先使用电动车，其次使用配件
+        selected_item = ebike_item or accessory_item
+
+        if selected_item:
+            title = selected_item.get("title", "")
             # 通过商品名称关键词匹配图片 URL
             image_url = self._get_product_image_by_title(title)
 
             # 构建商品详情页 URL
             product_url = None
-            product_id = item.get("product_id")
+            product_id = selected_item.get("product_id")
             if product_id:
                 product_url = f"https://www.fiido.com/products/{product_id}"
 
@@ -403,7 +429,6 @@ class ShopifyUKClient:
                 image_url=image_url,
                 product_url=product_url
             )
-            break  # 只取第一个主商品
 
         return ShopifyOrderSummary(
             order_id=str(order.get("id")),
