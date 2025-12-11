@@ -546,6 +546,8 @@ cd /home/yzh/AI客服/鉴权
 ├── agent-workbench/        # 坐席工作台 Vue 项目
 ├── prd/                    # PRD 文档
 │   └── INDEX.md            # 文档索引
+├── docs/参考资料/           # 重要参考文档（勿删）
+│   └── 客服聊天界面设计研究.md  # UI/UX 设计参考
 └── tests/                  # 测试脚本
     └── regression_test.sh  # 回归测试
 ```
