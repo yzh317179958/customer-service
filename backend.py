@@ -92,6 +92,7 @@ from src.automation_rules import CustomerReplyAutoReopen
 
 # 【增量3-1】导入 SLA 计时器模块
 from src.sla_timer import SLATimer, calculate_ticket_sla, SLAStatus
+from src.asset_service import match_order_items_images, reload_mapping as reload_asset_mapping
 
 # 【模块5】导入协助请求模块
 from src.assist_request import (
@@ -1208,6 +1209,20 @@ async def lifespan(app: FastAPI):
                 name="增量预热 (20:00 UTC)",
                 replace_existing=True
             )
+
+            # 【CDN 健康检查】每周日 03:00 UTC (11:00 北京时间) 检查并自动修复
+            try:
+                from src.cdn_health_checker import run_health_check
+                _warmup_scheduler.add_job(
+                    lambda: asyncio.create_task(run_health_check(auto_fix=True)),
+                    CronTrigger(day_of_week='sun', hour=3, minute=0),
+                    id="cdn_health_check",
+                    name="CDN URL 健康检查 (每周日)",
+                    replace_existing=True
+                )
+                print("   📅 CDN 健康检查: 03:00 UTC (每周日)")
+            except ImportError:
+                print("   ⚠️ CDN 健康检查模块未找到")
 
             _warmup_scheduler.start()
             print("✅ 缓存预热调度器启动")
@@ -7238,6 +7253,14 @@ async def search_shopify_order(
                 detail="ORDER_NOT_FOUND: 订单不存在"
             )
 
+        # 为订单商品添加图片 URL
+        if result.get("order") and result["order"].get("line_items"):
+            base_url = "https://ai.fiido.com/assets"
+            result["order"]["line_items"] = match_order_items_images(
+                result["order"]["line_items"],
+                base_url=base_url
+            )
+
         return {
             "success": True,
             "data": result
@@ -7570,6 +7593,89 @@ async def stop_warmup():
 
     except Exception as e:
         print(f"❌ 停止预热失败: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+# =============================================================================
+# CDN 健康检查 API
+# =============================================================================
+
+@app.post("/api/cdn/health-check")
+async def trigger_cdn_health_check(auto_fix: bool = False):
+    """
+    手动触发 CDN URL 健康检查
+
+    Args:
+        auto_fix: 是否自动修复失效的 URL
+
+    Returns:
+        检查结果
+    """
+    try:
+        from src.cdn_health_checker import run_health_check
+
+        # 异步执行检查
+        results = await run_health_check(auto_fix=auto_fix)
+
+        return {
+            "success": True,
+            "data": {
+                "check_time": results.get("check_time"),
+                "total": results.get("total"),
+                "valid": results.get("valid"),
+                "invalid": results.get("invalid"),
+                "fixed": results.get("fixed", 0),
+                "auto_fix_enabled": auto_fix
+            }
+        }
+
+    except ImportError:
+        raise HTTPException(
+            status_code=500,
+            detail="CDN 健康检查模块未找到"
+        )
+    except Exception as e:
+        print(f"❌ CDN 健康检查失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"检查失败: {str(e)}"
+        )
+
+
+@app.get("/api/cdn/health-log")
+async def get_cdn_health_log():
+    """
+    获取最近的 CDN 健康检查日志
+
+    Returns:
+        最近一次检查的详细结果
+    """
+    try:
+        import json
+        from pathlib import Path
+
+        log_file = Path(__file__).parent / "assets" / "cdn_health_log.json"
+
+        if not log_file.exists():
+            return {
+                "success": True,
+                "data": None,
+                "message": "暂无健康检查记录"
+            }
+
+        with open(log_file, 'r', encoding='utf-8') as f:
+            log_data = json.load(f)
+
+        return {
+            "success": True,
+            "data": log_data
+        }
+
+    except Exception as e:
+        print(f"❌ 获取 CDN 健康日志失败: {str(e)}")
         return {
             "success": False,
             "error": str(e)

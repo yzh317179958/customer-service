@@ -2,6 +2,7 @@
 素材服务模块
 
 提供产品图片匹配、场景素材获取等功能
+支持官网 CDN URL 和本地资源两种模式
 """
 
 import json
@@ -26,12 +27,18 @@ def load_mapping() -> Dict:
         return _mapping_cache
 
     if not MAPPING_FILE.exists():
-        return {"products": {}, "accessories": {}, "brand": {}, "scenes": {}}
+        return {"products": {}, "accessories": {}, "brand": {}, "scenes": {}, "cdn_mode": False}
 
     with open(MAPPING_FILE, 'r', encoding='utf-8') as f:
         _mapping_cache = json.load(f)
 
     return _mapping_cache
+
+
+def is_cdn_mode() -> bool:
+    """检查是否启用 CDN 模式"""
+    mapping = load_mapping()
+    return mapping.get("cdn_mode", False)
 
 
 def reload_mapping():
@@ -167,32 +174,47 @@ def match_product_image(
     # 只有匹配度大于 0.5 才返回
     if best_match and best_score > 0.5:
         key, item_info = best_match
+        use_cdn = is_cdn_mode()
 
         if is_accessory:
-            # 配件图片（没有缩略图）
-            image_file = item_info.get("image", "")
+            # 配件图片
+            # 优先使用 CDN URL
+            if use_cdn and item_info.get("cdn_url"):
+                image_url = item_info["cdn_url"]
+            else:
+                image_file = item_info.get("image", "")
+                image_url = get_asset_url(image_file, base_url)
+
             return {
                 "title": item_info.get("title"),
-                "image_url": get_asset_url(image_file, base_url),
-                "image_url_full": get_asset_url(image_file, base_url),
+                "image_url": image_url,
+                "image_url_full": image_url,
                 "product_url": f"https://www.fiido.com/products/{item_info.get('handle', '')}",
                 "match_score": best_score,
                 "type": "accessory",
+                "cdn_mode": use_cdn,
             }
         else:
             # 产品图片
-            image_file = item_info.get("main_image", "")
-            if use_thumb:
-                # 使用缩略图
-                image_file = image_file.replace(".webp", "_thumb.webp")
+            # 优先使用 CDN URL
+            if use_cdn and item_info.get("cdn_url"):
+                image_url = item_info["cdn_url"]
+                image_url_full = item_info["cdn_url"]
+            else:
+                image_file = item_info.get("main_image", "")
+                if use_thumb:
+                    image_file = image_file.replace(".webp", "_thumb.webp")
+                image_url = get_asset_url(image_file, base_url)
+                image_url_full = get_asset_url(item_info.get("main_image", ""), base_url)
 
             return {
                 "title": item_info.get("title"),
-                "image_url": get_asset_url(image_file, base_url),
-                "image_url_full": get_asset_url(item_info.get("main_image", ""), base_url),
+                "image_url": image_url,
+                "image_url_full": image_url_full,
                 "product_url": item_info.get("product_url"),
                 "match_score": best_score,
                 "type": "product",
+                "cdn_mode": use_cdn,
             }
 
     return None
@@ -306,19 +328,29 @@ def get_all_products(base_url: str = "") -> List[Dict]:
     """
     mapping = load_mapping()
     products = mapping.get("products", {})
+    use_cdn = is_cdn_mode()
 
     result = []
     for key, info in products.items():
+        # 优先使用 CDN URL
+        if use_cdn and info.get("cdn_url"):
+            image_url = info["cdn_url"]
+            thumb_url = info["cdn_url"]  # CDN 无缩略图
+        else:
+            image_url = get_asset_url(info.get("main_image", ""), base_url)
+            thumb_url = get_asset_url(
+                info.get("main_image", "").replace(".webp", "_thumb.webp"),
+                base_url
+            )
+
         result.append({
             "key": key,
             "title": info.get("title"),
-            "image_url": get_asset_url(info.get("main_image", ""), base_url),
-            "thumb_url": get_asset_url(
-                info.get("main_image", "").replace(".webp", "_thumb.webp"),
-                base_url
-            ),
+            "image_url": image_url,
+            "thumb_url": thumb_url,
             "product_url": info.get("product_url"),
             "skus": info.get("skus", []),
+            "cdn_mode": use_cdn,
         })
 
     return result
@@ -379,6 +411,7 @@ def generate_product_image_markdown(
 # 测试
 if __name__ == "__main__":
     print("=== 素材服务测试 ===\n")
+    print(f"CDN 模式: {'启用' if is_cdn_mode() else '禁用'}\n")
 
     # 测试产品匹配
     test_cases = [
@@ -399,10 +432,11 @@ if __name__ == "__main__":
         result = match_product_image(name, sku, base_url)
         if result:
             item_type = result.get('type', 'unknown')
-            print(f"✅ {name} (SKU: {sku})")
+            cdn_mode = result.get('cdn_mode', False)
+            print(f"{'[CDN]' if cdn_mode else '[本地]'} {name} (SKU: {sku})")
             print(f"   类型: {item_type}")
             print(f"   匹配: {result['title']}")
-            print(f"   图片: {result['image_url']}")
+            print(f"   图片: {result['image_url'][:80]}...")
             print(f"   分数: {result['match_score']:.2f}")
         else:
             print(f"❌ {name} (SKU: {sku}) - 未匹配")

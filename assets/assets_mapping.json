@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "updated_at": "2025-12-11T09:20:00",
+  "updated_at": "2025-12-11T10:19:32",
   "base_url": "",
   "products": {
     "air-carbon-fiber": {
@@ -13,7 +13,8 @@
       ],
       "main_image": "products/air-carbon-fiber.webp",
       "image_count": 10,
-      "product_url": "https://www.fiido.com/products/fiido-air-carbon-fiber-electric-bike"
+      "product_url": "https://www.fiido.com/products/fiido-air-carbon-fiber-electric-bike",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/c31-img-1.webp?v=1750820407"
     },
     "c11-electric-commute": {
       "title": "Fiido C11 City E-Bike",
@@ -24,7 +25,8 @@
       ],
       "main_image": "products/c11-electric-commute.webp",
       "image_count": 14,
-      "product_url": "https://www.fiido.com/products/fiido-c11-electric-commuter-bike"
+      "product_url": "https://www.fiido.com/products/fiido-c11-electric-commuter-bike",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/1-c11.png?v=1763374439"
     },
     "c11-pro": {
       "title": "Fiido C11 Pro City E-Bike",
@@ -34,7 +36,8 @@
       ],
       "main_image": "products/c11-pro.webp",
       "image_count": 12,
-      "product_url": "https://www.fiido.com/products/fiido-c11-pro-city-e-bike"
+      "product_url": "https://www.fiido.com/products/fiido-c11-pro-city-e-bike",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/1-c11-pro_dce92f31-e919-4a94-b8b0-f9cb9b037d75.webp?v=1740465827"
     },
     "c21-lightweight-step": {
       "title": "Fiido C21 Gravel & City E-Bike",
@@ -46,7 +49,8 @@
       ],
       "main_image": "products/c21-lightweight-step.webp",
       "image_count": 10,
-      "product_url": "https://www.fiido.com/products/fiido-c21-lightweight-step-over-urban-gravel-ebikes"
+      "product_url": "https://www.fiido.com/products/fiido-c21-lightweight-step-over-urban-gravel-ebikes",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/1-L.webp?v=1739848641"
     },
     "d3-pro-mini": {
       "title": "Fiido D3 Pro Mini Electric Bike",
@@ -57,7 +61,8 @@
       ],
       "main_image": "products/d3-pro-mini.webp",
       "image_count": 12,
-      "product_url": "https://www.fiido.com/products/fiido-d3-pro-mini-electric-bike"
+      "product_url": "https://www.fiido.com/products/fiido-d3-pro-mini-electric-bike",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/d3pro-2024-1.jpg?v=1709777461"
     },
     "l3-long-range": {
       "title": "Fiido L3 Long Range Electric Bike",
@@ -67,7 +72,8 @@
       ],
       "main_image": "products/l3-long-range.webp",
       "image_count": 8,
-      "product_url": "https://www.fiido.com/products/fiido-l3-long-range-electric-bike"
+      "product_url": "https://www.fiido.com/products/fiido-l3-long-range-electric-bike",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/l3-main-1.jpg?v=1727161438"
     },
     "m1-pro-fat-tire": {
       "title": "Fiido M1 Pro Fat Tire Electric Bike",
@@ -77,7 +83,8 @@
       ],
       "main_image": "products/m1-pro-fat-tire.webp",
       "image_count": 11,
-      "product_url": "https://www.fiido.com/products/fiido-m1-pro-fat-tire-electric-bike"
+      "product_url": "https://www.fiido.com/products/fiido-m1-pro-fat-tire-electric-bike",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/7-m1-pro_a8e3269b-7ec7-4f38-a211-1cb2649c18ee.webp?v=1755851713"
     },
     "nomads-trekking": {
       "title": "Fiido Nomads Touring E-bike",
@@ -90,7 +97,8 @@
       ],
       "main_image": "products/nomads-trekking.webp",
       "image_count": 13,
-      "product_url": "https://www.fiido.com/products/fiido-nomads-trekking-e-bike"
+      "product_url": "https://www.fiido.com/products/fiido-nomads-trekking-e-bike",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/11-sunstone-yellow-m.webp?v=1751939345"
     },
     "t1": {
       "title": "Fiido T1 Pro Utility Electric Bike",
@@ -100,7 +108,8 @@
       ],
       "main_image": "products/t1.webp",
       "image_count": 11,
-      "product_url": "https://www.fiido.com/products/fiido-t1-utility-electric-bike"
+      "product_url": "https://www.fiido.com/products/fiido-t1-utility-electric-bike",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/t1pro-main-1_56e88db4-5144-4e04-bf86-310a6bfa75d8.jpg?v=1719560237"
     },
     "t2-longtail-cargo-fo": {
       "title": "Fiido T2 Longtail Cargo E-bike",
@@ -113,7 +122,8 @@
       ],
       "main_image": "products/t2-longtail-cargo-fo.webp",
       "image_count": 15,
-      "product_url": "https://www.fiido.com/products/fiido-t2-longtail-cargo-ebike-for-versatile-all-terrain"
+      "product_url": "https://www.fiido.com/products/fiido-t2-longtail-cargo-ebike-for-versatile-all-terrain",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/t2-main-1-green.jpg?v=1712557682"
     },
     "titan-robust-cargo-w": {
       "title": "Titan Fat Tire Touring Ebike - Long Range",
@@ -124,7 +134,8 @@
       ],
       "main_image": "products/titan-robust-cargo-w.webp",
       "image_count": 11,
-      "product_url": "https://www.fiido.com/products/fiido-titan-robust-cargo-electric-bike-with-ul-certified"
+      "product_url": "https://www.fiido.com/products/fiido-titan-robust-cargo-electric-bike-with-ul-certified",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/1-titan.webp?v=1755064725"
     }
   },
   "accessories": {
@@ -134,7 +145,8 @@
       "skus": [
         "A2910"
       ],
-      "image": "accessories/fiido_bike_brake_pads.webp"
+      "image": "accessories/fiido_bike_brake_pads.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/Fiido-Electric-Bike-BrakePads.jpg?v=1656662379"
     },
     "fiido_electric_bike_charg": {
       "title": "Fiido Electric Bike Charger",
@@ -142,7 +154,8 @@
       "skus": [
         "3.011.360008"
       ],
-      "image": "accessories/fiido_electric_bike_charg.webp"
+      "image": "accessories/fiido_electric_bike_charg.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/Fiido-Electric-Bike-Charger-for-EU.jpg?v=1656905714"
     },
     "fiido_phone_holder_for_c2": {
       "title": "Fiido phone holder",
@@ -150,7 +163,8 @@
       "skus": [
         "A4500"
       ],
-      "image": "accessories/fiido_phone_holder_for_c2.webp"
+      "image": "accessories/fiido_phone_holder_for_c2.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/de067eb8127de07089ca6a12b607ed1a.jpg?v=1704524231"
     },
     "fiido_handlebar_bag": {
       "title": "Fiido Black Handlebar Bag",
@@ -158,7 +172,8 @@
       "skus": [
         "8.001.000004"
       ],
-      "image": "accessories/fiido_handlebar_bag.webp"
+      "image": "accessories/fiido_handlebar_bag.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/fiido-electric-bike-bag.jpg?v=1663839729"
     },
     "fiido_d1_twist_throttle_s": {
       "title": "Fiido Twist Throttle Speed Handlebar for D1/D2",
@@ -166,7 +181,8 @@
       "skus": [
         "3.004.F01001"
       ],
-      "image": "accessories/fiido_d1_twist_throttle_s.webp"
+      "image": "accessories/fiido_d1_twist_throttle_s.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/F1_78300d0a-9118-4a45-b250-a58bca05bc89.jpg?v=1611551910"
     },
     "rear_view_mirror": {
       "title": "Rear View Mirror",
@@ -174,7 +190,8 @@
       "skus": [
         "A4502"
       ],
-      "image": "accessories/rear_view_mirror.webp"
+      "image": "accessories/rear_view_mirror.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/85f080689f260946fa0e3967edff2084.jpg?v=1729243864"
     },
     "fiido_m1_fender": {
       "title": "Fiido Fender for M1/M1Pro/M21",
@@ -182,7 +199,8 @@
       "skus": [
         "6.001.000010"
       ],
-      "image": "accessories/fiido_m1_fender.webp"
+      "image": "accessories/fiido_m1_fender.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/M1_a985f037-e887-4f3c-8d49-8338e04bce73.jpg?v=1723106303"
     },
     "fiido_x_electric_bike_rea": {
       "title": "Rear Rack Bag for Fiido",
@@ -190,7 +208,8 @@
       "skus": [
         "A5900"
       ],
-      "image": "accessories/fiido_x_electric_bike_rea.webp"
+      "image": "accessories/fiido_x_electric_bike_rea.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/Fiido-X-Electric-Bike-Bag_1.png?v=1665830804"
     },
     "fiido_d4s_fender": {
       "title": "Fiido Electric Bike Fender Set for D4S",
@@ -198,7 +217,8 @@
       "skus": [
         "6.001.000007"
       ],
-      "image": "accessories/fiido_d4s_fender.webp"
+      "image": "accessories/fiido_d4s_fender.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/Fiido-Electric-Bike-Fender-Set-for-D4S.jpg?v=1660291906"
     },
     "fiido_14_inch_us_mouth_pn": {
       "title": "Fiido 14-inch Us Mouth Pneumatic Inner Tube Tire",
@@ -206,7 +226,8 @@
       "skus": [
         "2.006.F01003"
       ],
-      "image": "accessories/fiido_14_inch_us_mouth_pn.webp"
+      "image": "accessories/fiido_14_inch_us_mouth_pn.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/F1_8dd0de03-f651-4649-bdea-b86c6bf5bba2.jpg?v=1611556829"
     },
     "fiido_d2_fender": {
       "title": "Fiido Fender for D2/D2S",
@@ -214,7 +235,8 @@
       "skus": [
         "6.001.000008"
       ],
-      "image": "accessories/fiido_d2_fender.webp"
+      "image": "accessories/fiido_d2_fender.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/F4_3728dc80-9761-44e2-a893-cd40c501852f.jpg?v=1611557909"
     },
     "fiido_dc_charging_port_d1": {
       "title": "Fiido DC Charging Port for D1/D2/D2S/D4S/Q1/Q1S/M1pro",
@@ -222,7 +244,8 @@
       "skus": [
         "9.002.000023"
       ],
-      "image": "accessories/fiido_dc_charging_port_d1.webp"
+      "image": "accessories/fiido_dc_charging_port_d1.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/D1DC.jpg?v=1611547590"
     },
     "bike_rack_pannier_bag": {
       "title": "Bike Rack Pannier Bag",
@@ -230,7 +253,8 @@
       "skus": [
         "A5901"
       ],
-      "image": "accessories/bike_rack_pannier_bag.webp"
+      "image": "accessories/bike_rack_pannier_bag.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/bike-rack-pannier-bag.jpg?v=1690970482"
     },
     "fiido_d1_brakerear": {
       "title": "Fiido Rear Brake for D1/D2/D2S/D3/D3S/D4S/M1/D11/L3",
@@ -238,7 +262,8 @@
       "skus": [
         "2.009.TY0004"
       ],
-      "image": "accessories/fiido_d1_brakerear.webp"
+      "image": "accessories/fiido_d1_brakerear.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/F1_89c9bea7-4320-4d9e-be89-c388a413a454.jpg?v=1611557320"
     },
     "rear_wheel_spokes": {
       "title": "Fiido Electric Bike Rear Wheel Spokes for D4S",
@@ -246,7 +271,8 @@
       "skus": [
         "A1701"
       ],
-      "image": "accessories/rear_wheel_spokes.webp"
+      "image": "accessories/rear_wheel_spokes.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/Fiido_D11_D4S_Rear_Spokes.jpg?v=1650426040"
     },
     "fiido_electric_bike_pedal": {
       "title": "Fiido Electric Bike Pedals",
@@ -254,7 +280,8 @@
       "skus": [
         "2.013.F01001"
       ],
-      "image": "accessories/fiido_electric_bike_pedal.webp"
+      "image": "accessories/fiido_electric_bike_pedal.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/F1_1_35e48794-a741-4e9e-b153-1c145cb9a50e.jpg?v=1611553352"
     },
     "fiido_electric_bike_batte": {
       "title": "Fiido Electric Bike Battery Shell for D11/D21",
@@ -262,7 +289,8 @@
       "skus": [
         "9.001.000056"
       ],
-      "image": "accessories/fiido_electric_bike_batte.webp"
+      "image": "accessories/fiido_electric_bike_batte.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/D11_Battery_shell.jpg?v=1642670116"
     },
     "fiido_m1_pro_charger": {
       "title": "Fiido Electric Bike Charger for M1 Pro",
@@ -271,7 +299,8 @@
         "A3209",
         "3.011.M01007"
       ],
-      "image": "accessories/fiido_m1_pro_charger.webp"
+      "image": "accessories/fiido_m1_pro_charger.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/image.jpg?v=1624364692"
     },
     "fiido_battery_d1_d4s_q1_q": {
       "title": "Additional Fiido Battery for D1/D4S/Q1/Q1S",
@@ -279,7 +308,8 @@
       "skus": [
         "FX-104"
       ],
-      "image": "accessories/fiido_battery_d1_d4s_q1_q.webp"
+      "image": "accessories/fiido_battery_d1_d4s_q1_q.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/Fiido-Battery-D1-D4S-Q1-Q1S.jpg?v=1656395445"
     },
     "fiido_power_off_brake_lev": {
       "title": "Fiido Cut Off Power Brake Lever for D1/D2/D2s/M1/M1pro",
@@ -287,7 +317,8 @@
       "skus": [
         "3.008.F01001"
       ],
-      "image": "accessories/fiido_power_off_brake_lev.webp"
+      "image": "accessories/fiido_power_off_brake_lev.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/F1_bb9588c9-2bf4-4e54-8463-6bf376553462.jpg?v=1611557909"
     },
     "fiido_d1_battery_shell": {
       "title": "Fiido Battery Shell for D1/D2/D2S/D4S",
@@ -295,7 +326,8 @@
       "skus": [
         "3.009.000002"
       ],
-      "image": "accessories/fiido_d1_battery_shell.webp"
+      "image": "accessories/fiido_d1_battery_shell.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/18212f55d5d5ff579af788a16ff925c2.jpg?v=1611557320"
     },
     "fiido_d2_inner_tube": {
       "title": "Fiido Inner Tube for D2/D2S/D3S",
@@ -303,7 +335,8 @@
       "skus": [
         "2.006.F04002"
       ],
-      "image": "accessories/fiido_d2_inner_tube.webp"
+      "image": "accessories/fiido_d2_inner_tube.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/F4_cf8401e1-a746-4503-9f02-14af2f84fe5e.jpg?v=1611546638"
     },
     "fiido_d1_d3_l2_l3_tire": {
       "title": "Fiido Ebike Tire for D1/D3/L2/L3",
@@ -311,7 +344,8 @@
       "skus": [
         "2.006.F01001"
       ],
-      "image": "accessories/fiido_d1_d3_l2_l3_tire.webp"
+      "image": "accessories/fiido_d1_d3_l2_l3_tire.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/F1_97738742-dd09-4813-bfbb-a6d10717f4d6.jpg?v=1611557551"
     },
     "fiido_d1_front_brake": {
       "title": "Fiido Front Brake for D1/D2/D2S/D3/D3S/D4S/M1/D11/L3",
@@ -319,7 +353,8 @@
       "skus": [
         "2.009.TY0002"
       ],
-      "image": "accessories/fiido_d1_front_brake.webp"
+      "image": "accessories/fiido_d1_front_brake.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/F1_43f67cc1-a531-4458-ac86-28a3f8608d62.jpg?v=1611558041"
     },
     "t1_inner_tube": {
       "title": "Fiido Electric Bike Inner Tube for T1/M1/M1pro/ M21",
@@ -327,7 +362,8 @@
       "skus": [
         "2.006.M01002"
       ],
-      "image": "accessories/t1_inner_tube.webp"
+      "image": "accessories/t1_inner_tube.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/t1_inner_tube.jpg?v=1648633523"
     },
     "fiido_titan_pannier": {
       "title": "Pannier bag for Titan",
@@ -335,7 +371,8 @@
       "skus": [
         "A5902"
       ],
-      "image": "accessories/fiido_titan_pannier.webp"
+      "image": "accessories/fiido_titan_pannier.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/d13266bcfbc7661ff3928dbd910b8fee.jpg?v=1698638572"
     },
     "fiido_electric_bike_chain": {
       "title": "Fiido Electric Bike Chain Wheel and Cranks for D1/D2/D2S/D3/D3S/D4S",
@@ -343,7 +380,8 @@
       "skus": [
         "2.005.000002"
       ],
-      "image": "accessories/fiido_electric_bike_chain.webp"
+      "image": "accessories/fiido_electric_bike_chain.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/Fiido-Electric-Bike-Chain-Wheel-and-Cranks-for-D1-D2-D2S-D3-D3S-D4S.jpg?v=1653017949"
     },
     "fiido_d1_controller": {
       "title": "Fiido Controller for D1/D2",
@@ -351,7 +389,8 @@
       "skus": [
         "3.002.F01001"
       ],
-      "image": "accessories/fiido_d1_controller.webp"
+      "image": "accessories/fiido_d1_controller.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/F1_2ee57bab-ca03-41d4-8845-2f53e25a1dfa.jpg?v=1611556828"
     },
     "fiido_m1pro_battery": {
       "title": "Replacement battery for M1 Pro",
@@ -359,7 +398,8 @@
       "skus": [
         "3.003.M01005"
       ],
-      "image": "accessories/fiido_m1pro_battery.webp"
+      "image": "accessories/fiido_m1pro_battery.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/Fiido-Electric-Bike-Battery-for-M1pro.jpg?v=1657594428"
     },
     "disc_160": {
       "title": "Fiido Disc 160mm for D1/D2/D2S/D3/D3S/D4S/D11/L2/L3/Q1/Q1S/M1/D21",
@@ -367,7 +407,8 @@
       "skus": [
         "A3100"
       ],
-      "image": "accessories/disc_160.webp"
+      "image": "accessories/disc_160.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/5e4b35c6fcaf1252ec2b49d19da553a4.jpg?v=1611547476"
     },
     "fiido_d11_seat_post_clamp": {
       "title": "Fiido Electric Bike Seat Post Clamp for D11",
@@ -375,7 +416,8 @@
       "skus": [
         "1.006.000003"
       ],
-      "image": "accessories/fiido_d11_seat_post_clamp.webp"
+      "image": "accessories/fiido_d11_seat_post_clamp.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/D11_1eb62a4c-8d77-481a-a7d2-8f46f5e2b0fe.jpg?v=1611550345"
     },
     "fiido_d1_controller_shell": {
       "title": "Fiido Controller Shell for D1/D2/D2S/D4S",
@@ -383,7 +425,8 @@
       "skus": [
         "B9900"
       ],
-      "image": "accessories/fiido_d1_controller_shell.webp"
+      "image": "accessories/fiido_d1_controller_shell.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/671166a8da6bcaec9f05a51ab38fdb73.jpg?v=1611556945"
     },
     "fiido_d4s_display": {
       "title": "Fiido Electric Bike Display for D4S",
@@ -391,7 +434,8 @@
       "skus": [
         "3.005.000068"
       ],
-      "image": "accessories/fiido_d4s_display.webp"
+      "image": "accessories/fiido_d4s_display.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/Fiido-Electric-Bike-Display-for-D4S.jpg?v=1660117232"
     },
     "fiido_electric_bike_handl": {
       "title": "Fiido Electric Bike Handlebar - M1/M1Pro/M21/M3",
@@ -399,7 +443,8 @@
       "skus": [
         "3.004.M01001"
       ],
-      "image": "accessories/fiido_electric_bike_handl.webp"
+      "image": "accessories/fiido_electric_bike_handl.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/M1_3e358c74-608f-46b0-ae99-bdf013815fbb.jpg?v=1611555397"
     },
     "child_safety_fence_with_s": {
       "title": "Child safety fence (with seat cushion) for T2",
@@ -407,7 +452,8 @@
       "skus": [
         "A5905"
       ],
-      "image": "accessories/child_safety_fence_with_s.webp"
+      "image": "accessories/child_safety_fence_with_s.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/20250911-145639.jpg?v=1757574008"
     },
     "fiido_m1_outer_tube_tire": {
       "title": "Fiido Outer Tube Tire for M1/M1pro",
@@ -415,7 +461,8 @@
       "skus": [
         "2.006.M01001"
       ],
-      "image": "accessories/fiido_m1_outer_tube_tire.webp"
+      "image": "accessories/fiido_m1_outer_tube_tire.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/M1_3429fad7-27c7-4dac-98e8-b3000ef86277.jpg?v=1611554306"
     },
     "front_basket_set_for_tita": {
       "title": "Front Basket Set for Titan",
@@ -423,7 +470,8 @@
       "skus": [
         "A4403"
       ],
-      "image": "accessories/front_basket_set_for_tita.webp"
+      "image": "accessories/front_basket_set_for_tita.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/e0de95f59b0c37050517ea2e6f02dc2a.jpg?v=1704252136"
     },
     "fiido_d1_freewheel": {
       "title": "Fiido Freewheel for D1/D2/D3 pro",
@@ -431,7 +479,8 @@
       "skus": [
         "2.012.F01001"
       ],
-      "image": "accessories/fiido_d1_freewheel.webp"
+      "image": "accessories/fiido_d1_freewheel.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/F1_12t_1.jpg?v=1611547002"
     },
     "fiido_d11_seatpost_shim": {
       "title": "Fiido D11 Seatpost Shim",
@@ -439,7 +488,8 @@
       "skus": [
         "1.006.000004"
       ],
-      "image": "accessories/fiido_d11_seatpost_shim.webp"
+      "image": "accessories/fiido_d11_seatpost_shim.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/WechatIMG407.jpg?v=1629280761"
     },
     "fiido_d4s_controller": {
       "title": "Fiido D4S Controller",
@@ -447,7 +497,8 @@
       "skus": [
         "A9702"
       ],
-      "image": "accessories/fiido_d4s_controller.webp"
+      "image": "accessories/fiido_d4s_controller.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/D4S_77099cae-caa6-4350-a17b-56726fa8dd53.jpg?v=1611548185"
     },
     "fiido_d4s_d11_kickstand": {
       "title": "Fiido Electric Bike Kickstand for D4S/D11",
@@ -455,7 +506,8 @@
       "skus": [
         "1.008.D4S001"
       ],
-      "image": "accessories/fiido_d4s_d11_kickstand.webp"
+      "image": "accessories/fiido_d4s_d11_kickstand.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/D4S.jpg?v=1611546270"
     },
     "helmet_for_fiido": {
       "title": "Helmet for Fiido",
@@ -464,7 +516,8 @@
         "9.005.000024",
         "9.005.000025"
       ],
-      "image": "accessories/helmet_for_fiido.webp"
+      "image": "accessories/helmet_for_fiido.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/1_2e3a8c93-9e21-42ba-9e2d-20185a8446eb.jpg?v=1710150097"
     },
     "fiido_d3s_charger": {
       "title": "Fiido Charger for D3/D3S/D3 pro",
@@ -473,7 +526,8 @@
         "3.011.F05008",
         "3.011.F05006"
       ],
-      "image": "accessories/fiido_d3s_charger.webp"
+      "image": "accessories/fiido_d3s_charger.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/F5_cd79295e-39cf-4678-96e3-15affd04d254.jpg?v=1610158876"
     },
     "fiido_kickstand_d2_d2s": {
       "title": "Fiido Kickstand for D2/D2S",
@@ -481,7 +535,8 @@
       "skus": [
         "1.008.F04002"
       ],
-      "image": "accessories/fiido_kickstand_d2_d2s.webp"
+      "image": "accessories/fiido_kickstand_d2_d2s.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/F4_f08b1962-e05c-4c1c-9394-e5d36d2147ae.jpg?v=1611546270"
     },
     "fiido_d2s_display": {
       "title": "Fiido Display for D2S/D3/D3S",
@@ -489,7 +544,8 @@
       "skus": [
         "3.005.000009"
       ],
-      "image": "accessories/fiido_d2s_display.webp"
+      "image": "accessories/fiido_d2s_display.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/cbb87ce47ccf730916d65c822bf1e7fe.jpg?v=1611547476"
     },
     "fiido_controller_m1pro": {
       "title": "Fiido Controller for M1 Pro",
@@ -497,7 +553,8 @@
       "skus": [
         "3.002.M01003"
       ],
-      "image": "accessories/fiido_controller_m1pro.webp"
+      "image": "accessories/fiido_controller_m1pro.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/M1_1_d01873fc-ffed-4d4c-8bbd-943586e9767d.jpg?v=1621846846"
     },
     "fiido_d11_electric_bike_r": {
       "title": "Fiido D11/D21 Electric Bike Rear Rack",
@@ -505,7 +562,8 @@
       "skus": [
         "2.014.D11003"
       ],
-      "image": "accessories/fiido_d11_electric_bike_r.webp"
+      "image": "accessories/fiido_d11_electric_bike_r.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/Fiido-D11-Electric-Bike-Rear-Rack.jpg?v=1671444185"
     },
     "fiido_electric_bike_tube_": {
       "title": "Fiido Electric Bike Tube for D4S/D11/D21",
@@ -513,7 +571,8 @@
       "skus": [
         "2.006.D11002"
       ],
-      "image": "accessories/fiido_electric_bike_tube_.webp"
+      "image": "accessories/fiido_electric_bike_tube_.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/D11_inner_tube.jpg?v=1649216591"
     },
     "fiido_d4s_fork": {
       "title": "Fiido D4S Fork",
@@ -522,7 +581,8 @@
         "1.005.D4S0F2",
         "1.005.D4S0F1"
       ],
-      "image": "accessories/fiido_d4s_fork.webp"
+      "image": "accessories/fiido_d4s_fork.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/D4S_9b1b3424-e20a-4d89-aabe-12d60c972ee4.jpg?v=1624001223"
     },
     "fiido_d2s_controller": {
       "title": "Fiido Controller for D2S",
@@ -530,7 +590,8 @@
       "skus": [
         "3.002.F04001"
       ],
-      "image": "accessories/fiido_d2s_controller.webp"
+      "image": "accessories/fiido_d2s_controller.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/F4_01c3731a-d696-48f6-b954-f13c08254da1.jpg?v=1611556829"
     },
     "fiido_e_gravel_c22_front_": {
       "title": "Front Basket For E-Gravel C22/C11/C11 PRO",
@@ -538,7 +599,8 @@
       "skus": [
         "A4401"
       ],
-      "image": "accessories/fiido_e_gravel_c22_front_.webp"
+      "image": "accessories/fiido_e_gravel_c22_front_.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/fiido-c22-front-basket.jpg?v=1691049709"
     },
     "fiido_headset_d2s_d3_d4s_": {
       "title": "Fiido Headset for D2S/D3/D4S/Q1/Q1S/L2/L3",
@@ -546,7 +608,8 @@
       "skus": [
         "2.010.F05001"
       ],
-      "image": "accessories/fiido_headset_d2s_d3_d4s_.webp"
+      "image": "accessories/fiido_headset_d2s_d3_d4s_.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/F5_90bdb0a9-45e4-4c16-9870-6276a5b70d5e.jpg?v=1611557074"
     },
     "fiido_d1_integrated_boost": {
       "title": "Fiido Electric Bike Integrated Booster for D1/D2/D2S/D3/D3S/D4S/T1/L3",
@@ -554,7 +617,8 @@
       "skus": [
         "3.010.F01002"
       ],
-      "image": "accessories/fiido_d1_integrated_boost.webp"
+      "image": "accessories/fiido_d1_integrated_boost.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/F1_83591214-599a-4bc1-a6b0-dbd578c258ed.jpg?v=1611546504"
     },
     "t1_charger": {
       "title": "Fiido Electric Bike Charger for T1/L3/L2",
@@ -562,7 +626,8 @@
       "skus": [
         "3.011.F06004"
       ],
-      "image": "accessories/t1_charger.webp"
+      "image": "accessories/t1_charger.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/T1_Charger_US.jpg?v=1648634237"
     },
     "fiido_d4s_headlight": {
       "title": "Fiido Electric Bike Headlight for D4S",
@@ -570,7 +635,8 @@
       "skus": [
         "A1302"
       ],
-      "image": "accessories/fiido_d4s_headlight.webp"
+      "image": "accessories/fiido_d4s_headlight.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/D4S_62f3b250-bc6e-4d82-a74c-5b34abacbe4b.jpg?v=1611547718"
     },
     "fiido_d1_headlight": {
       "title": "Fiido Headlight for D1/D2/D2S",
@@ -578,7 +644,8 @@
       "skus": [
         "3.006.D1S0F4"
       ],
-      "image": "accessories/fiido_d1_headlight.webp"
+      "image": "accessories/fiido_d1_headlight.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/F1_42b985b2-97d8-4456-a859-c3d44b9f6f89.jpg?v=1611557795"
     },
     "fiido_m1_battery": {
       "title": "Fiido M1 Battery",
@@ -586,7 +653,8 @@
       "skus": [
         "3.003.M01001"
       ],
-      "image": "accessories/fiido_m1_battery.webp"
+      "image": "accessories/fiido_m1_battery.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/M1_817481b7-9477-4598-bc62-b099230551a2.jpg?v=1611555397"
     },
     "fiido_d11_quick_release": {
       "title": "Fiido Electric Bike Quick Release for D11",
@@ -594,7 +662,8 @@
       "skus": [
         "1.003.D11002"
       ],
-      "image": "accessories/fiido_d11_quick_release.webp"
+      "image": "accessories/fiido_d11_quick_release.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/D11_b4d3a664-cbe6-43f9-867c-bbfcf4f23111.jpg?v=1611550474"
     },
     "fiido_l2_battery_strip": {
       "title": "Fiido Battery Strip for L2 / L3",
@@ -603,7 +672,8 @@
         "9.001.000048",
         "9.002.000039"
       ],
-      "image": "accessories/fiido_l2_battery_strip.webp"
+      "image": "accessories/fiido_l2_battery_strip.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/20210316111324.jpg?v=1615864471"
     },
     "fiido_d1_fender": {
       "title": "Fiido D1 Fender",
@@ -611,7 +681,8 @@
       "skus": [
         "2.008.F01001"
       ],
-      "image": "accessories/fiido_d1_fender.webp"
+      "image": "accessories/fiido_d1_fender.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/1_e269792b-2f94-49fb-b078-e170cbc609b4.jpg?v=1611556473"
     },
     "fiido_m1_integrated_boost": {
       "title": "Fiido Integrated Booster for M1/M1Pro",
@@ -619,7 +690,8 @@
       "skus": [
         "3.010.M01002"
       ],
-      "image": "accessories/fiido_m1_integrated_boost.webp"
+      "image": "accessories/fiido_m1_integrated_boost.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/M1_ef5b3946-8797-4b10-ae1b-9f4f48042fa8.jpg?v=1611554554"
     },
     "fiido_d3s_folding_stem": {
       "title": "Fiido Folding Stem for D2/D2S/D3/D3S/L3",
@@ -627,7 +699,8 @@
       "skus": [
         "1.006.F05002"
       ],
-      "image": "accessories/fiido_d3s_folding_stem.webp"
+      "image": "accessories/fiido_d3s_folding_stem.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/F5_638e64b3-cc95-4c91-b532-2e33e374df26.jpg?v=1611547108"
     },
     "front_basket_for_t2": {
       "title": "Front basket for T2",
@@ -635,7 +708,8 @@
       "skus": [
         "A4404"
       ],
-      "image": "accessories/front_basket_for_t2.webp"
+      "image": "accessories/front_basket_for_t2.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/20250911-145750.jpg?v=1757573913"
     },
     "fiido_d2_outer_tube_tire": {
       "title": "Fiido Outer Tire for D2/D2s/D3s",
@@ -643,7 +717,8 @@
       "skus": [
         "2.006.F04001"
       ],
-      "image": "accessories/fiido_d2_outer_tube_tire.webp"
+      "image": "accessories/fiido_d2_outer_tube_tire.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/F4_8c281677-118a-481b-a7c0-173d1cd9cac1.jpg?v=1611557679"
     },
     "rear_rack_for_c21": {
       "title": "Rear Rack for C11/C21/C22/C11 PRO",
@@ -651,7 +726,8 @@
       "skus": [
         "A4302"
       ],
-      "image": "accessories/rear_rack_for_c21.webp"
+      "image": "accessories/rear_rack_for_c21.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/A4302_763320d1-1440-45ad-9913-725f6de20fdd.png?v=1713942830"
     },
     "fiido_d11_lifting_ear": {
       "title": "Fiido Electric Bike Derailleur Hanger for D11",
@@ -659,7 +735,8 @@
       "skus": [
         "1.003.D11001"
       ],
-      "image": "accessories/fiido_d11_lifting_ear.webp"
+      "image": "accessories/fiido_d11_lifting_ear.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/D11_07c8a1d2-81be-4adf-855e-a30da512336f.jpg?v=1611550587"
     },
     "fiido_m1_fork": {
       "title": "Fiido Electric Bike Fork for M1 / M1PRO / M21",
@@ -667,7 +744,8 @@
       "skus": [
         "1.005.M010F2"
       ],
-      "image": "accessories/fiido_m1_fork.webp"
+      "image": "accessories/fiido_m1_fork.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/Fiido-Eletric-Bike-Fork.jpg?v=1651912422"
     },
     "fiido_l2_chain_tensioner": {
       "title": "Fiido L2 Chain Tensioner",
@@ -675,7 +753,8 @@
       "skus": [
         "2.004.F06002"
       ],
-      "image": "accessories/fiido_l2_chain_tensioner.webp"
+      "image": "accessories/fiido_l2_chain_tensioner.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/l2_e8f98dcf-109b-4efe-a9ce-c785fcd0f034.jpg?v=1611555988"
     },
     "fiido_d2s_multi_function_": {
       "title": "Fiido Multi-function Switch for D2s/D3/D3s/D4s/M1/M1pro",
@@ -683,7 +762,8 @@
       "skus": [
         "3.007.F05001"
       ],
-      "image": "accessories/fiido_d2s_multi_function_.webp"
+      "image": "accessories/fiido_d2s_multi_function_.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/F5_aa1f2b55-1302-4da0-9680-5bc0d8cf7472.jpg?v=1611557679"
     },
     "fiido_d1_motor": {
       "title": "Fiido D1 Motor",
@@ -691,7 +771,8 @@
       "skus": [
         "3.001.F01001"
       ],
-      "image": "accessories/fiido_d1_motor.webp"
+      "image": "accessories/fiido_d1_motor.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/F1_f7737791-e9cf-4db6-928f-8cbd57216cf1.jpg?v=1611551911"
     },
     "fiido_d3s_cut_off_power_b": {
       "title": "Fiido Brake Lever Set for D3 pro/D3S/D4S",
@@ -699,7 +780,8 @@
       "skus": [
         "3.008.F05001"
       ],
-      "image": "accessories/fiido_d3s_cut_off_power_b.webp"
+      "image": "accessories/fiido_d3s_cut_off_power_b.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/F5_be409d37-2690-4061-8169-a41b093b9079.jpg?v=1611556709"
     },
     "fiido_mate_cycling_watch": {
       "title": "Mate Watch for Fiido C11/C11 PRO/C21/AIR/T2/TITAN/L3/NOMADS",
@@ -707,7 +789,8 @@
       "skus": [
         "A6001"
       ],
-      "image": "accessories/fiido_mate_cycling_watch.webp"
+      "image": "accessories/fiido_mate_cycling_watch.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/watch.jpg?v=1749721193"
     },
     "fiido_d11_chain": {
       "title": "Fiido Chain for D11/M1pro/M21",
@@ -715,7 +798,8 @@
       "skus": [
         "2.004.M01001"
       ],
-      "image": "accessories/fiido_d11_chain.webp"
+      "image": "accessories/fiido_d11_chain.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/M1_12ca50cb-e90e-4e37-8b06-4f8a5670f757.jpg?v=1611551666"
     },
     "fiido_e_gravel_rear_rack": {
       "title": "Fiido E-Gravel Rear Rack",
@@ -723,7 +807,8 @@
       "skus": [
         "2.023.C02001"
       ],
-      "image": "accessories/fiido_e_gravel_rear_rack.webp"
+      "image": "accessories/fiido_e_gravel_rear_rack.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/fiido-gravel-ebike-rear-rack.jpg?v=1691049566"
     },
     "fiido_electric_bike_rear_": {
       "title": "Fiido Electric Bike Rear Wheel Spokes for M1 / M1 Pro/ M21",
@@ -731,7 +816,8 @@
       "skus": [
         "A1703"
       ],
-      "image": "accessories/fiido_electric_bike_rear_.webp"
+      "image": "accessories/fiido_electric_bike_rear_.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/Fiido-Electric-Bike-Rear-Wheel-Spokes-For-Fiido-M1-M1pro.jpg?v=1653613632"
     },
     "fiido_l2_display": {
       "title": "Fiido L2 Display",
@@ -739,7 +825,8 @@
       "skus": [
         "3.005.000008"
       ],
-      "image": "accessories/fiido_l2_display.webp"
+      "image": "accessories/fiido_l2_display.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/2a229cb704ec1cfe8e16317ebe45dcc0.jpg?v=1611555873"
     },
     "fiido_frame_bag_q1_q1s": {
       "title": "Fiido Frame Bag for Q1/Q1S",
@@ -747,7 +834,8 @@
       "skus": [
         "8.001.000003"
       ],
-      "image": "accessories/fiido_frame_bag_q1_q1s.webp"
+      "image": "accessories/fiido_frame_bag_q1_q1s.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/Fiido-Frame-Bag-forQ1-Q1S.jpg?v=1663657156"
     },
     "fiido_m1_headlight": {
       "title": "Fiido Headlight for M1/M1Pro",
@@ -755,7 +843,8 @@
       "skus": [
         "3.006.M01001"
       ],
-      "image": "accessories/fiido_m1_headlight.webp"
+      "image": "accessories/fiido_m1_headlight.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/M1_30b191ee-459b-481a-b4ea-cfc4f4349e56.jpg?v=1611554554"
     },
     "fiido_folding_stem_q1_q1s": {
       "title": "Fiido Folding Stem for Q1/Q1S/M1/M1Pro",
@@ -763,7 +852,8 @@
       "skus": [
         "1.006.F02002"
       ],
-      "image": "accessories/fiido_folding_stem_q1_q1s.webp"
+      "image": "accessories/fiido_folding_stem_q1_q1s.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/F2_748941e5-f168-4ca7-a6ca-eb4f1afe606f.jpg?v=1611547108"
     },
     "fiido_m1pro_battery_shell": {
       "title": "Fiido M21/M1Pro Battery Shell",
@@ -771,7 +861,8 @@
       "skus": [
         "9.002.000037"
       ],
-      "image": "accessories/fiido_m1pro_battery_shell.webp"
+      "image": "accessories/fiido_m1pro_battery_shell.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/Fiido_M1Pro_Battery_Shell.jpg?v=1642671794"
     },
     "fiido_l2_inner_tube": {
       "title": "Fiido Electric Bike Straight Valve Inner Tube",
@@ -779,7 +870,8 @@
       "skus": [
         "2.006.F01002"
       ],
-      "image": "accessories/fiido_l2_inner_tube.webp"
+      "image": "accessories/fiido_l2_inner_tube.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/F1_b801fd79-42e9-4c0d-be3a-3210efce9d18.jpg?v=1611555640"
     },
     "fiido_m1_controller": {
       "title": "Fiido Controller for M1",
@@ -787,7 +879,8 @@
       "skus": [
         "3.002.M01001"
       ],
-      "image": "accessories/fiido_m1_controller.webp"
+      "image": "accessories/fiido_m1_controller.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/M1_1.jpg?v=1611555266"
     },
     "fiido_d2s_thumb_shifter": {
       "title": "Fiido Thumb Shifter for D2S/D3S/D4S",
@@ -795,7 +888,8 @@
       "skus": [
         "2.012.F4S002"
       ],
-      "image": "accessories/fiido_d2s_thumb_shifter.webp"
+      "image": "accessories/fiido_d2s_thumb_shifter.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/98ca9933a94d1808ee8f10ff28229c9b.jpg?v=1611552033"
     },
     "fiido_d2_saddle": {
       "title": "Fiido Saddle for D2/D2S/D3/D3S/D4S/D3Pro",
@@ -803,7 +897,8 @@
       "skus": [
         "2.003.F04004"
       ],
-      "image": "accessories/fiido_d2_saddle.webp"
+      "image": "accessories/fiido_d2_saddle.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/F4_8dd7a3b5-1965-44a5-9ec1-bb6cb12b2d06.jpg?v=1611552146"
     },
     "disc_180": {
       "title": "Fiido Disc 180mm for M1 Pro / M21",
@@ -811,7 +906,8 @@
       "skus": [
         "2.009.M01005"
       ],
-      "image": "accessories/disc_180.webp"
+      "image": "accessories/disc_180.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/WechatIMG123.jpg?v=1625221732"
     },
     "fiido_l3_motor": {
       "title": "Fiido L3 Motor",
@@ -819,7 +915,8 @@
       "skus": [
         "3.001.L03001"
       ],
-      "image": "accessories/fiido_l3_motor.webp"
+      "image": "accessories/fiido_l3_motor.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/e28a42c4475362c949415a1c17dcc923.jpg?v=1617873921"
     },
     "fiido_d3s_battery": {
       "title": "Additional Fiido Battery for D3/D3S",
@@ -827,7 +924,8 @@
       "skus": [
         "3.003.YZ0301"
       ],
-      "image": "accessories/fiido_d3s_battery.webp"
+      "image": "accessories/fiido_d3s_battery.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/30_f2aa6744-cf64-4d23-bfed-ae7870ca5368.jpg?v=1611558041"
     },
     "fiido_d2s_handlebar": {
       "title": "Fiido D2s Handlebar",
@@ -835,7 +933,8 @@
       "skus": [
         "3.004.F04001"
       ],
-      "image": "accessories/fiido_d2s_handlebar.webp"
+      "image": "accessories/fiido_d2s_handlebar.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/F4S.jpg?v=1611549626"
     },
     "rear_rack_for_m1_pro": {
       "title": "Rear rack for M1 Pro 2024/2025",
@@ -843,7 +942,8 @@
       "skus": [
         "A4304"
       ],
-      "image": "accessories/rear_rack_for_m1_pro.webp"
+      "image": "accessories/rear_rack_for_m1_pro.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/m1pro_700b41ce-2774-4286-b7f1-822439d5b0b7.png?v=1720055376"
     },
     "fiido_d11_controller": {
       "title": "Fiido Electric Bike Controller for D11",
@@ -851,7 +951,8 @@
       "skus": [
         "A9703"
       ],
-      "image": "accessories/fiido_d11_controller.webp"
+      "image": "accessories/fiido_d11_controller.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/D11_9052ae4d-a346-4639-aea4-3a64ea703138.jpg?v=1611551543"
     },
     "brake_pads_for_titan": {
       "title": "Brake pads for Titan/T2",
@@ -859,7 +960,8 @@
       "skus": [
         "A2921"
       ],
-      "image": "accessories/brake_pads_for_titan.webp"
+      "image": "accessories/brake_pads_for_titan.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/f7ec7054ae15094a736771b1956e98a5.jpg?v=1704253238"
     },
     "fiido_x_battery": {
       "title": "Fiido X Battery",
@@ -867,7 +969,8 @@
       "skus": [
         "3.003.D31001"
       ],
-      "image": "accessories/fiido_x_battery.webp"
+      "image": "accessories/fiido_x_battery.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/Fiido_X_Battery.jpg?v=1648192512"
     },
     "fiido_m1pro_rear_wheel_as": {
       "title": "Fiido Electric Bike Rear Wheel Assembly for M1 pro",
@@ -875,7 +978,8 @@
       "skus": [
         "A1802"
       ],
-      "image": "accessories/fiido_m1pro_rear_wheel_as.webp"
+      "image": "accessories/fiido_m1pro_rear_wheel_as.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/Fiido-Electric-Bike-Rear-Wheel-Assembly-for-M1pro.jpg?v=1660291808"
     },
     "fiido_d4s_pedals": {
       "title": "Fiido Electric Bike Pedals for D4S/D11",
@@ -883,7 +987,8 @@
       "skus": [
         "2.013.D4S001"
       ],
-      "image": "accessories/fiido_d4s_pedals.webp"
+      "image": "accessories/fiido_d4s_pedals.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/D4S_1.jpg?v=1611553223"
     },
     "fiido_throttle": {
       "title": "Fiido Throttle for D3/D3S/D4S",
@@ -891,7 +996,8 @@
       "skus": [
         "A1001"
       ],
-      "image": "accessories/fiido_throttle.webp"
+      "image": "accessories/fiido_throttle.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/F5_5fbff5d7-297a-4856-90a2-ca848f8b8832.jpg?v=1611546763"
     },
     "range_extender_battery_fo": {
       "title": "Range Extender Battery for C21/C22/Air（208.8 WH)",
@@ -899,7 +1005,8 @@
       "skus": [
         "9.005.00004"
       ],
-      "image": "accessories/range_extender_battery_fo.webp"
+      "image": "accessories/range_extender_battery_fo.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/files/1_7a115bab-f552-48f8-a514-71f322f29f93.jpg?v=1721287504"
     },
     "fiido_d11_rear_wheel_asse": {
       "title": "Fiido Electric Bike Rear Wheel Assembly for D11",
@@ -907,7 +1014,8 @@
       "skus": [
         "A1801"
       ],
-      "image": "accessories/fiido_d11_rear_wheel_asse.webp"
+      "image": "accessories/fiido_d11_rear_wheel_asse.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/D11_-_2_07835f5c-06ca-4ff3-b0c6-30c378f38fc1.jpg?v=1611550474"
     },
     "fiido_d1_multi_function_s": {
       "title": "Fiido Multi-function Switch for D1/D2",
@@ -915,7 +1023,8 @@
       "skus": [
         "3.007.F01001"
       ],
-      "image": "accessories/fiido_d1_multi_function_s.webp"
+      "image": "accessories/fiido_d1_multi_function_s.webp",
+      "cdn_url": "https://cdn.shopify.com/s/files/1/0511/3308/7940/products/F1_73c1ac3a-2fc5-415b-a67b-81040320e263.jpg?v=1611553591"
     }
   },
   "brand": {
@@ -987,5 +1096,6 @@
         "谢谢"
       ]
     }
-  }
+  },
+  "cdn_mode": true
 }
