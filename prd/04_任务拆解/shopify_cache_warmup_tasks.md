@@ -181,7 +181,7 @@ class WarmupService:
   - 部署到生产服务器
   - 验证预热任务正常运行
   - 监控首次预热完成
-- **状态**: [ ] 进行中
+- **状态**: [x] ✅ 已完成
 - **验证**: 生产环境预热正常
 
 ---
@@ -318,4 +318,51 @@ WARMUP_SCHEDULE = [
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
 | v1.0 | 2025-12-10 | 初始版本 |
+| v5.0.0 | 2025-12-10 | 性能优化：8 workers + nginx 静态文件 |
+
+---
+
+## 10. 生产环境部署配置 (v5.0.0)
+
+### 10.1 后端服务配置
+
+**文件**: `/etc/systemd/system/fiido-ai-backend.service`
+
+```ini
+[Service]
+ExecStart=/opt/fiido-ai-service/venv/bin/uvicorn backend:app --host 127.0.0.1 --port 8000 --workers 8
+MemoryMax=4G
+CPUQuota=800%
+```
+
+**说明**:
+- `--workers 8`: 8 个 worker 进程，解决请求阻塞问题
+- 服务器配置: 8 核 CPU + 14GB 内存
+
+### 10.2 Nginx 静态文件配置
+
+**文件**: `/etc/nginx/sites-available/ai-fiido`
+
+```nginx
+# 静态资源直接由 nginx 提供 (不走 FastAPI)
+location /assets/ {
+    alias /opt/fiido-ai-service/assets/;
+    expires 7d;
+    add_header Cache-Control "public, immutable";
+    access_log off;
+}
+```
+
+**效果**:
+- 图片加载: 55 秒 → 0.28 秒
+- 订单查询: 90秒超时 → 11 秒
+
+### 10.3 性能对比
+
+| 测试项 | 优化前 | 优化后 |
+|-------|--------|--------|
+| 静态图片 | 55.8 秒 | 0.28 秒 |
+| Chat (hello) | 5.5 秒 | 4.6 秒 |
+| 订单查询 | 90秒+ 超时 | 11 秒 |
+| Shopify API | 1.07 秒 | 1.13 秒 |
 
