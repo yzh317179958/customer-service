@@ -1887,8 +1887,8 @@ async def chat(request: ChatRequest) -> ChatResponse:
                                 if content:
                                     response_messages.append(content)
 
-                        # 【修复】处理 Coze Workflow 的 answer 类型事件（无 event 行）
-                        elif data.get('type') == 'answer' and data.get('content'):
+                        # 【修复】处理 Coze Workflow 的 answer 类型事件（无 event 行，且不是 delta 事件）
+                        elif event_type is None and data.get('type') == 'answer' and data.get('content'):
                             content = data['content']
                             response_messages.append(content)
                             print(f"📤 同步接口收到 answer 类型消息: {len(content)} 字符")
@@ -2162,8 +2162,8 @@ async def chat_stream(request: ChatRequest):
                                         }
                                         yield f"data: {json.dumps(sse_data, ensure_ascii=False)}\n\n"
 
-                            # 【修复】处理 Coze Workflow 的 answer 类型事件（无 event 行）
-                            elif data.get('type') == 'answer' and data.get('content'):
+                            # 【修复】处理 Coze Workflow 的 answer 类型事件（无 event 行，且不是 delta 事件）
+                            elif event_type is None and data.get('type') == 'answer' and data.get('content'):
                                 content = data['content']
                                 full_ai_response.append(content)
                                 sse_data = {
