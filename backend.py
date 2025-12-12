@@ -7408,6 +7408,17 @@ async def get_shopify_order_tracking(
     Returns:
         物流信息
     """
+    # 检查 order_id 是否为空或无效值（Coze 可能传入 null/None/空字符串）
+    if not order_id or order_id in ("null", "None", "undefined", ""):
+        return {
+            "success": True,
+            "data": {
+                "tracking": None,
+                "order_id": order_id,
+                "message": "INVALID_ORDER_ID: 订单ID为空，无法查询物流"
+            }
+        }
+
     try:
         service = get_shopify_uk_service()
         result = await service.get_order_tracking(order_id)
