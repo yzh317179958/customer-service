@@ -7264,11 +7264,16 @@ async def search_shopify_order(
         service = get_shopify_uk_service()
         result = await service.search_order_by_number(q)
 
+        # 订单不存在时返回空值（不抛出错误，避免 Coze 工作流阻塞）
         if result is None:
-            raise HTTPException(
-                status_code=404,
-                detail="ORDER_NOT_FOUND: 订单不存在"
-            )
+            return {
+                "success": True,
+                "data": {
+                    "order": None,
+                    "query": q,
+                    "message": "ORDER_NOT_FOUND: 未找到该订单号"
+                }
+            }
 
         # 为订单商品添加图片 URL
         if result.get("order") and result["order"].get("line_items"):
@@ -7366,11 +7371,15 @@ async def get_shopify_order_detail(
         }
 
     except ShopifyAPIError as e:
-        if e.code == 5002:  # ORDER_NOT_FOUND
-            raise HTTPException(
-                status_code=404,
-                detail="ORDER_NOT_FOUND: 订单不存在"
-            )
+        if e.code == 5002:  # ORDER_NOT_FOUND - 返回空值而不是错误
+            return {
+                "success": True,
+                "data": {
+                    "order": None,
+                    "order_id": order_id,
+                    "message": "ORDER_NOT_FOUND: 未找到该订单"
+                }
+            }
         print(f"❌ Shopify API 错误: {e.message}")
         raise HTTPException(
             status_code=502,
@@ -7409,11 +7418,15 @@ async def get_shopify_order_tracking(
         }
 
     except ShopifyAPIError as e:
-        if e.code == 5002:  # ORDER_NOT_FOUND
-            raise HTTPException(
-                status_code=404,
-                detail="ORDER_NOT_FOUND: 订单不存在"
-            )
+        if e.code == 5002:  # ORDER_NOT_FOUND - 返回空值而不是错误
+            return {
+                "success": True,
+                "data": {
+                    "tracking": None,
+                    "order_id": order_id,
+                    "message": "ORDER_NOT_FOUND: 未找到该订单的物流信息"
+                }
+            }
         print(f"❌ Shopify API 错误: {e.message}")
         raise HTTPException(
             status_code=502,
