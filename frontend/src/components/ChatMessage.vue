@@ -39,7 +39,7 @@ const renderedContent = computed(() => {
 // 头像内容
 const avatarContent = computed(() => {
   if (isUser.value) {
-    return '我'
+    return 'You'
   }
   if (isAgent.value) {
     return '👤'  // 人工客服图标
@@ -50,10 +50,10 @@ const avatarContent = computed(() => {
 // 发送者名称
 const senderName = computed(() => {
   if (isUser.value) {
-    return '我'
+    return 'You'
   }
   if (isAgent.value) {
-    return props.message.agent_info?.name || '客服'
+    return props.message.agent_info?.name || 'Agent'
   }
   return chatStore.botConfig.name
 })
@@ -80,7 +80,7 @@ const senderName = computed(() => {
     <div class="message-body">
       <div class="message-header">
         <span class="message-sender" :class="{ 'agent-name': isAgent }">{{ senderName }}</span>
-        <span v-if="isAgent" class="agent-badge">人工</span>
+        <span v-if="isAgent" class="agent-badge">Live</span>
         <span class="message-time">{{ formattedTime }}</span>
       </div>
       <div class="message-content" v-if="isUser">
@@ -92,44 +92,53 @@ const senderName = computed(() => {
 </template>
 
 <style scoped>
-/* Premium Message Styles */
+/* =====================================================
+   Fiido Premium Message Component - Nano Banana Style
+   - Clean, minimal design
+   - Subtle shadows and smooth animations
+   - Premium feel with elegant spacing
+   ===================================================== */
+
+/* System Message - Minimal Divider */
 .system-message {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 0;
-  margin: 16px 0;
+  gap: 16px;
+  padding: 14px 0;
+  margin: 24px 0;
 }
 
 .system-divider {
   flex: 1;
   height: 1px;
-  background: linear-gradient(90deg, transparent, #e5e7eb, transparent);
+  background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.08), transparent);
 }
 
 .system-text {
-  color: #9ca3af;
+  color: #737373;
   font-size: 12px;
   white-space: nowrap;
   font-weight: 500;
-  padding: 4px 12px;
-  background: #f9fafb;
-  border-radius: 12px;
+  padding: 8px 16px;
+  background: #ffffff;
+  border-radius: 20px;
+  letter-spacing: 0.01em;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
-/* Message base styles */
+/* Message Base Styles */
 .message {
-  margin-bottom: 16px;
+  margin-bottom: 20px;
   display: flex;
-  gap: 10px;
-  animation: messageSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  gap: 14px;
+  animation: messageIn 0.4s cubic-bezier(0.23, 1, 0.32, 1);
 }
 
-@keyframes messageSlideIn {
+@keyframes messageIn {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(16px);
   }
   to {
     opacity: 1;
@@ -141,26 +150,30 @@ const senderName = computed(() => {
   flex-direction: row-reverse;
 }
 
+/* Avatar Styles */
 .message-avatar {
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+  background: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #6b7280;
+  color: #525252;
   font-weight: 600;
-  font-size: 12px;
+  font-size: 13px;
   flex-shrink: 0;
   overflow: hidden;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-  transition: all 0.2s ease;
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.06),
+    0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: all 0.35s cubic-bezier(0.23, 1, 0.32, 1);
+  padding: 6px;
 }
 
 .message-avatar:hover {
-  transform: scale(1.05);
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
+  transform: scale(1.1);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
 }
 
 .message-avatar img {
@@ -169,115 +182,115 @@ const senderName = computed(() => {
   object-fit: contain;
 }
 
+/* User Avatar - Dark */
 .message.user .message-avatar {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-  color: white;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+  background: #1a1a1a;
+  color: #ffffff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
 }
 
-/* Agent avatar */
+/* Agent Avatar - Teal Gradient */
 .message-avatar.agent-avatar {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  color: white;
+  background: linear-gradient(145deg, #00c4bd 0%, #00a6a0 100%);
+  color: #ffffff;
   font-size: 16px;
-  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+  box-shadow: 0 4px 16px rgba(0, 166, 160, 0.3);
 }
 
+/* Message Body */
 .message-body {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  max-width: 75%;
+  gap: 6px;
+  max-width: 78%;
   min-width: 0;
 }
 
+/* Message Header */
 .message-header {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
   font-size: 12px;
-  padding-left: 2px;
+  padding-left: 4px;
 }
 
 .message.user .message-header {
   flex-direction: row-reverse;
   padding-left: 0;
-  padding-right: 2px;
+  padding-right: 4px;
 }
 
 .message-sender {
   font-weight: 500;
-  color: #6b7280;
+  color: #737373;
+  letter-spacing: 0.01em;
 }
 
 .message-sender.agent-name {
   font-weight: 600;
-  color: #10b981;
+  color: #00a6a0;
 }
 
+/* Agent Badge */
 .agent-badge {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  color: white;
-  padding: 2px 8px;
-  border-radius: 10px;
+  background: linear-gradient(145deg, #00c4bd 0%, #00a6a0 100%);
+  color: #ffffff;
+  padding: 3px 12px;
+  border-radius: 12px;
   font-size: 10px;
   font-weight: 600;
-  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.3);
+  letter-spacing: 0.02em;
+  box-shadow: 0 2px 8px rgba(0, 166, 160, 0.25);
 }
 
 .message-time {
-  color: #9ca3af;
+  color: #a3a3a3;
   font-size: 11px;
   font-weight: 400;
 }
 
+/* Message Content Bubble */
 .message-content {
-  padding: 10px 14px;
-  border-radius: 14px;
+  padding: 14px 18px;
+  border-radius: 20px;
   word-wrap: break-word;
-  line-height: 1.5;
-  font-size: 14px;
+  line-height: 1.6;
+  font-size: 15px;
   position: relative;
 }
 
+/* User Message - Dark */
 .message.user .message-content {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  background: #1a1a1a;
   color: #ffffff;
-  border-bottom-right-radius: 4px;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25), 0 1px 3px rgba(59, 130, 246, 0.15);
+  border-bottom-right-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
 }
 
-.message.user .message-content::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 100%);
-  border-radius: inherit;
-  pointer-events: none;
-}
-
+/* Bot Message - Clean White */
 .message.bot .message-content {
-  background: linear-gradient(to bottom, #f9fafb 0%, #f3f4f6 100%);
-  color: #111827;
-  border-bottom-left-radius: 4px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
-  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #1a1a1a;
+  border-bottom-left-radius: 6px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
 }
 
+/* Agent Message - Teal Accent */
 .message.agent .message-content {
-  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
-  color: #065f46;
-  border-bottom-left-radius: 4px;
-  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.2), 0 1px 3px rgba(16, 185, 129, 0.1);
-  border: 1px solid #a7f3d0;
+  background: linear-gradient(145deg, rgba(0, 166, 160, 0.06) 0%, rgba(0, 196, 189, 0.02) 100%);
+  color: #1a1a1a;
+  border-bottom-left-radius: 6px;
+  box-shadow: 0 2px 12px rgba(0, 166, 160, 0.08);
+  border: 1px solid rgba(0, 166, 160, 0.12);
 }
 
-/* Markdown styles */
+/* Markdown Styles */
 .message-content :deep(h1),
 .message-content :deep(h2),
 .message-content :deep(h3) {
-  margin-top: 10px;
-  margin-bottom: 6px;
+  margin-top: 14px;
+  margin-bottom: 10px;
   font-weight: 600;
   color: inherit;
 }
@@ -287,17 +300,17 @@ const senderName = computed(() => {
 }
 
 .message-content :deep(p) {
-  margin: 4px 0;
+  margin: 8px 0;
 }
 
 .message-content :deep(ul),
 .message-content :deep(ol) {
-  margin: 6px 0;
-  padding-left: 18px;
+  margin: 10px 0;
+  padding-left: 22px;
 }
 
 .message-content :deep(li) {
-  margin: 3px 0;
+  margin: 5px 0;
 }
 
 .message-content :deep(strong) {
@@ -308,109 +321,173 @@ const senderName = computed(() => {
   color: #ffffff;
 }
 
+/* Links - Teal Accent */
 .message-content :deep(a) {
-  color: #3b82f6;
-  text-decoration: underline;
-  transition: color 0.2s;
+  color: #00a6a0;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: all 0.25s ease;
 }
 
 .message-content :deep(a:hover) {
-  color: #2563eb;
+  color: #00c4bd;
+  border-bottom-color: #00c4bd;
 }
 
 .message.user .message-content :deep(a) {
-  color: #dbeafe;
+  color: rgba(255, 255, 255, 0.85);
+  border-bottom-color: rgba(255, 255, 255, 0.3);
 }
 
 .message.user .message-content :deep(a:hover) {
   color: #ffffff;
+  border-bottom-color: #ffffff;
 }
 
+/* Code Blocks */
 .message-content :deep(code) {
-  background: rgba(0, 0, 0, 0.06);
-  padding: 2px 6px;
-  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.04);
+  padding: 3px 10px;
+  border-radius: 6px;
   font-size: 0.9em;
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
 }
 
 .message.user .message-content :deep(code) {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.12);
 }
 
-/* Product image styles - 精致小巧的产品图片 */
+/* Product Images - Premium Style */
 .message-content :deep(img) {
-  max-width: 100px;
-  max-height: 100px;
+  max-width: 110px;
+  max-height: 110px;
   width: auto;
   height: auto;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
   object-fit: cover;
   display: inline-block;
   vertical-align: middle;
-  margin: 4px 8px 4px 0;
-  transition: all 0.2s ease;
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  margin: 8px 12px 8px 0;
+  transition: all 0.35s cubic-bezier(0.23, 1, 0.32, 1);
+  background: #ffffff;
 }
 
 .message-content :deep(img:hover) {
-  transform: scale(1.05);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: scale(1.1) translateY(-4px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
 }
 
-/* 表格中的图片更小 */
+/* Table Images */
 .message-content :deep(table img) {
-  max-width: 60px;
-  max-height: 60px;
-  margin: 2px 0;
+  max-width: 65px;
+  max-height: 65px;
+  margin: 5px 0;
+  border-radius: 10px;
 }
 
-/* 表格样式优化 */
+/* Table Styles - Clean & Modern */
 .message-content :deep(table) {
   width: 100%;
-  border-collapse: collapse;
-  margin: 8px 0;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 14px 0;
   font-size: 13px;
-  border-radius: 8px;
+  border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  table-layout: fixed;
 }
 
 .message-content :deep(th),
 .message-content :deep(td) {
-  padding: 8px 10px;
-  border: 1px solid #e5e7eb;
+  padding: 10px 6px;
   text-align: left;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  vertical-align: middle;
+  word-wrap: break-word;
 }
 
 .message-content :deep(th) {
-  background: linear-gradient(to bottom, #f9fafb, #f3f4f6);
+  background: #fafafa;
   font-weight: 600;
-  color: #374151;
-  font-size: 12px;
+  color: #525252;
+  font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
 .message-content :deep(td) {
   background: #ffffff;
-  vertical-align: middle;
+  color: #1a1a1a;
+}
+
+/* 商品列 - 占据更多空间 */
+.message-content :deep(th:first-child),
+.message-content :deep(td:first-child) {
+  width: 42%;
+}
+
+/* 数量列 - 紧凑 */
+.message-content :deep(th:nth-child(2)),
+.message-content :deep(td:nth-child(2)) {
+  width: 10%;
+  text-align: center;
+  color: #525252;
+}
+
+/* 价格列 - 防止换行 */
+.message-content :deep(th:nth-child(3)),
+.message-content :deep(td:nth-child(3)) {
+  width: 24%;
+  text-align: right;
+  font-weight: 600;
+  color: #00a6a0;
+  white-space: nowrap;
+}
+
+/* 状态列 - 足够宽度显示文字 */
+.message-content :deep(th:nth-child(4)),
+.message-content :deep(td:nth-child(4)) {
+  width: 24%;
+  text-align: center;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.message-content :deep(tr:last-child td) {
+  border-bottom: none;
 }
 
 .message-content :deep(tr:hover td) {
-  background: #f9fafb;
+  background: #fafafa;
 }
 
-/* 价格列右对齐 */
-.message-content :deep(td:last-child) {
-  text-align: right;
-  font-weight: 500;
-  color: #059669;
+/* Responsive */
+@media (max-width: 768px) {
+  .message-body {
+    max-width: 85%;
+  }
+
+  .message-avatar {
+    width: 36px;
+    height: 36px;
+  }
+
+  .message-content {
+    padding: 12px 16px;
+    font-size: 14px;
+  }
 }
 
-/* 数量列居中 */
-.message-content :deep(td:nth-child(2)) {
-  text-align: center;
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .message,
+  .message-avatar,
+  .message-content :deep(img) {
+    animation: none;
+    transition: none;
+  }
 }
 </style>

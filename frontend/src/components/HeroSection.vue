@@ -17,7 +17,7 @@ const handleConsultClick = () => {
     <div class="hero-content">
       <h1>Best Electric Bike Brand</h1>
       <p>Beautiful, well-built, incredible e-bike for this price segment. Serving 400,000+ riders.</p>
-      <button class="btn" @click="handleConsultClick">咨询客服</button>
+      <button class="btn" @click="handleConsultClick">Chat with us</button>
       <a href="#products" class="btn btn-outline">View Products</a>
     </div>
   </section>

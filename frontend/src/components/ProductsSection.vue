@@ -83,7 +83,7 @@ const askAboutProduct = (productName: string) => {
           <div class="product-price">{{ product.price }}</div>
           <div class="product-actions">
             <button class="btn btn-small btn-secondary" @click="askAboutProduct(product.productShortName)">
-              咨询客服
+              Ask about this
             </button>
             <a :href="product.link" class="btn btn-small">View Details</a>
           </div>

@@ -25,7 +25,7 @@
     <!-- 非工作时间提示 -->
     <div v-if="sessionStatus === 'after_hours_email'" class="after-hours-notice">
       <span class="notice-icon">📧</span>
-      <span class="notice-text">请留下邮箱，我们会回复您</span>
+      <span class="notice-text">Leave your email and we'll get back to you</span>
     </div>
   </div>
 </template>

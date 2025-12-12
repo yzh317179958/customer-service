@@ -25,10 +25,10 @@ export const useChatStore = defineStore('chat', () => {
   const isFirstMessage = ref(true)
 
   const botConfig = ref<BotConfig>({
-    name: 'Fiido 客服',
+    name: 'Fiido Support',
     icon_url: '',
-    description: 'Fiido 智能客服助手',
-    welcome: '您好！我是Fiido智能客服助手,很高兴为您服务。请问有什么可以帮助您的？'
+    description: 'Fiido AI Support Assistant',
+    welcome: 'Hello! I\'m Fiido\'s AI assistant. How can I help you today?'
   })
 
   // ============ 人工接管状态（新增）============
@@ -101,19 +101,19 @@ export const useChatStore = defineStore('chat', () => {
   const statusText = computed(() => {
     switch (sessionStatus.value) {
       case 'bot_active':
-        return 'AI 服务中'
+        return 'AI Active'
       case 'pending_manual':
-        return '等待人工接入'
+        return 'Connecting...'
       case 'manual_live':
         return agentInfo.value
-          ? `人工客服 ${agentInfo.value.name}`
-          : '人工服务中'
+          ? `Agent: ${agentInfo.value.name}`
+          : 'Live Agent'
       case 'after_hours_email':
-        return '非工作时间（已转邮件）'
+        return 'After Hours'
       case 'closed':
-        return '会话已关闭'
+        return 'Closed'
       default:
-        return 'AI 服务中'
+        return 'AI Active'
     }
   })
 
@@ -190,6 +190,10 @@ export const useChatStore = defineStore('chat', () => {
 
   function closeChat() {
     isChatOpen.value = false
+  }
+
+  function setFirstMessage(value: boolean) {
+    isFirstMessage.value = value
   }
 
   // ============ 人工接管方法（新增）============
@@ -382,6 +386,7 @@ export const useChatStore = defineStore('chat', () => {
     toggleChat,
     openChat,
     closeChat,
+    setFirstMessage,
     generateSessionId,
 
     // 人工接管方法（新增）
