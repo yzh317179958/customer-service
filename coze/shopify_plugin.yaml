@@ -295,12 +295,87 @@ paths:
                       cache_ttl:
                         type: integer
 
+  /api/shopify/tracking:
+    get:
+      operationId: getTracking
+      summary: 获取订单物流信息（推荐使用）
+      description: |
+        获取订单的物流追踪信息。
+        - 使用查询参数传递 order_id，支持空值
+        - 当 order_id 为空时返回 {tracking: null} 而非报错
+        - 返回承运商、运单号、状态翻译、客服话术模板
+      parameters:
+        - name: order_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Shopify 订单 ID（数字格式，如 6615015620909），可为空
+          example: "6615015620909"
+      responses:
+        '200':
+          description: 物流信息
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      tracking:
+                        type: object
+                        nullable: true
+                        description: 物流追踪信息，订单不存在时为 null
+                        properties:
+                          order_id:
+                            type: string
+                          order_number:
+                            type: string
+                          fulfillment_status:
+                            type: string
+                          fulfillment_status_zh:
+                            type: string
+                          fulfillment_status_en:
+                            type: string
+                          primary_tracking:
+                            type: object
+                            properties:
+                              company:
+                                type: string
+                              number:
+                                type: string
+                              url:
+                                type: string
+                              status:
+                                type: string
+                              shipped_at:
+                                type: string
+                          message_template_zh:
+                            type: string
+                          message_template_en:
+                            type: string
+                      order_id:
+                        type: string
+                        description: 查询的订单ID
+                      message:
+                        type: string
+                        description: 错误信息（订单不存在时返回）
+                      cached:
+                        type: boolean
+                      cache_ttl:
+                        type: integer
+
   /api/shopify/orders/{order_id}/tracking:
     get:
       operationId: getOrderTracking
-      summary: 获取订单物流信息
+      summary: 获取订单物流信息（旧版，不推荐）
       description: |
         获取订单的物流追踪信息。
+        - 注意：此接口使用路径参数，order_id 为空时会报错
+        - 推荐使用 getTracking 接口（查询参数版本）
         - 需要使用 order_id（Shopify内部ID），不是订单号
         - 返回承运商、运单号、状态翻译、客服话术模板
       parameters:

@@ -7395,6 +7395,64 @@ async def get_shopify_order_detail(
         )
 
 
+@app.get("/api/shopify/tracking")
+async def get_shopify_tracking_by_query(
+    order_id: Optional[str] = None
+):
+    """
+    获取订单物流信息（查询参数版本，支持空值）
+
+    Args:
+        order_id: Shopify 订单 ID（可选）
+
+    Returns:
+        物流信息
+    """
+    # 检查 order_id 是否为空或无效值
+    if not order_id or order_id in ("null", "None", "undefined", ""):
+        return {
+            "success": True,
+            "data": {
+                "tracking": None,
+                "order_id": order_id or "",
+                "message": "INVALID_ORDER_ID: 订单ID为空，无法查询物流"
+            }
+        }
+
+    try:
+        service = get_shopify_uk_service()
+        result = await service.get_order_tracking(order_id)
+
+        return {
+            "success": True,
+            "data": result
+        }
+
+    except ShopifyAPIError as e:
+        if e.code == 5002:  # ORDER_NOT_FOUND - 返回空值而不是错误
+            return {
+                "success": True,
+                "data": {
+                    "tracking": None,
+                    "order_id": order_id,
+                    "message": "ORDER_NOT_FOUND: 未找到该订单的物流信息"
+                }
+            }
+        print(f"❌ Shopify API 错误: {e.message}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"SHOPIFY_ERROR: {e.message}"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 获取物流信息失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取失败: {str(e)}"
+        )
+
+
 @app.get("/api/shopify/orders/{order_id}/tracking")
 async def get_shopify_order_tracking(
     order_id: str
