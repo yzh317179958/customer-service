@@ -37,16 +37,10 @@ const handleMouseUp = () => {
 
     <!-- Main Button -->
     <div class="button-inner">
-      <!-- Fiido Logo -->
       <div class="icon-wrapper">
         <img src="/fiido2.png" alt="Fiido" class="fiido-logo" />
       </div>
     </div>
-
-    <!-- Notification Badge -->
-    <span class="chat-badge">
-      <span class="badge-inner">1</span>
-    </span>
 
     <!-- Ripple Effect -->
     <div class="ripple-ring"></div>
@@ -65,8 +59,8 @@ const handleMouseUp = () => {
   position: fixed;
   bottom: 28px;
   right: 28px;
-  width: 64px;
-  height: 64px;
+  width: 52px;
+  height: 52px;
   background: #ffffff;
   border-radius: 50%;
   display: flex;
@@ -74,12 +68,10 @@ const handleMouseUp = () => {
   justify-content: center;
   cursor: pointer;
   box-shadow:
-    0 4px 24px rgba(0, 0, 0, 0.12),
-    0 2px 8px rgba(0, 0, 0, 0.08),
-    0 0 0 1px rgba(0, 0, 0, 0.04);
-  transition: all 0.5s cubic-bezier(0.23, 1, 0.32, 1);
+    0 4px 20px rgba(0, 0, 0, 0.1),
+    0 2px 6px rgba(0, 0, 0, 0.06);
+  transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
   z-index: 999;
-  overflow: hidden;
 }
 
 /* Subtle gradient overlay on hover */
@@ -157,20 +149,20 @@ const handleMouseUp = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   background: transparent;
-  transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+  transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 /* Fiido Logo */
 .fiido-logo {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   object-fit: contain;
-  transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+  transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.08));
 }
 
 .chat-float-button:hover .fiido-logo {
@@ -185,19 +177,18 @@ const handleMouseUp = () => {
 /* Tooltip - Premium style */
 .chat-tooltip {
   position: absolute;
-  right: 76px;
+  right: 64px;
   top: 50%;
   transform: translateY(-50%) translateX(12px);
   background: #ffffff;
-  padding: 12px 20px;
-  border-radius: 12px;
+  padding: 10px 16px;
+  border-radius: 10px;
   box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.12),
-    0 2px 8px rgba(0, 0, 0, 0.06),
-    0 0 0 1px rgba(0, 0, 0, 0.04);
+    0 4px 16px rgba(0, 0, 0, 0.1),
+    0 2px 6px rgba(0, 0, 0, 0.05);
   opacity: 0;
   visibility: hidden;
-  transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+  transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
   pointer-events: none;
   white-space: nowrap;
 }
@@ -229,68 +220,26 @@ const handleMouseUp = () => {
   letter-spacing: 0.01em;
 }
 
-/* Badge - Teal accent */
-.chat-badge {
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  width: 22px;
-  height: 22px;
-  background: linear-gradient(145deg, #00c4bd 0%, #00a6a0 100%);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow:
-    0 4px 12px rgba(0, 166, 160, 0.4),
-    0 2px 4px rgba(0, 0, 0, 0.1);
-  border: 3px solid #ffffff;
-  animation: badgePop 0.5s cubic-bezier(0.23, 1, 0.32, 1);
-  z-index: 3;
-}
-
-@keyframes badgePop {
-  0% {
-    transform: scale(0);
-    opacity: 0;
-  }
-  50% {
-    transform: scale(1.2);
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-.badge-inner {
-  color: #ffffff;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1;
-}
-
-/* Ripple Ring - Subtle breathing */
+/* Ripple Ring - Breathing animation to attract attention */
 .ripple-ring {
   position: absolute;
-  inset: -2px;
+  inset: -3px;
   border-radius: 50%;
-  border: 2px solid rgba(0, 166, 160, 0.25);
-  animation: ripple 4s ease-out infinite;
+  border: 2px solid rgba(0, 166, 160, 0.4);
+  animation: breathe 3s ease-in-out infinite;
   pointer-events: none;
 }
 
-@keyframes ripple {
-  0% {
+@keyframes breathe {
+  0%, 100% {
     transform: scale(1);
-    opacity: 0.5;
+    opacity: 0.6;
+    border-color: rgba(0, 166, 160, 0.4);
   }
   50% {
-    opacity: 0.3;
-  }
-  100% {
-    transform: scale(1.5);
-    opacity: 0;
+    transform: scale(1.15);
+    opacity: 0.2;
+    border-color: rgba(0, 166, 160, 0.3);
   }
 }
 
@@ -304,13 +253,13 @@ const handleMouseUp = () => {
   .chat-float-button {
     bottom: 20px;
     right: 20px;
-    width: 56px;
-    height: 56px;
+    width: 48px;
+    height: 48px;
   }
 
   .fiido-logo {
-    width: 32px;
-    height: 32px;
+    width: 24px;
+    height: 24px;
   }
 
   .chat-tooltip {
