@@ -74,8 +74,20 @@ from src.quick_reply_store import QuickReplyStore
 from src.variable_replacer import VariableReplacer, build_variable_context
 
 # 【Shopify UK】导入 Shopify UK 订单服务
+# Shopify 多站点服务（v5.3.0+）
+from src.shopify_service import (
+    ShopifyService,
+    get_shopify_service,
+    search_order_across_sites,
+    search_orders_by_email_across_sites,
+    get_all_sites_health,
+    get_configured_sites_list,
+)
+from src.shopify_client import ShopifyAPIError
+from src.shopify_sites import detect_site_from_order_number, SiteCode
+
+# 兼容旧版UK站点接口（向后兼容）
 from src.shopify_uk_service import ShopifyUKService, get_shopify_uk_service
-from src.shopify_uk_client import ShopifyAPIError
 from src.ticket import (
     Ticket,
     TicketPriority,
@@ -7180,7 +7192,543 @@ async def answer_assist_request(
         )
 
 
-# ==================== Shopify UK 订单查询 API ====================
+# ==================== Shopify 多站点订单查询 API (v5.3.0+) ====================
+
+
+@app.get("/api/shopify/sites")
+async def get_shopify_sites():
+    """
+    获取所有已配置的 Shopify 站点列表
+
+    Returns:
+        站点列表（包含站点代码、名称、域名、货币）
+    """
+    try:
+        sites = get_configured_sites_list()
+        return {
+            "success": True,
+            "data": {
+                "sites": sites,
+                "total": len(sites)
+            }
+        }
+    except Exception as e:
+        print(f"❌ 获取站点列表失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取失败: {str(e)}"
+        )
+
+
+@app.get("/api/shopify/{site}/orders")
+async def get_shopify_site_orders(
+    site: str,
+    email: str,
+    limit: int = 10,
+    status: str = "any"
+):
+    """
+    按客户邮箱查询指定站点的订单列表
+
+    Args:
+        site: 站点代码 (us/uk/eu/de/fr/it/es/nl/pl)
+        email: 客户邮箱
+        limit: 返回数量限制 (1-50)
+        status: 订单状态筛选 (open/closed/cancelled/any)
+
+    Returns:
+        订单列表
+    """
+    try:
+        # 参数验证
+        if limit < 1 or limit > 50:
+            raise HTTPException(
+                status_code=400,
+                detail="INVALID_LIMIT: limit 必须在 1-50 之间"
+            )
+
+        if status not in ["open", "closed", "cancelled", "any"]:
+            raise HTTPException(
+                status_code=400,
+                detail="INVALID_STATUS: status 必须是 open/closed/cancelled/any"
+            )
+
+        # 调用服务
+        service = get_shopify_service(site)
+        result = await service.get_orders_by_email(email, limit=limit, status=status)
+
+        return {
+            "success": True,
+            "data": result
+        }
+
+    except ShopifyAPIError as e:
+        print(f"❌ Shopify API 错误 ({site}): {e.message}")
+        if e.code == 5007:  # SITE_NOT_CONFIGURED
+            raise HTTPException(
+                status_code=404,
+                detail=f"SITE_NOT_FOUND: 站点 {site.upper()} 未配置"
+            )
+        raise HTTPException(
+            status_code=502,
+            detail=f"SHOPIFY_ERROR: {e.message}"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 查询订单列表失败 ({site}): {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"查询失败: {str(e)}"
+        )
+
+
+@app.get("/api/shopify/{site}/orders/search")
+async def search_shopify_site_order(
+    site: str,
+    q: str
+):
+    """
+    按订单号搜索指定站点的订单
+
+    Args:
+        site: 站点代码 (us/uk/eu/de/fr/it/es/nl/pl)
+        q: 订单号关键词
+
+    Returns:
+        订单详情
+    """
+    try:
+        # 参数验证
+        if len(q) < 3:
+            raise HTTPException(
+                status_code=400,
+                detail="INVALID_QUERY: 订单号至少需要3个字符"
+            )
+
+        # 调用服务
+        service = get_shopify_service(site)
+        result = await service.search_order_by_number(q)
+
+        # 订单不存在时返回空值
+        if result is None:
+            return {
+                "success": True,
+                "data": {
+                    "order": None,
+                    "query": q,
+                    "site_code": site,
+                    "message": "ORDER_NOT_FOUND: 未找到该订单号"
+                }
+            }
+
+        # 为订单商品添加图片 URL
+        if result.get("order") and result["order"].get("line_items"):
+            base_url = "https://ai.fiido.com/assets"
+            result["order"]["line_items"] = match_order_items_images(
+                result["order"]["line_items"],
+                base_url=base_url
+            )
+
+        return {
+            "success": True,
+            "data": result
+        }
+
+    except ShopifyAPIError as e:
+        print(f"❌ Shopify API 错误 ({site}): {e.message}")
+        if e.code == 5007:  # SITE_NOT_CONFIGURED
+            raise HTTPException(
+                status_code=404,
+                detail=f"SITE_NOT_FOUND: 站点 {site.upper()} 未配置"
+            )
+        raise HTTPException(
+            status_code=502,
+            detail=f"SHOPIFY_ERROR: {e.message}"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 搜索订单失败 ({site}): {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"搜索失败: {str(e)}"
+        )
+
+
+@app.get("/api/shopify/orders/global-search")
+async def search_shopify_order_global(
+    q: str
+):
+    """
+    跨站点搜索订单
+
+    根据订单号前缀自动检测站点，或遍历所有站点搜索
+
+    Args:
+        q: 订单号关键词
+
+    Returns:
+        订单详情（包含站点信息）
+    """
+    try:
+        # 参数验证
+        if len(q) < 3:
+            raise HTTPException(
+                status_code=400,
+                detail="INVALID_QUERY: 订单号至少需要3个字符"
+            )
+
+        # 调用跨站点搜索
+        result = await search_order_across_sites(q)
+
+        # 订单不存在时返回空值
+        if result is None:
+            return {
+                "success": True,
+                "data": {
+                    "order": None,
+                    "query": q,
+                    "message": "ORDER_NOT_FOUND: 在所有站点均未找到该订单号"
+                }
+            }
+
+        # 为订单商品添加图片 URL
+        if result.get("order") and result["order"].get("line_items"):
+            base_url = "https://ai.fiido.com/assets"
+            result["order"]["line_items"] = match_order_items_images(
+                result["order"]["line_items"],
+                base_url=base_url
+            )
+
+        return {
+            "success": True,
+            "data": result
+        }
+
+    except ShopifyAPIError as e:
+        print(f"❌ Shopify API 错误: {e.message}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"SHOPIFY_ERROR: {e.message}"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 跨站点搜索订单失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"搜索失败: {str(e)}"
+        )
+
+
+@app.get("/api/shopify/orders/global-email-search")
+async def search_shopify_orders_by_email_global(
+    email: str,
+    limit: int = 10
+):
+    """
+    跨站点按邮箱搜索订单
+
+    自动遍历所有已配置站点，汇总该邮箱的所有订单。
+
+    Args:
+        email: 客户邮箱地址
+        limit: 每个站点返回的订单数量限制 (1-50)
+
+    Returns:
+        所有站点的订单汇总
+    """
+    try:
+        # 参数验证
+        if not email or "@" not in email:
+            raise HTTPException(
+                status_code=400,
+                detail="INVALID_EMAIL: 请提供有效的邮箱地址"
+            )
+
+        if limit < 1 or limit > 50:
+            limit = 10
+
+        # 调用跨站点邮箱搜索
+        result = await search_orders_by_email_across_sites(email, limit=limit)
+
+        return {
+            "success": True,
+            "data": result
+        }
+
+    except ShopifyAPIError as e:
+        print(f"❌ Shopify API 错误: {e.message}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"SHOPIFY_ERROR: {e.message}"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 跨站点邮箱搜索失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"搜索失败: {str(e)}"
+        )
+
+
+@app.get("/api/shopify/{site}/orders/count")
+async def get_shopify_site_order_count(
+    site: str,
+    status: str = "any"
+):
+    """
+    获取指定站点的订单数量统计
+
+    Args:
+        site: 站点代码 (us/uk/eu/de/fr/it/es/nl/pl)
+        status: 订单状态筛选 (open/closed/cancelled/any)
+
+    Returns:
+        订单数量
+    """
+    try:
+        if status not in ["open", "closed", "cancelled", "any"]:
+            raise HTTPException(
+                status_code=400,
+                detail="INVALID_STATUS: status 必须是 open/closed/cancelled/any"
+            )
+
+        service = get_shopify_service(site)
+        result = await service.get_order_count(status=status)
+
+        return {
+            "success": True,
+            "data": result
+        }
+
+    except ShopifyAPIError as e:
+        if e.code == 5007:  # SITE_NOT_CONFIGURED
+            raise HTTPException(
+                status_code=404,
+                detail=f"SITE_NOT_FOUND: 站点 {site.upper()} 未配置"
+            )
+        print(f"❌ Shopify API 错误 ({site}): {e.message}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"SHOPIFY_ERROR: {e.message}"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 获取订单数量失败 ({site}): {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取失败: {str(e)}"
+        )
+
+
+@app.get("/api/shopify/{site}/orders/{order_id}")
+async def get_shopify_site_order_detail(
+    site: str,
+    order_id: str
+):
+    """
+    获取指定站点的订单详情
+
+    Args:
+        site: 站点代码 (us/uk/eu/de/fr/it/es/nl/pl)
+        order_id: Shopify 订单 ID
+
+    Returns:
+        订单详情
+    """
+    try:
+        service = get_shopify_service(site)
+        result = await service.get_order_detail(order_id)
+
+        return {
+            "success": True,
+            "data": result
+        }
+
+    except ShopifyAPIError as e:
+        if e.code == 5002:  # ORDER_NOT_FOUND
+            return {
+                "success": True,
+                "data": {
+                    "order": None,
+                    "order_id": order_id,
+                    "site_code": site,
+                    "message": "ORDER_NOT_FOUND: 未找到该订单"
+                }
+            }
+        if e.code == 5007:  # SITE_NOT_CONFIGURED
+            raise HTTPException(
+                status_code=404,
+                detail=f"SITE_NOT_FOUND: 站点 {site.upper()} 未配置"
+            )
+        print(f"❌ Shopify API 错误 ({site}): {e.message}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"SHOPIFY_ERROR: {e.message}"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 获取订单详情失败 ({site}): {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取失败: {str(e)}"
+        )
+
+
+@app.get("/api/shopify/{site}/orders/{order_id}/tracking")
+async def get_shopify_site_order_tracking(
+    site: str,
+    order_id: str
+):
+    """
+    获取指定站点的订单物流信息
+
+    Args:
+        site: 站点代码 (us/uk/eu/de/fr/it/es/nl/pl)
+        order_id: Shopify 订单 ID
+
+    Returns:
+        物流信息
+    """
+    # 检查 order_id 是否为空或无效值
+    if not order_id or order_id in ("null", "None", "undefined", ""):
+        return {
+            "success": True,
+            "data": {
+                "tracking": None,
+                "order_id": order_id,
+                "site_code": site,
+                "message": "INVALID_ORDER_ID: 订单ID为空，无法查询物流"
+            }
+        }
+
+    try:
+        service = get_shopify_service(site)
+        result = await service.get_order_tracking(order_id)
+
+        return {
+            "success": True,
+            "data": result
+        }
+
+    except ShopifyAPIError as e:
+        if e.code == 5002:  # ORDER_NOT_FOUND
+            return {
+                "success": True,
+                "data": {
+                    "tracking": None,
+                    "order_id": order_id,
+                    "site_code": site,
+                    "message": "ORDER_NOT_FOUND: 未找到该订单的物流信息"
+                }
+            }
+        if e.code == 5007:  # SITE_NOT_CONFIGURED
+            raise HTTPException(
+                status_code=404,
+                detail=f"SITE_NOT_FOUND: 站点 {site.upper()} 未配置"
+            )
+        print(f"❌ Shopify API 错误 ({site}): {e.message}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"SHOPIFY_ERROR: {e.message}"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 获取物流信息失败 ({site}): {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取失败: {str(e)}"
+        )
+
+
+@app.get("/api/shopify/{site}/health")
+async def shopify_site_health_check(site: str):
+    """
+    指定站点的 Shopify 服务健康检查
+
+    Args:
+        site: 站点代码 (us/uk/eu/de/fr/it/es/nl/pl)
+
+    Returns:
+        健康状态信息
+    """
+    try:
+        service = get_shopify_service(site)
+        result = await service.health_check()
+
+        return {
+            "success": True,
+            "data": result
+        }
+
+    except ShopifyAPIError as e:
+        if e.code == 5007:  # SITE_NOT_CONFIGURED
+            return {
+                "success": False,
+                "data": {
+                    "site_code": site,
+                    "status": "not_configured",
+                    "message": f"站点 {site.upper()} 未配置"
+                }
+            }
+        return {
+            "success": False,
+            "error": e.message
+        }
+
+    except Exception as e:
+        print(f"❌ Shopify 健康检查失败 ({site}): {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+@app.get("/api/shopify/health/all")
+async def shopify_all_sites_health_check():
+    """
+    所有站点的 Shopify 服务健康检查
+
+    Returns:
+        各站点健康状态信息
+    """
+    try:
+        result = await get_all_sites_health()
+
+        # 统计健康/不健康的站点
+        healthy_count = sum(
+            1 for status in result.values()
+            if status.get("api", {}).get("status") == "healthy"
+        )
+        total_count = len(result)
+
+        return {
+            "success": True,
+            "data": {
+                "sites": result,
+                "summary": {
+                    "total": total_count,
+                    "healthy": healthy_count,
+                    "unhealthy": total_count - healthy_count
+                }
+            }
+        }
+
+    except Exception as e:
+        print(f"❌ Shopify 全站点健康检查失败: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+# ==================== Shopify UK 订单查询 API (向后兼容) ====================
 
 
 @app.get("/api/shopify/orders")
@@ -7190,7 +7738,7 @@ async def get_shopify_orders(
     status: str = "any"
 ):
     """
-    按客户邮箱查询订单列表
+    按客户邮箱查询订单列表 (UK站点，向后兼容)
 
     Args:
         email: 客户邮箱
@@ -7244,7 +7792,7 @@ async def search_shopify_order(
     q: str
 ):
     """
-    按订单号搜索订单
+    按订单号搜索订单 (UK站点，向后兼容)
 
     Args:
         q: 订单号关键词 (支持 #UK22080 或 UK22080 格式)
@@ -7309,7 +7857,7 @@ async def get_shopify_order_count(
     status: str = "any"
 ):
     """
-    获取订单数量统计
+    获取订单数量统计 (UK站点，向后兼容)
 
     Args:
         status: 订单状态筛选 (open/closed/cancelled/any)
@@ -7353,7 +7901,7 @@ async def get_shopify_order_detail(
     order_id: str
 ):
     """
-    获取订单详情
+    获取订单详情 (UK站点，向后兼容)
 
     Args:
         order_id: Shopify 订单 ID
@@ -7400,7 +7948,9 @@ async def get_shopify_tracking_by_query(
     order_id: Optional[str] = None
 ):
     """
-    获取订单物流信息（查询参数版本，支持空值）
+    获取订单物流信息（全站点支持）
+
+    自动遍历所有站点查找订单并返回物流信息。
 
     Args:
         order_id: Shopify 订单 ID（可选）
@@ -7420,24 +7970,37 @@ async def get_shopify_tracking_by_query(
         }
 
     try:
-        service = get_shopify_uk_service()
-        result = await service.get_order_tracking(order_id)
+        # 遍历所有已配置站点查找订单
+        from src.shopify_sites import get_all_configured_sites
+        configured_sites = get_all_configured_sites()
 
+        for site_code in configured_sites:
+            try:
+                service = get_shopify_service(site_code)
+                result = await service.get_order_tracking(order_id)
+                # 找到订单，返回结果
+                return {
+                    "success": True,
+                    "data": result
+                }
+            except ShopifyAPIError as e:
+                if e.code == 5002:  # ORDER_NOT_FOUND - 继续尝试下一个站点
+                    continue
+                raise
+            except Exception:
+                continue
+
+        # 所有站点都没找到
         return {
             "success": True,
-            "data": result
+            "data": {
+                "tracking": None,
+                "order_id": order_id,
+                "message": "ORDER_NOT_FOUND: 在所有站点均未找到该订单的物流信息"
+            }
         }
 
     except ShopifyAPIError as e:
-        if e.code == 5002:  # ORDER_NOT_FOUND - 返回空值而不是错误
-            return {
-                "success": True,
-                "data": {
-                    "tracking": None,
-                    "order_id": order_id,
-                    "message": "ORDER_NOT_FOUND: 未找到该订单的物流信息"
-                }
-            }
         print(f"❌ Shopify API 错误: {e.message}")
         raise HTTPException(
             status_code=502,
@@ -7458,7 +8021,7 @@ async def get_shopify_order_tracking(
     order_id: str
 ):
     """
-    获取订单物流信息
+    获取订单物流信息 (UK站点，向后兼容)
 
     Args:
         order_id: Shopify 订单 ID
@@ -7514,7 +8077,7 @@ async def get_shopify_order_tracking(
 @app.get("/api/shopify/health")
 async def shopify_health_check():
     """
-    Shopify UK 服务健康检查
+    Shopify UK 服务健康检查 (向后兼容)
 
     Returns:
         健康状态信息
