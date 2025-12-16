@@ -115,6 +115,9 @@ FULFILLMENT_RECORD_STATUS_TRANSLATION = {
     "cancelled": {"en": "Cancelled", "zh": "已取消"},
     "error": {"en": "Error", "zh": "错误"},
     "failure": {"en": "Delivery Failed", "zh": "投递失败"},
+    "active": {"en": "Active", "zh": "已生效"},  # 服务类商品已生效
+    "service": {"en": "Active", "zh": "已生效"},  # 服务类商品标记
+    "refunded": {"en": "Refunded", "zh": "已退款"},  # 服务类商品已退款
 }
 
 # 物流追踪状态（通用，用于第三方物流API）
@@ -130,6 +133,7 @@ TRACKING_STATUS_TRANSLATION = {
     "delivered": {"en": "Received", "zh": "已收货"},
     "success": {"en": "Received", "zh": "已收货"},  # Shopify 用 success 表示已收货
     "failure": {"en": "Delivery Failed", "zh": "投递失败"},
+    "active": {"en": "Active", "zh": "已生效"},  # 服务类商品已生效
 }
 
 # 支付状态翻译

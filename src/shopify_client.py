@@ -491,9 +491,57 @@ class ShopifyClient:
 
         return None
 
+    def _is_service_product(self, title: str, sku: str) -> bool:
+        """
+        判断是否为服务类商品（无需物流发货）
+
+        Args:
+            title: 商品名称
+            sku: 商品SKU
+
+        Returns:
+            True 如果是服务类商品
+        """
+        title_lower = title.lower()
+        sku_lower = sku.lower() if sku else ""
+
+        # 服务类商品关键词
+        service_keywords = [
+            "worry-free",
+            "worry free",
+            "seel",
+            "warranty",
+            "protection",
+            "insurance",
+            "extended warranty",
+            "service plan",
+        ]
+
+        # SKU 前缀
+        service_skus = [
+            "seel",
+            "wfp",
+            "warranty",
+        ]
+
+        # 匹配名称
+        for keyword in service_keywords:
+            if keyword in title_lower:
+                return True
+
+        # 匹配 SKU
+        for sku_prefix in service_skus:
+            if sku_lower.startswith(sku_prefix):
+                return True
+
+        return False
+
     def _parse_order_detail(self, order: Dict) -> ShopifyOrderDetail:
         """解析订单详情"""
         summary = self._parse_order_summary(order)
+
+        # 获取订单支付状态，用于服务类商品状态判断
+        financial_status = order.get("financial_status", "")
 
         # 先解析发货信息，用于后续匹配商品的送达状态
         fulfillments_raw = order.get("fulfillments", [])
@@ -520,8 +568,30 @@ class ShopifyClient:
         line_items = []
         for item in order.get("line_items", []):
             item_title = item.get("title", "")
+            item_sku = item.get("sku", "")
+
+            # 判断是否为服务类商品（无需物流发货）
+            is_service_product = self._is_service_product(item_title, item_sku)
+
             # 从发货记录中获取该商品的送达状态和物流信息
             fulfillment_info = item_fulfillment_map.get(item_title, {})
+
+            # 服务类商品状态跟随订单支付状态
+            if is_service_product:
+                if financial_status in ["refunded", "partially_refunded"]:
+                    service_status = "refunded"
+                elif financial_status == "paid":
+                    service_status = "active"  # 已生效
+                elif financial_status == "pending":
+                    service_status = "pending"
+                else:
+                    service_status = "active" if financial_status else "pending"
+
+                delivery_status = service_status
+                fulfillment_status = "service"  # 标记为服务类商品
+            else:
+                delivery_status = fulfillment_info.get("status")
+                fulfillment_status = item.get("fulfillment_status")
 
             # 获取商品图片和链接
             image_url = self._get_product_image_by_title(item_title)
@@ -533,14 +603,14 @@ class ShopifyClient:
             line_items.append(ShopifyLineItem(
                 title=item_title,
                 variant_title=item.get("variant_title"),
-                sku=item.get("sku"),
+                sku=item_sku,
                 quantity=item.get("quantity", 1),
                 price=item.get("price", "0"),
-                fulfillment_status=item.get("fulfillment_status"),  # fulfilled/null
-                delivery_status=fulfillment_info.get("status"),  # success/pending/failure
-                tracking_company=fulfillment_info.get("tracking_company"),
-                tracking_number=fulfillment_info.get("tracking_number"),
-                tracking_url=fulfillment_info.get("tracking_url"),
+                fulfillment_status=fulfillment_status,
+                delivery_status=delivery_status,
+                tracking_company=fulfillment_info.get("tracking_company") if not is_service_product else None,
+                tracking_number=fulfillment_info.get("tracking_number") if not is_service_product else None,
+                tracking_url=fulfillment_info.get("tracking_url") if not is_service_product else None,
                 image_url=image_url,
                 product_url=product_url
             ))

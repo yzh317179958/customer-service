@@ -59,7 +59,7 @@ function transformProductCards(content: string): string {
     const trackingTitle = isChinese ? '物流追踪' : 'Shipping Info'
 
     // 状态样式 - 支持多种物流状态
-    // 状态判断优先级：支付状态 > 已收货 > 运输中 > 已发货 > 待发货
+    // 状态判断优先级：支付状态 > 已生效 > 已收货 > 运输中 > 已发货 > 待发货
     const statusLower = status.toLowerCase()
 
     // 支付相关状态 (最高优先级)
@@ -70,10 +70,14 @@ function transformProductCards(content: string): string {
     const isVoided = status.includes('作废') ||
                      statusLower.includes('void')
 
+    // 已生效状态 (服务类商品)
+    const isActive = status.includes('已生效') ||
+                     statusLower.includes('active')
+
     // 已收货状态 (delivery_status=success)
     const isReceived = status.includes('已收货') ||
                        statusLower.includes('received') ||
-                       statusLower.includes('success')
+                       (statusLower.includes('success') && !statusLower.includes('active'))
 
     // 运输中状态
     const isInTransit = status.includes('运输中') ||
@@ -99,6 +103,9 @@ function transformProductCards(content: string): string {
     } else if (isPaymentPending || isVoided) {
       statusClass = 'payment-pending'
       statusIcon = '⚠'
+    } else if (isActive) {
+      statusClass = 'active'
+      statusIcon = '✓'
     } else if (isReceived) {
       statusClass = 'received'
       statusIcon = '✓'
@@ -865,6 +872,12 @@ const senderName = computed(() => {
 
 /* 已收货 - 绿色 */
 .message-content :deep(.product-status.received) {
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  color: #059669;
+}
+
+/* 已生效 - 绿色（服务类商品） */
+.message-content :deep(.product-status.active) {
   background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
   color: #059669;
 }
