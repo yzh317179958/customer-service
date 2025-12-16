@@ -44,6 +44,12 @@ class ShopifyLineItem(BaseModel):
     quantity: int
     price: str
     fulfillment_status: Optional[str] = None  # 商品级别发货状态: fulfilled/null
+    delivery_status: Optional[str] = None  # 送达状态: success(已送达)/pending/in_transit/failure
+    tracking_company: Optional[str] = None  # 承运商
+    tracking_number: Optional[str] = None  # 运单号
+    tracking_url: Optional[str] = None  # 追踪链接
+    image_url: Optional[str] = None  # 商品图片 URL
+    product_url: Optional[str] = None  # 商品详情页 URL
 
 
 class FulfillmentLineItem(BaseModel):
@@ -489,18 +495,55 @@ class ShopifyClient:
         """解析订单详情"""
         summary = self._parse_order_summary(order)
 
-        # 解析商品列表（包含商品级别的发货状态）
-        line_items = [
-            ShopifyLineItem(
-                title=item.get("title", ""),
+        # 先解析发货信息，用于后续匹配商品的送达状态
+        fulfillments_raw = order.get("fulfillments", [])
+
+        # 构建商品名称到发货信息的映射
+        # key: 商品title, value: {status, tracking_company, tracking_number, tracking_url}
+        item_fulfillment_map = {}
+        for f in fulfillments_raw:
+            f_status = f.get("status", "")
+            f_company = f.get("tracking_company")
+            f_number = f.get("tracking_number")
+            f_url = f.get("tracking_url")
+            for item in f.get("line_items", []):
+                item_title = item.get("title", "")
+                if item_title:
+                    item_fulfillment_map[item_title] = {
+                        "status": f_status,
+                        "tracking_company": f_company,
+                        "tracking_number": f_number,
+                        "tracking_url": f_url
+                    }
+
+        # 解析商品列表（包含商品级别的发货状态和送达状态）
+        line_items = []
+        for item in order.get("line_items", []):
+            item_title = item.get("title", "")
+            # 从发货记录中获取该商品的送达状态和物流信息
+            fulfillment_info = item_fulfillment_map.get(item_title, {})
+
+            # 获取商品图片和链接
+            image_url = self._get_product_image_by_title(item_title)
+            product_url = None
+            product_id = item.get("product_id")
+            if product_id:
+                product_url = f"https://www.fiido.com/products/{product_id}"
+
+            line_items.append(ShopifyLineItem(
+                title=item_title,
                 variant_title=item.get("variant_title"),
                 sku=item.get("sku"),
                 quantity=item.get("quantity", 1),
                 price=item.get("price", "0"),
-                fulfillment_status=item.get("fulfillment_status")  # fulfilled/null
-            )
-            for item in order.get("line_items", [])
-        ]
+                fulfillment_status=item.get("fulfillment_status"),  # fulfilled/null
+                delivery_status=fulfillment_info.get("status"),  # success/pending/failure
+                tracking_company=fulfillment_info.get("tracking_company"),
+                tracking_number=fulfillment_info.get("tracking_number"),
+                tracking_url=fulfillment_info.get("tracking_url"),
+                image_url=image_url,
+                product_url=product_url
+            ))
 
         # 解析收货地址
         shipping = order.get("shipping_address") or {}

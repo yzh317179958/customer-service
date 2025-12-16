@@ -94,25 +94,28 @@ CARRIER_ALIASES = {
 
 # ==================== 物流状态翻译 ====================
 
-# Shopify 物流状态
+# Shopify 订单级发货状态 (order.fulfillment_status)
 FULFILLMENT_STATUS_TRANSLATION = {
-    # Shopify 订单发货状态
-    None: {"en": "Unfulfilled", "zh": "未发货"},
-    "null": {"en": "Unfulfilled", "zh": "未发货"},
-    "unfulfilled": {"en": "Unfulfilled", "zh": "未发货"},
-    "partial": {"en": "Partially Fulfilled", "zh": "部分发货"},
-    "fulfilled": {"en": "Fulfilled", "zh": "已发货"},
-
-    # Shopify Fulfillment 状态
-    "pending": {"en": "Pending", "zh": "待处理"},
-    "open": {"en": "Open", "zh": "已创建"},
-    "success": {"en": "Success", "zh": "成功"},
-    "cancelled": {"en": "Cancelled", "zh": "已取消"},
-    "error": {"en": "Error", "zh": "错误"},
-    "failure": {"en": "Failure", "zh": "失败"},
+    # 订单发货状态
+    None: {"en": "Processing", "zh": "处理中"},
+    "null": {"en": "Processing", "zh": "处理中"},
+    "unfulfilled": {"en": "Processing", "zh": "处理中"},
+    "partial": {"en": "Partially Shipped", "zh": "部分发货"},
+    "fulfilled": {"en": "Shipped", "zh": "已发货"},
 }
 
-# 物流追踪状态（通用）
+# Shopify 发货记录状态 (fulfillment.status)
+# 注意：这是单个发货记录的状态，不是订单整体状态
+FULFILLMENT_RECORD_STATUS_TRANSLATION = {
+    "pending": {"en": "Pending", "zh": "待处理"},
+    "open": {"en": "Open", "zh": "已创建"},
+    "success": {"en": "Delivered", "zh": "已送达"},  # success = 已送达
+    "cancelled": {"en": "Cancelled", "zh": "已取消"},
+    "error": {"en": "Error", "zh": "错误"},
+    "failure": {"en": "Delivery Failed", "zh": "投递失败"},
+}
+
+# 物流追踪状态（通用，用于第三方物流API）
 TRACKING_STATUS_TRANSLATION = {
     "pending": {"en": "Pending", "zh": "待揽收"},
     "label_created": {"en": "Label Created", "zh": "已创建标签"},
@@ -123,6 +126,7 @@ TRACKING_STATUS_TRANSLATION = {
     "in_transit": {"en": "In Transit", "zh": "运输中"},
     "out_for_delivery": {"en": "Out for Delivery", "zh": "派送中"},
     "delivered": {"en": "Delivered", "zh": "已送达"},
+    "success": {"en": "Delivered", "zh": "已送达"},  # Shopify 用 success 表示已送达
     "failure": {"en": "Delivery Failed", "zh": "投递失败"},
 }
 
@@ -192,10 +196,10 @@ def get_tracking_url(carrier: str, tracking_number: str) -> Optional[str]:
 
 def translate_fulfillment_status(status: Optional[str], lang: str = "zh") -> str:
     """
-    翻译发货状态
+    翻译订单发货状态 (order.fulfillment_status)
 
     Args:
-        status: Shopify 发货状态
+        status: Shopify 订单发货状态 (fulfilled/partial/null)
         lang: 目标语言 (zh/en)
 
     Returns:
@@ -208,6 +212,26 @@ def translate_fulfillment_status(status: Optional[str], lang: str = "zh") -> str
     translation = FULFILLMENT_STATUS_TRANSLATION.get(status_lower, {})
 
     return translation.get(lang, status or "Unknown")
+
+
+def translate_fulfillment_record_status(status: str, lang: str = "zh") -> str:
+    """
+    翻译发货记录状态 (fulfillment.status)
+
+    Args:
+        status: Shopify 发货记录状态 (success/pending/cancelled/error/failure)
+        lang: 目标语言 (zh/en)
+
+    Returns:
+        翻译后的状态文本
+    """
+    if not status:
+        return "Unknown" if lang == "en" else "未知"
+
+    status_lower = status.lower()
+    translation = FULFILLMENT_RECORD_STATUS_TRANSLATION.get(status_lower, {})
+
+    return translation.get(lang, status)
 
 
 def translate_tracking_status(status: str, lang: str = "zh") -> str:
@@ -325,7 +349,7 @@ def enrich_tracking_data(tracking_data: Dict) -> Dict:
     """
     enriched = tracking_data.copy()
 
-    # 添加发货状态翻译
+    # 添加订单级发货状态翻译 (order.fulfillment_status)
     if "fulfillment_status" in enriched:
         enriched["fulfillment_status_zh"] = translate_fulfillment_status(
             enriched["fulfillment_status"], "zh"
@@ -333,6 +357,13 @@ def enrich_tracking_data(tracking_data: Dict) -> Dict:
         enriched["fulfillment_status_en"] = translate_fulfillment_status(
             enriched["fulfillment_status"], "en"
         )
+
+    # 为每个发货记录添加状态翻译
+    if "fulfillments" in enriched:
+        for f in enriched["fulfillments"]:
+            if f.get("status"):
+                f["status_zh"] = translate_fulfillment_record_status(f["status"], "zh")
+                f["status_en"] = translate_fulfillment_record_status(f["status"], "en")
 
     # 处理主要物流信息
     if "primary_tracking" in enriched:
@@ -351,9 +382,10 @@ def enrich_tracking_data(tracking_data: Dict) -> Dict:
                     if not primary.get("url"):
                         primary["url"] = tracking_url
 
+        # 为主物流信息添加状态翻译（使用发货记录状态翻译）
         if primary.get("status"):
-            primary["status_zh"] = translate_tracking_status(primary["status"], "zh")
-            primary["status_en"] = translate_tracking_status(primary["status"], "en")
+            primary["status_zh"] = translate_fulfillment_record_status(primary["status"], "zh")
+            primary["status_en"] = translate_fulfillment_record_status(primary["status"], "en")
 
     # 生成客服话术
     if "order_number" in enriched:
