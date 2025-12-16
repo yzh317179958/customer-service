@@ -94,8 +94,8 @@ echo "--- 6. 缓存 TTL 配置验证 ---"
 echo -n "验证缓存 TTL 配置... "
 
 TTL_CHECK=$(python3 -c "
-from src.shopify_uk_cache import ShopifyUKCache
-cache = ShopifyUKCache.__new__(ShopifyUKCache)
+from src.shopify_cache import ShopifyCache
+cache = ShopifyCache.__new__(ShopifyCache)
 ttl = cache.DEFAULT_TTL
 
 # 验证 TTL 值

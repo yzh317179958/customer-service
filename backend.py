@@ -85,9 +85,7 @@ from src.shopify_service import (
 )
 from src.shopify_client import ShopifyAPIError
 from src.shopify_sites import detect_site_from_order_number, SiteCode
-
-# 兼容旧版UK站点接口（向后兼容）
-from src.shopify_uk_service import ShopifyUKService, get_shopify_uk_service
+from src.shopify_service import get_shopify_service
 from src.ticket import (
     Ticket,
     TicketPriority,
@@ -7763,7 +7761,7 @@ async def get_shopify_orders(
             )
 
         # 调用服务
-        service = get_shopify_uk_service()
+        service = get_shopify_service('uk')
         result = await service.get_orders_by_email(email, limit=limit, status=status)
 
         return {
@@ -7809,7 +7807,7 @@ async def search_shopify_order(
             )
 
         # 调用服务
-        service = get_shopify_uk_service()
+        service = get_shopify_service('uk')
         result = await service.search_order_by_number(q)
 
         # 订单不存在时返回空值（不抛出错误，避免 Coze 工作流阻塞）
@@ -7872,7 +7870,7 @@ async def get_shopify_order_count(
                 detail="INVALID_STATUS: status 必须是 open/closed/cancelled/any"
             )
 
-        service = get_shopify_uk_service()
+        service = get_shopify_service('uk')
         result = await service.get_order_count(status=status)
 
         return {
@@ -7910,7 +7908,7 @@ async def get_shopify_order_detail(
         订单详情
     """
     try:
-        service = get_shopify_uk_service()
+        service = get_shopify_service('uk')
         result = await service.get_order_detail(order_id)
 
         return {
@@ -8041,7 +8039,7 @@ async def get_shopify_order_tracking(
         }
 
     try:
-        service = get_shopify_uk_service()
+        service = get_shopify_service('uk')
         result = await service.get_order_tracking(order_id)
 
         return {
@@ -8083,7 +8081,7 @@ async def shopify_health_check():
         健康状态信息
     """
     try:
-        service = get_shopify_uk_service()
+        service = get_shopify_service('uk')
         result = await service.health_check()
 
         return {

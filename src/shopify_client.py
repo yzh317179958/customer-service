@@ -322,6 +322,12 @@ class ShopifyClient:
         if not orders:
             return None
 
+        # 获取订单 ID，然后调用 get_order_detail 获取完整数据（包含 refunds）
+        # /orders.json 默认不返回 refunds 字段，需要通过 /orders/{id}.json 获取
+        order_id = orders[0].get("id")
+        if order_id:
+            return await self.get_order_detail(str(order_id))
+
         return self._parse_order_detail(orders[0])
 
     async def get_order_detail(self, order_id: str) -> ShopifyOrderDetail:
@@ -618,7 +624,7 @@ class ShopifyClient:
                 # - 只有所有实物商品都退款了，服务类商品才显示退款
                 # - 否则显示已生效
                 if all_physical_refunded or financial_status == "refunded":
-                    service_status = "refunded"
+                    service_status = "expired"  # 已失效（服务类商品随实物退款后失效）
                 elif financial_status == "paid":
                     service_status = "active"  # 已生效
                 elif financial_status == "pending":

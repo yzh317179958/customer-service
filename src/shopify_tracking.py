@@ -116,6 +116,7 @@ FULFILLMENT_RECORD_STATUS_TRANSLATION = {
     "error": {"en": "Error", "zh": "错误"},
     "failure": {"en": "Delivery Failed", "zh": "投递失败"},
     "active": {"en": "Active", "zh": "已生效"},  # 服务类商品已生效
+    "expired": {"en": "Expired", "zh": "已失效"},  # 服务类商品已失效（随实物退款）
     "service": {"en": "Active", "zh": "已生效"},  # 服务类商品标记
     "refunded": {"en": "Refunded", "zh": "已退款"},  # 仅退款（不退货）
     "returned": {"en": "Returned & Refunded", "zh": "已退货退款"},  # 退货退款
@@ -135,6 +136,7 @@ TRACKING_STATUS_TRANSLATION = {
     "success": {"en": "Received", "zh": "已收货"},  # Shopify 用 success 表示已收货
     "failure": {"en": "Delivery Failed", "zh": "投递失败"},
     "active": {"en": "Active", "zh": "已生效"},  # 服务类商品已生效
+    "expired": {"en": "Expired", "zh": "已失效"},  # 服务类商品已失效（随实物退款）
     "refunded": {"en": "Refunded", "zh": "已退款"},  # 仅退款
     "returned": {"en": "Returned & Refunded", "zh": "已退货退款"},  # 退货退款
     "cancelled": {"en": "Cancelled", "zh": "已取消"},  # 取消退款

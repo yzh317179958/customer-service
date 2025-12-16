@@ -107,18 +107,18 @@ class WarmupService:
 
     @property
     def service(self):
-        """延迟获取 ShopifyUKService"""
+        """延迟获取 ShopifyService (UK站点)"""
         if self._service is None:
-            from src.shopify_uk_service import get_shopify_uk_service
-            self._service = get_shopify_uk_service()
+            from src.shopify_service import get_shopify_service
+            self._service = get_shopify_service('uk')
         return self._service
 
     @property
     def client(self):
-        """延迟获取 ShopifyUKClient"""
+        """延迟获取 ShopifyClient (UK站点)"""
         if self._client is None:
-            from src.shopify_uk_client import get_shopify_uk_client
-            self._client = get_shopify_uk_client()
+            from src.shopify_client import get_shopify_client
+            self._client = get_shopify_client('uk')
         return self._client
 
     @property
