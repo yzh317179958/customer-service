@@ -564,6 +564,37 @@ class ShopifyClient:
                         "tracking_url": f_url
                     }
 
+        # 解析退款信息，构建商品级退款映射
+        # key: 商品title, value: {refunded: True, restock_type: return/cancel/no_restock}
+        item_refund_map = {}
+        refunds = order.get("refunds", [])
+        for refund in refunds:
+            for refund_line_item in refund.get("refund_line_items", []):
+                line_item = refund_line_item.get("line_item", {})
+                item_title = line_item.get("title", "")
+                if item_title:
+                    item_refund_map[item_title] = {
+                        "refunded": True,
+                        "restock_type": refund_line_item.get("restock_type", ""),
+                        "quantity": refund_line_item.get("quantity", 0)
+                    }
+
+        # 统计实物商品（非服务类）的退款情况，用于判断服务类商品状态
+        all_line_items = order.get("line_items", [])
+        physical_items_count = 0
+        physical_items_refunded_count = 0
+        for item in all_line_items:
+            item_title = item.get("title", "")
+            item_sku = item.get("sku", "")
+            if not self._is_service_product(item_title, item_sku):
+                physical_items_count += 1
+                if item_title in item_refund_map:
+                    physical_items_refunded_count += 1
+
+        # 判断是否所有实物商品都已退款
+        all_physical_refunded = (physical_items_count > 0 and
+                                  physical_items_refunded_count == physical_items_count)
+
         # 解析商品列表（包含商品级别的发货状态和送达状态）
         line_items = []
         for item in order.get("line_items", []):
@@ -576,9 +607,17 @@ class ShopifyClient:
             # 从发货记录中获取该商品的送达状态和物流信息
             fulfillment_info = item_fulfillment_map.get(item_title, {})
 
-            # 服务类商品状态跟随订单支付状态
+            # 获取商品退款信息
+            refund_info = item_refund_map.get(item_title, {})
+            is_refunded = refund_info.get("refunded", False)
+            restock_type = refund_info.get("restock_type", "")
+
+            # 服务类商品状态判断
             if is_service_product:
-                if financial_status in ["refunded", "partially_refunded"]:
+                # 服务类商品跟随订单整体状态：
+                # - 只有所有实物商品都退款了，服务类商品才显示退款
+                # - 否则显示已生效
+                if all_physical_refunded or financial_status == "refunded":
                     service_status = "refunded"
                 elif financial_status == "paid":
                     service_status = "active"  # 已生效
@@ -590,8 +629,21 @@ class ShopifyClient:
                 delivery_status = service_status
                 fulfillment_status = "service"  # 标记为服务类商品
             else:
-                delivery_status = fulfillment_info.get("status")
-                fulfillment_status = item.get("fulfillment_status")
+                # 实物商品状态判断
+                # 优先级：退款状态 > 送达状态 > 发货状态
+                if is_refunded:
+                    # 根据 restock_type 决定退款类型
+                    if restock_type == "return":
+                        delivery_status = "returned"  # 退货退款
+                    elif restock_type == "cancel":
+                        delivery_status = "cancelled"  # 取消退款（未发货）
+                    else:
+                        delivery_status = "refunded"  # 仅退款（no_restock 或其他）
+                    fulfillment_status = item.get("fulfillment_status")
+                else:
+                    # 原有逻辑：使用发货记录中的送达状态
+                    delivery_status = fulfillment_info.get("status")
+                    fulfillment_status = item.get("fulfillment_status")
 
             # 获取商品图片和链接
             image_url = self._get_product_image_by_title(item_title)

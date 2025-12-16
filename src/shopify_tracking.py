@@ -104,7 +104,7 @@ FULFILLMENT_STATUS_TRANSLATION = {
     "fulfilled": {"en": "Shipped", "zh": "已发货"},
 }
 
-# Shopify 发货记录状态 (fulfillment.status)
+# Shopify 发货记录状态 (fulfillment.status) 和商品送达状态 (delivery_status)
 # 注意：这是单个发货记录的状态，不是订单整体状态
 FULFILLMENT_RECORD_STATUS_TRANSLATION = {
     "pending": {"en": "Pending", "zh": "待处理"},
@@ -112,12 +112,13 @@ FULFILLMENT_RECORD_STATUS_TRANSLATION = {
     "success": {"en": "Received", "zh": "已收货"},  # success = 已收货
     "in_transit": {"en": "In Transit", "zh": "运输中"},
     "out_for_delivery": {"en": "Out for Delivery", "zh": "派送中"},
-    "cancelled": {"en": "Cancelled", "zh": "已取消"},
+    "cancelled": {"en": "Cancelled", "zh": "已取消"},  # 取消退款（未发货就取消）
     "error": {"en": "Error", "zh": "错误"},
     "failure": {"en": "Delivery Failed", "zh": "投递失败"},
     "active": {"en": "Active", "zh": "已生效"},  # 服务类商品已生效
     "service": {"en": "Active", "zh": "已生效"},  # 服务类商品标记
-    "refunded": {"en": "Refunded", "zh": "已退款"},  # 服务类商品已退款
+    "refunded": {"en": "Refunded", "zh": "已退款"},  # 仅退款（不退货）
+    "returned": {"en": "Returned & Refunded", "zh": "已退货退款"},  # 退货退款
 }
 
 # 物流追踪状态（通用，用于第三方物流API）
@@ -134,6 +135,9 @@ TRACKING_STATUS_TRANSLATION = {
     "success": {"en": "Received", "zh": "已收货"},  # Shopify 用 success 表示已收货
     "failure": {"en": "Delivery Failed", "zh": "投递失败"},
     "active": {"en": "Active", "zh": "已生效"},  # 服务类商品已生效
+    "refunded": {"en": "Refunded", "zh": "已退款"},  # 仅退款
+    "returned": {"en": "Returned & Refunded", "zh": "已退货退款"},  # 退货退款
+    "cancelled": {"en": "Cancelled", "zh": "已取消"},  # 取消退款
 }
 
 # 支付状态翻译

@@ -59,12 +59,18 @@ function transformProductCards(content: string): string {
     const trackingTitle = isChinese ? '物流追踪' : 'Shipping Info'
 
     // 状态样式 - 支持多种物流状态
-    // 状态判断优先级：支付状态 > 已生效 > 已收货 > 运输中 > 已发货 > 待发货
+    // 状态判断优先级：退款状态 > 支付状态 > 已生效 > 已收货 > 运输中 > 已发货 > 待发货
     const statusLower = status.toLowerCase()
 
-    // 支付相关状态 (最高优先级)
-    const isRefunded = status.includes('退款') ||
-                       statusLower.includes('refund')
+    // 退款相关状态 (最高优先级)
+    const isReturned = status.includes('退货退款') ||
+                       statusLower.includes('returned')
+    const isRefunded = (status.includes('退款') && !status.includes('退货')) ||
+                       (statusLower.includes('refund') && !statusLower.includes('returned'))
+    const isCancelled = status.includes('已取消') ||
+                        statusLower.includes('cancelled')
+
+    // 支付相关状态
     const isPaymentPending = (status.includes('待支付') || status.includes('待付款')) ||
                              (statusLower.includes('payment') && statusLower.includes('pending'))
     const isVoided = status.includes('作废') ||
@@ -97,9 +103,15 @@ function transformProductCards(content: string): string {
     let statusClass = 'pending'  // 默认待发货
     let statusIcon = '⏳'
 
-    if (isRefunded) {
+    if (isReturned) {
+      statusClass = 'returned'
+      statusIcon = '↩'
+    } else if (isRefunded) {
       statusClass = 'refunded'
       statusIcon = '↩'
+    } else if (isCancelled) {
+      statusClass = 'cancelled'
+      statusIcon = '✗'
     } else if (isPaymentPending || isVoided) {
       statusClass = 'payment-pending'
       statusIcon = '⚠'
@@ -910,6 +922,18 @@ const senderName = computed(() => {
 .message-content :deep(.product-status.refunded) {
   background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
   color: #6b7280;
+}
+
+/* 已退货退款 - 灰紫色 */
+.message-content :deep(.product-status.returned) {
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+  color: #7c3aed;
+}
+
+/* 已取消 - 浅灰色 */
+.message-content :deep(.product-status.cancelled) {
+  background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+  color: #9ca3af;
 }
 
 /* 待支付/已作废 - 橙色警告 */
