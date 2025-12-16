@@ -109,7 +109,9 @@ FULFILLMENT_STATUS_TRANSLATION = {
 FULFILLMENT_RECORD_STATUS_TRANSLATION = {
     "pending": {"en": "Pending", "zh": "待处理"},
     "open": {"en": "Open", "zh": "已创建"},
-    "success": {"en": "Delivered", "zh": "已送达"},  # success = 已送达
+    "success": {"en": "Received", "zh": "已收货"},  # success = 已收货
+    "in_transit": {"en": "In Transit", "zh": "运输中"},
+    "out_for_delivery": {"en": "Out for Delivery", "zh": "派送中"},
     "cancelled": {"en": "Cancelled", "zh": "已取消"},
     "error": {"en": "Error", "zh": "错误"},
     "failure": {"en": "Delivery Failed", "zh": "投递失败"},
@@ -125,8 +127,8 @@ TRACKING_STATUS_TRANSLATION = {
     "confirmed": {"en": "Confirmed", "zh": "已确认"},
     "in_transit": {"en": "In Transit", "zh": "运输中"},
     "out_for_delivery": {"en": "Out for Delivery", "zh": "派送中"},
-    "delivered": {"en": "Delivered", "zh": "已送达"},
-    "success": {"en": "Delivered", "zh": "已送达"},  # Shopify 用 success 表示已送达
+    "delivered": {"en": "Received", "zh": "已收货"},
+    "success": {"en": "Received", "zh": "已收货"},  # Shopify 用 success 表示已收货
     "failure": {"en": "Delivery Failed", "zh": "投递失败"},
 }
 

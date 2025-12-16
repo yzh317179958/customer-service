@@ -48,18 +48,70 @@ function transformProductCards(content: string): string {
       trackingUrl = ''
     ] = fields
 
-    // 判断语言（根据状态字段）
-    const isChinese = status.includes('发货') || status.includes('待')
+    // 判断语言（根据状态字段 - 支持更多中文状态词）
+    const isChinese = status.includes('发货') || status.includes('待') ||
+                      status.includes('送达') || status.includes('运输') ||
+                      status.includes('处理') || status.includes('失败')
     const trackText = isChinese ? '追踪' : 'Track'
     const qtyLabel = isChinese ? '数量' : 'Qty'
     const carrierLabel = isChinese ? '承运商' : 'Carrier'
     const trackingLabel = isChinese ? '运单号' : 'Tracking'
     const trackingTitle = isChinese ? '物流追踪' : 'Shipping Info'
 
-    // 状态样式
-    const isShipped = status.includes('已发货') || status.toLowerCase().includes('shipped')
-    const statusClass = isShipped ? 'shipped' : 'pending'
-    const statusIcon = isShipped ? '✓' : '⏳'
+    // 状态样式 - 支持多种物流状态
+    // 状态判断优先级：支付状态 > 已收货 > 运输中 > 已发货 > 待发货
+    const statusLower = status.toLowerCase()
+
+    // 支付相关状态 (最高优先级)
+    const isRefunded = status.includes('退款') ||
+                       statusLower.includes('refund')
+    const isPaymentPending = (status.includes('待支付') || status.includes('待付款')) ||
+                             (statusLower.includes('payment') && statusLower.includes('pending'))
+    const isVoided = status.includes('作废') ||
+                     statusLower.includes('void')
+
+    // 已收货状态 (delivery_status=success)
+    const isReceived = status.includes('已收货') ||
+                       statusLower.includes('received') ||
+                       statusLower.includes('success')
+
+    // 运输中状态
+    const isInTransit = status.includes('运输中') ||
+                        status.includes('派送中') ||
+                        statusLower.includes('in transit') ||
+                        statusLower.includes('out for delivery')
+
+    // 已发货状态
+    const isShipped = status.includes('已发货') ||
+                      statusLower.includes('shipped')
+
+    // 投递失败状态
+    const isFailed = status.includes('投递失败') ||
+                     statusLower.includes('delivery fail')
+
+    // 确定状态类和图标
+    let statusClass = 'pending'  // 默认待发货
+    let statusIcon = '⏳'
+
+    if (isRefunded) {
+      statusClass = 'refunded'
+      statusIcon = '↩'
+    } else if (isPaymentPending || isVoided) {
+      statusClass = 'payment-pending'
+      statusIcon = '⚠'
+    } else if (isReceived) {
+      statusClass = 'received'
+      statusIcon = '✓'
+    } else if (isInTransit) {
+      statusClass = 'in-transit'
+      statusIcon = '🚚'
+    } else if (isShipped) {
+      statusClass = 'shipped'
+      statusIcon = '📦'
+    } else if (isFailed) {
+      statusClass = 'failed'
+      statusIcon = '✗'
+    }
 
     // 是否有物流信息
     const hasTracking = carrier || trackingNumber || trackingUrl
@@ -811,14 +863,46 @@ const senderName = computed(() => {
   width: fit-content;
 }
 
-.message-content :deep(.product-status.shipped) {
+/* 已收货 - 绿色 */
+.message-content :deep(.product-status.received) {
   background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
   color: #059669;
 }
 
+/* 运输中 - 蓝色 */
+.message-content :deep(.product-status.in-transit) {
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  color: #2563eb;
+}
+
+/* 已发货 - 青色 */
+.message-content :deep(.product-status.shipped) {
+  background: linear-gradient(135deg, #ecfeff 0%, #cffafe 100%);
+  color: #0891b2;
+}
+
+/* 待发货/处理中 - 黄色 */
 .message-content :deep(.product-status.pending) {
   background: linear-gradient(135deg, #fefce8 0%, #fef3c7 100%);
   color: #d97706;
+}
+
+/* 投递失败 - 红色 */
+.message-content :deep(.product-status.failed) {
+  background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%);
+  color: #dc2626;
+}
+
+/* 已退款 - 灰色 */
+.message-content :deep(.product-status.refunded) {
+  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+  color: #6b7280;
+}
+
+/* 待支付/已作废 - 橙色警告 */
+.message-content :deep(.product-status.payment-pending) {
+  background: linear-gradient(135deg, #fff7ed 0%, #fed7aa 100%);
+  color: #c2410c;
 }
 
 .message-content :deep(.product-status .status-icon) {
