@@ -553,10 +553,14 @@ class ShopifyClient:
         fulfillments_raw = order.get("fulfillments", [])
 
         # 构建商品名称到发货信息的映射
-        # key: 商品title, value: {status, tracking_company, tracking_number, tracking_url}
+        # key: 商品title, value: {status, shipment_status, tracking_company, tracking_number, tracking_url}
+        # 注意：
+        #   - status: 发货操作状态 (success=发货成功, pending=待发货)
+        #   - shipment_status: 物流运输状态 (delivered=已送达, in_transit=运输中, out_for_delivery=派送中)
         item_fulfillment_map = {}
         for f in fulfillments_raw:
-            f_status = f.get("status", "")
+            f_status = f.get("status", "")  # 发货操作状态
+            f_shipment_status = f.get("shipment_status")  # 物流运输状态（真正的送达状态）
             f_company = f.get("tracking_company")
             f_number = f.get("tracking_number")
             f_url = f.get("tracking_url")
@@ -565,6 +569,7 @@ class ShopifyClient:
                 if item_title:
                     item_fulfillment_map[item_title] = {
                         "status": f_status,
+                        "shipment_status": f_shipment_status,
                         "tracking_company": f_company,
                         "tracking_number": f_number,
                         "tracking_url": f_url
@@ -647,8 +652,32 @@ class ShopifyClient:
                         delivery_status = "refunded"  # 仅退款（no_restock 或其他）
                     fulfillment_status = item.get("fulfillment_status")
                 else:
-                    # 原有逻辑：使用发货记录中的送达状态
-                    delivery_status = fulfillment_info.get("status")
+                    # 状态判断优先级：shipment_status > status > fulfillment_status
+                    # - shipment_status: 物流运输状态（真正的送达状态）
+                    #   - delivered: 已送达（对应"已收货"）
+                    #   - in_transit: 运输中
+                    #   - out_for_delivery: 派送中
+                    #   - failure: 投递失败
+                    # - status: 发货操作状态（success=发货成功，不是送达成功）
+                    # - fulfillment_status: 商品发货状态（fulfilled/null）
+
+                    shipment_status = fulfillment_info.get("shipment_status")
+                    f_status = fulfillment_info.get("status")
+
+                    if shipment_status:
+                        # 优先使用物流运输状态
+                        # 将 Shopify shipment_status 映射到我们的 delivery_status
+                        if shipment_status == "delivered":
+                            delivery_status = "success"  # 已送达 → 已收货
+                        else:
+                            delivery_status = shipment_status  # in_transit, out_for_delivery, failure 等
+                    elif f_status == "success":
+                        # 发货成功但没有 shipment_status，说明已发货但物流状态未知
+                        # 默认为"已发货"状态，由 fulfillment_status 决定
+                        delivery_status = None  # 让前端根据 fulfillment_status 显示"已发货"
+                    else:
+                        delivery_status = f_status if f_status else None
+
                     fulfillment_status = item.get("fulfillment_status")
 
             # 获取商品图片和链接

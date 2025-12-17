@@ -82,7 +82,9 @@ function transformProductCards(content: string): string {
 
     // 已收货状态 (delivery_status=success)
     const isReceived = status.includes('已收货') ||
+                       status.includes('已送达') ||
                        statusLower.includes('received') ||
+                       statusLower.includes('delivered') ||
                        (statusLower.includes('success') && !statusLower.includes('active'))
 
     // 运输中状态

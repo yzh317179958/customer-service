@@ -34,6 +34,7 @@ CARRIER_TRACKING_URLS = {
 
     # 中国承运商（跨境电商常用）
     "YunExpress": "https://www.yuntrack.com/Track/Result?TrackingNumber={tracking_number}",
+    "YUNWAY": "https://www.yuntrack.com/Track/Result?TrackingNumber={tracking_number}",
     "Yanwen": "https://track.yw56.com.cn/en-US/Track?chnNumbers={tracking_number}",
     "4PX": "https://track.4px.com/?locale=en_US&track_no={tracking_number}",
     "CNE Express": "https://www.cne.com/track?tracking_number={tracking_number}",
@@ -77,6 +78,7 @@ CARRIER_ALIASES = {
 
     # UPS
     "ups": "UPS",
+    "plupseu": "UPS",  # UPS 欧洲变体
 
     # FedEx
     "fedex": "FedEx",
@@ -89,6 +91,11 @@ CARRIER_ALIASES = {
     "sf-express": "SF Express",
     "sfexpress": "SF Express",
     "顺丰": "SF Express",
+
+    # YUNWAY / YunExpress
+    "yunway": "YUNWAY",
+    "yunexpress": "YunExpress",
+    "yun express": "YunExpress",
 }
 
 
@@ -104,22 +111,33 @@ FULFILLMENT_STATUS_TRANSLATION = {
     "fulfilled": {"en": "Shipped", "zh": "已发货"},
 }
 
-# Shopify 发货记录状态 (fulfillment.status) 和商品送达状态 (delivery_status)
-# 注意：这是单个发货记录的状态，不是订单整体状态
+# Shopify 发货记录状态和物流运输状态
+# 注意区分两种状态：
+#   - fulfillment.status: 发货操作状态（success=发货成功，不是送达成功）
+#   - fulfillment.shipment_status: 物流运输状态（delivered=已送达，in_transit=运输中）
+# 我们的 delivery_status 优先使用 shipment_status，其次是退款状态
 FULFILLMENT_RECORD_STATUS_TRANSLATION = {
+    # 物流运输状态 (shipment_status) - 真正的送达状态
+    "delivered": {"en": "Received", "zh": "已收货"},  # 物流已送达
+    "in_transit": {"en": "In Transit", "zh": "运输中"},  # 运输中
+    "out_for_delivery": {"en": "Out for Delivery", "zh": "派送中"},  # 派送中
+    "failure": {"en": "Delivery Failed", "zh": "投递失败"},  # 投递失败
+
+    # 发货操作状态 (fulfillment.status) - 仅表示发货操作成功
     "pending": {"en": "Pending", "zh": "待处理"},
     "open": {"en": "Open", "zh": "已创建"},
-    "success": {"en": "Received", "zh": "已收货"},  # success = 已收货
-    "in_transit": {"en": "In Transit", "zh": "运输中"},
-    "out_for_delivery": {"en": "Out for Delivery", "zh": "派送中"},
-    "cancelled": {"en": "Cancelled", "zh": "已取消"},  # 取消退款（未发货就取消）
+    "success": {"en": "Received", "zh": "已收货"},  # 兼容旧逻辑：success → 已收货
+    "cancelled": {"en": "Cancelled", "zh": "已取消"},
     "error": {"en": "Error", "zh": "错误"},
-    "failure": {"en": "Delivery Failed", "zh": "投递失败"},
-    "active": {"en": "Active", "zh": "已生效"},  # 服务类商品已生效
-    "expired": {"en": "Expired", "zh": "已失效"},  # 服务类商品已失效（随实物退款）
-    "service": {"en": "Active", "zh": "已生效"},  # 服务类商品标记
-    "refunded": {"en": "Refunded", "zh": "已退款"},  # 仅退款（不退货）
-    "returned": {"en": "Returned & Refunded", "zh": "已退货退款"},  # 退货退款
+
+    # 服务类商品状态
+    "active": {"en": "Active", "zh": "已生效"},
+    "expired": {"en": "Expired", "zh": "已失效"},
+    "service": {"en": "Active", "zh": "已生效"},
+
+    # 退款相关状态
+    "refunded": {"en": "Refunded", "zh": "已退款"},
+    "returned": {"en": "Returned & Refunded", "zh": "已退货退款"},
 }
 
 # 物流追踪状态（通用，用于第三方物流API）
@@ -189,21 +207,24 @@ def get_tracking_url(carrier: str, tracking_number: str) -> Optional[str]:
         tracking_number: 运单号
 
     Returns:
-        追踪链接，如果承运商不支持则返回 None
+        追踪链接，如果没有运单号返回 None，否则至少返回 17track 通用链接
     """
-    if not carrier or not tracking_number:
+    if not tracking_number:
         return None
 
-    # 标准化承运商名称
-    normalized_carrier = normalize_carrier_name(carrier)
+    # 如果有承运商名称，尝试使用专用链接
+    if carrier:
+        # 标准化承运商名称
+        normalized_carrier = normalize_carrier_name(carrier)
 
-    # 查找追踪链接模板
-    template = CARRIER_TRACKING_URLS.get(normalized_carrier)
+        # 查找追踪链接模板
+        template = CARRIER_TRACKING_URLS.get(normalized_carrier)
 
-    if template:
-        return template.format(tracking_number=tracking_number)
+        if template:
+            return template.format(tracking_number=tracking_number)
 
-    return None
+    # 回退：使用 17track 通用追踪链接（支持全球 1000+ 快递公司）
+    return f"https://t.17track.net/en#nums={tracking_number}"
 
 
 def translate_fulfillment_status(status: Optional[str], lang: str = "zh") -> str:
