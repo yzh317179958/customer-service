@@ -1,7 +1,7 @@
 openapi: 3.0.0
 info:
   title: Fiido Shopify 多站点订单查询
-  version: 3.0.0
+  version: 4.0.0
   description: |
     用于查询 Fiido 所有 Shopify 店铺的订单和物流信息。
 
@@ -14,6 +14,13 @@ info:
     - US (美国站), UK (英国站), EU (欧洲站)
     - DE (德国站), FR (法国站), IT (意大利站)
     - ES (西班牙站), NL (荷兰站), PL (波兰站)
+
+    ## v4.0.0 更新（重要！）
+    - **新增 delivery_status 字段**：商品送达状态（success/in_transit/returned/refunded等）
+    - **新增 delivery_status_zh 字段**：商品状态中文翻译（已收货/运输中/已退款等）
+    - **新增 delivery_status_en 字段**：商品状态英文翻译（Received/In Transit/Refunded等）
+    - **新增商品级物流字段**：tracking_company, tracking_number, tracking_url
+    - AI 回复时必须直接使用 delivery_status_zh/en 字段，不要自行判断状态！
 
     ## v3.0.0 更新
     - 从UK单站点升级为全站点自动识别（9个站点）
@@ -145,7 +152,25 @@ paths:
                                   description: 单价
                                 fulfillment_status:
                                   type: string
-                                  description: 商品级别发货状态（fulfilled/null）
+                                  description: 商品级别发货状态（fulfilled/null/service）
+                                delivery_status:
+                                  type: string
+                                  description: 商品送达/退款状态（success/in_transit/returned/refunded/cancelled/active/expired等）
+                                delivery_status_zh:
+                                  type: string
+                                  description: 商品状态中文翻译（已收货/运输中/已退款/已退货退款/已取消/已生效/已失效等）- AI回复时必须直接使用此字段！
+                                delivery_status_en:
+                                  type: string
+                                  description: 商品状态英文翻译（Received/In Transit/Refunded/Returned & Refunded/Cancelled/Active/Expired等）- AI回复时必须直接使用此字段！
+                                tracking_company:
+                                  type: string
+                                  description: 承运商（商品级别）
+                                tracking_number:
+                                  type: string
+                                  description: 运单号（商品级别）
+                                tracking_url:
+                                  type: string
+                                  description: 物流追踪链接（商品级别）
                                 image_url:
                                   type: string
                                   description: 商品图片 URL（Shopify CDN）
