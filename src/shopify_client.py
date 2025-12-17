@@ -45,6 +45,8 @@ class ShopifyLineItem(BaseModel):
     price: str
     fulfillment_status: Optional[str] = None  # 商品级别发货状态: fulfilled/null
     delivery_status: Optional[str] = None  # 送达状态: success(已送达)/pending/in_transit/failure
+    delivery_status_zh: Optional[str] = None  # 状态文本（中文）
+    delivery_status_en: Optional[str] = None  # 状态文本（英文）
     tracking_company: Optional[str] = None  # 承运商
     tracking_number: Optional[str] = None  # 运单号
     tracking_url: Optional[str] = None  # 追踪链接
@@ -542,6 +544,49 @@ class ShopifyClient:
 
         return False
 
+    def _translate_delivery_status(
+        self,
+        delivery_status: Optional[str],
+        fulfillment_status: Optional[str]
+    ) -> tuple:
+        """
+        翻译商品状态为中英文文本
+
+        Args:
+            delivery_status: 送达/退款状态
+            fulfillment_status: 发货状态
+
+        Returns:
+            (中文状态, 英文状态) 元组
+        """
+        # 状态翻译映射表
+        status_map = {
+            # 退款相关状态
+            "returned": ("已退货退款", "Returned & Refunded"),
+            "refunded": ("已退款", "Refunded"),
+            "cancelled": ("已取消", "Cancelled"),
+            "expired": ("已失效", "Expired"),
+            # 服务类商品状态
+            "active": ("已生效", "Active"),
+            "pending": ("待支付", "Payment Pending"),
+            # 物流状态
+            "success": ("已收货", "Received"),
+            "in_transit": ("运输中", "In Transit"),
+            "out_for_delivery": ("派送中", "Out for Delivery"),
+            "failure": ("投递失败", "Delivery Failed"),
+        }
+
+        # 优先使用 delivery_status
+        if delivery_status and delivery_status in status_map:
+            return status_map[delivery_status]
+
+        # 其次使用 fulfillment_status
+        if fulfillment_status == "fulfilled":
+            return ("已发货", "Shipped")
+
+        # 默认待发货
+        return ("待发货", "Pending")
+
     def _parse_order_detail(self, order: Dict) -> ShopifyOrderDetail:
         """解析订单详情"""
         summary = self._parse_order_summary(order)
@@ -680,6 +725,9 @@ class ShopifyClient:
 
                     fulfillment_status = item.get("fulfillment_status")
 
+            # 翻译 delivery_status 为中英文状态文本
+            status_zh, status_en = self._translate_delivery_status(delivery_status, fulfillment_status)
+
             # 获取商品图片和链接
             image_url = self._get_product_image_by_title(item_title)
             product_url = None
@@ -695,6 +743,8 @@ class ShopifyClient:
                 price=item.get("price", "0"),
                 fulfillment_status=fulfillment_status,
                 delivery_status=delivery_status,
+                delivery_status_zh=status_zh,
+                delivery_status_en=status_en,
                 tracking_company=fulfillment_info.get("tracking_company") if not is_service_product else None,
                 tracking_number=fulfillment_info.get("tracking_number") if not is_service_product else None,
                 tracking_url=fulfillment_info.get("tracking_url") if not is_service_product else None,
