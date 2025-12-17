@@ -87,10 +87,12 @@ function transformProductCards(content: string): string {
                        statusLower.includes('delivered') ||
                        (statusLower.includes('success') && !statusLower.includes('active'))
 
-    // 运输中状态
+    // 运输中状态 - 支持 in_transit 和 in transit 两种格式
     const isInTransit = status.includes('运输中') ||
                         status.includes('派送中') ||
+                        statusLower.includes('in_transit') ||
                         statusLower.includes('in transit') ||
+                        statusLower.includes('out_for_delivery') ||
                         statusLower.includes('out for delivery')
 
     // 已发货状态
@@ -176,10 +178,12 @@ function transformProductCards(content: string): string {
         </div>
         ${hasTracking ? `
           <div class="tracking-section">
-            <span class="tracking-icon">🚚</span>
-            ${carrier ? `<span class="tracking-carrier-text">${carrier}</span>` : ''}
-            ${carrier && trackingNumber ? `<span class="tracking-sep">·</span>` : ''}
-            ${trackingNumber ? `<span class="tracking-number">${trackingNumber}</span>` : ''}
+            <div class="tracking-info">
+              <span class="tracking-icon">🚚</span>
+              ${carrier ? `<span class="tracking-carrier-text">${carrier}</span>` : ''}
+              ${carrier && trackingNumber ? `<span class="tracking-sep">·</span>` : ''}
+              ${trackingNumber ? `<span class="tracking-number">${trackingNumber}</span>` : ''}
+            </div>
             ${trackingUrl ? `<a href="${trackingUrl}" target="_blank" class="tracking-link"><span class="link-icon">↗</span>${trackText}</a>` : ''}
           </div>
         ` : ''}
@@ -948,15 +952,26 @@ const senderName = computed(() => {
   font-size: 12px;
 }
 
-/* ===== 物流追踪区块 - 单行紧凑布局 ===== */
+/* ===== 物流追踪区块 - 自适应两行布局 ===== */
 .message-content :deep(.tracking-section) {
   display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: space-between;
+  gap: 8px;
   background: #f8fafc;
   border-top: 1px solid rgba(0, 0, 0, 0.04);
-  padding: 6px 12px;
-  flex-wrap: nowrap;
+  padding: 8px 12px;
+  flex-wrap: wrap;
+}
+
+/* 物流信息区域（承运商+运单号）*/
+.message-content :deep(.tracking-info) {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
 }
 
 .message-content :deep(.tracking-icon) {
@@ -976,14 +991,14 @@ const senderName = computed(() => {
   font-size: 9px;
 }
 
-/* 运单号 - 紧凑字体，完整显示 */
+/* 运单号 - 允许换行显示长运单号 */
 .message-content :deep(.tracking-number) {
   font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
   font-size: 9px;
   font-weight: 500;
   color: #64748b;
   letter-spacing: -0.02em;
-  white-space: nowrap;
+  word-break: break-all;
 }
 
 /* 追踪链接 - 迷你按钮 + 微光动效 */
@@ -991,14 +1006,13 @@ const senderName = computed(() => {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  margin-left: auto;
   font-size: 9px;
   font-weight: 500;
   color: #0891b2;
   text-decoration: none;
-  padding: 2px 6px;
+  padding: 3px 8px;
   background: linear-gradient(135deg, #f0fdfa 0%, #e0f7f6 100%);
-  border-radius: 3px;
+  border-radius: 4px;
   border: 1px solid #99f6e4;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   flex-shrink: 0;
