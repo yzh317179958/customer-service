@@ -1,7 +1,7 @@
 # Fiido 智能服务平台 - 项目架构概览
 
 > **最后更新**：2025-12-18
-> **文档版本**：v2.0
+> **文档版本**：v2.1
 
 ---
 
@@ -54,9 +54,16 @@ Fiido 智能服务平台是面向跨境电商的一站式 AI 解决方案，采�
 
 ```
 /home/yzh/AI客服/鉴权/
+│
+├── 【核心文件】
+├── backend.py                   # 主服务入口（AI客服后端）
 ├── CLAUDE.md                    # 最高开发规范
 ├── PROJECT_OVERVIEW.md          # 本文档
+├── requirements.txt             # Python 依赖
+├── .env                         # 环境配置
+├── README.md                    # 项目说明
 │
+├── 【三层架构】
 ├── products/                    # 产品层
 │   ├── README.md               # 产品层规范
 │   ├── ai_chatbot/             # AI 智能客服
@@ -77,13 +84,26 @@ Fiido 智能服务平台是面向跨境电商的一站式 AI 解决方案，采�
 │   ├── scheduler/              # 定时任务
 │   ├── logging/                # 日志
 │   ├── monitoring/             # 监控
-│   └── security/               # 安全
+│   └── security/               # 安全认证
 │
-├── frontend/                    # 用户端前端
-├── agent-workbench/             # 坐席工作台前端
+├── 【前端应用】
+├── frontend/                    # 用户端前端（Vue）
+│
+├── 【资源与配置】
+├── prompts/                     # AI 提示词模板
+├── assets/                      # 静态资源（图片等）
+├── config/                      # 配置文件（私钥等）
+├── data/                        # 数据目录
+│
+├── 【运维与文档】
+├── scripts/                     # 脚本工具
+├── deploy/                      # 部署配置
 ├── docs/                        # 文档
+│   └── prd/                    # PRD 文档
 ├── tests/                       # 测试
-└── prompts/                     # AI 提示词
+│
+└── 【兼容层】
+└── src/                         # 兼容层（重导出新模块，保持旧import可用）
 ```
 
 ---
@@ -118,7 +138,7 @@ Fiido 智能服务平台是面向跨境电商的一站式 AI 解决方案，采�
 | 定时任务 | infrastructure/scheduler | 待迁移 | APScheduler |
 | 日志 | infrastructure/logging | 待创建 | 日志配置 |
 | 监控 | infrastructure/monitoring | 待迁移 | 健康检查 |
-| 安全 | infrastructure/security | 待创建 | 限流、校验 |
+| 安全认证 | infrastructure/security | 已完成 | JWT签名、坐席认证 |
 
 ---
 
@@ -182,4 +202,4 @@ CLAUDE.md（全局最高法）
 
 ---
 
-*文档版本 v2.0 - 2025-12-18*
+*文档版本 v2.1 - 2025-12-18*

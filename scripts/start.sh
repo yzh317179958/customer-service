@@ -5,6 +5,12 @@ echo "🚀 启动 Fiido 智能客服系统"
 echo "=========================================="
 echo ""
 
+# 获取脚本所在目录的上级目录（项目根目录）
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+cd "$PROJECT_ROOT"
+
 # 检查 .env 文件
 if [ ! -f .env ]; then
     echo "❌ 错误: .env 文件不存在"
@@ -26,9 +32,11 @@ fi
 
 echo "✅ 依赖检查完成"
 echo ""
-echo "==========================================启动后端服务..."
-echo "==========================================
+echo "=========================================="
+echo "🚀 启动后端服务..."
+echo "=========================================="
 echo ""
 
-# 启动后端
+# 启动后端（使用 products/ai_chatbot/backend.py）
+cd products/ai_chatbot
 python3 backend.py

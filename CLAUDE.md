@@ -1,7 +1,7 @@
 # Fiido 智能服务平台 - 最高开发规范
 
 > **文档性质**：最高法案，所有开发必须遵守
-> **文档版本**：v3.0
+> **文档版本**：v3.1
 > **最后更新**：2025-12-18
 
 ---
@@ -18,8 +18,8 @@ Fiido 智能服务平台是面向跨境电商的一站式 AI 解决方案，采�
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                            main.py                                   │
-│                          （应用入口）                                 │
+│                          backend.py                                  │
+│                        （主服务入口）                                 │
 └─────────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
@@ -62,10 +62,15 @@ Fiido 智能服务平台是面向跨境电商的一站式 AI 解决方案，采�
 ```
 /home/yzh/AI客服/鉴权/
 │
+├── 【核心文件】
+├── backend.py                   # 主服务入口（AI客服后端）
 ├── CLAUDE.md                    # 【本文件】最高开发规范
 ├── PROJECT_OVERVIEW.md          # 架构总览与模块清单
+├── requirements.txt             # Python 依赖
 ├── .env                         # 环境配置
+├── README.md                    # 项目说明
 │
+├── 【三层架构】
 ├── products/                    # 【产品层】
 │   ├── README.md               # 产品层规范
 │   ├── ai_chatbot/             # AI 智能客服
@@ -86,16 +91,26 @@ Fiido 智能服务平台是面向跨境电商的一站式 AI 解决方案，采�
 │   ├── scheduler/              # 定时任务
 │   ├── logging/                # 日志系统
 │   ├── monitoring/             # 监控告警
-│   └── security/               # 安全组件
+│   └── security/               # 安全认证（JWT、坐席认证）
 │
+├── 【前端应用】
 ├── frontend/                    # 用户端前端（Vue）
-├── agent-workbench/            # 坐席工作台前端（Vue）
 │
-├── main.py                      # 主入口
-├── config.py                    # 全局配置
+├── 【资源与配置】
+├── prompts/                     # AI 提示词模板
+├── assets/                      # 静态资源（图片等）
+├── config/                      # 配置文件（私钥等）
+├── data/                        # 数据目录
+│
+├── 【运维与文档】
+├── scripts/                     # 脚本工具
+├── deploy/                      # 部署配置
 ├── docs/                        # 文档
+│   └── prd/                    # PRD 文档
 ├── tests/                       # 测试
-└── scripts/                     # 运维脚本
+│
+└── 【兼容层】
+└── src/                         # 兼容层（重导出新模块，保持旧import可用）
 ```
 
 ### 2.3 各层职责
@@ -159,7 +174,7 @@ products/ ──────► services/ ──────► infrastructure/
         ↓
 3. products/（业务功能）
         ↓
-4. main.py（注册路由）
+4. backend.py（注册路由，如需要）
         ↓
 5. 测试验证
 ```
@@ -386,10 +401,10 @@ ENABLE_AGENT_WORKBENCH=true   # 坐席工作台
 ENABLE_NOTIFICATION=false     # 物流通知（开发中）
 ```
 
-### 7.2 main.py 条件注册
+### 7.2 backend.py 条件注册
 
 ```python
-# main.py
+# backend.py
 if config.ENABLE_AI_CHATBOT:
     from products.ai_chatbot.routes import router as ai_chatbot_router
     app.include_router(ai_chatbot_router)
@@ -456,8 +471,8 @@ ssh root@8.211.27.199 'cd /opt/fiido-ai-service && git pull && \
 | 产品层规范 | products/README.md |
 | 服务层规范 | services/README.md |
 | 基础设施规范 | infrastructure/README.md |
-| Vibe Coding 规范 | Vibe_Coding开发规范流程说明.md |
 | 开发参考手册 | docs/开发参考手册.md |
+| 架构对比分析 | docs/架构对比分析.md |
 
 ---
 
@@ -465,5 +480,6 @@ ssh root@8.211.27.199 'cd /opt/fiido-ai-service && git pull && \
 
 | 版本 | 日期 | 变更内容 |
 |------|------|----------|
+| v3.1 | 2025-12-18 | 更新目录结构反映实际情况（backend.py、src兼容层等） |
 | v3.0 | 2025-12-18 | 重构为三层架构规范，添加依赖规则、开发指南 |
 | v2.2 | 2025-12-16 | 原 AI 客服开发指令（已迁移到模块级别） |
