@@ -429,11 +429,6 @@ WORKFLOW_ID: str = ""
 APP_ID: str = ""  # AI 应用 ID（应用中嵌入对话流时必需）
 AUTH_MODE: str = ""  # 鉴权模式：OAUTH_JWT 或 PAT
 
-# Conversation 管理 - 存储每个 session_name 对应的 conversation_id
-# 实现原理: 首次不传 conversation_id,Coze 会自动生成并返回
-# 后续对话必须传入相同的 conversation_id 以保持上下文
-conversation_cache: dict = {}  # {session_name: conversation_id}
-
 
 def _format_timestamp(ts: Optional[float]) -> str:
     if not ts:
@@ -1535,6 +1530,8 @@ async def manual_escalate(request: dict):
 
     try:
         # 获取或创建会话状态
+        # 从 AI 客服模块获取 conversation_cache
+        from products.ai_chatbot.handlers.chat import conversation_cache
         session_state = await session_store.get_or_create(
             session_name=session_name,
             conversation_id=conversation_cache.get(session_name)
