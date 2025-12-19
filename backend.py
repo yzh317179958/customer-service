@@ -1245,6 +1245,19 @@ async def lifespan(app: FastAPI):
     else:
         print("⏭️ 缓存预热已禁用 (WARMUP_ENABLED=false)")
 
+    # 初始化 AI 客服模块依赖
+    try:
+        from products.ai_chatbot import dependencies as ai_deps
+        ai_deps.set_coze_client(coze_client)
+        ai_deps.set_token_manager(token_manager)
+        ai_deps.set_session_store(session_store)
+        ai_deps.set_regulator(regulator)
+        ai_deps.set_jwt_oauth_app(jwt_oauth_app)
+        ai_deps.set_config(WORKFLOW_ID, APP_ID)
+        print("✅ AI 客服模块依赖初始化成功")
+    except Exception as e:
+        print(f"⚠️ AI 客服模块依赖初始化失败: {e}")
+
     yield
 
     # 关闭时清理

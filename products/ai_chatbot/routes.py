@@ -22,9 +22,12 @@ from fastapi import APIRouter
 # 创建主路由
 router = APIRouter(tags=["AI智能客服"])
 
-# 子路由将在后续步骤中添加
-# from products.ai_chatbot.handlers.chat import router as chat_router
-# from products.ai_chatbot.handlers.conversation import router as conversation_router
+# 导入子路由
+from products.ai_chatbot.handlers.chat import router as chat_router
+from products.ai_chatbot.handlers.conversation import router as conversation_router
+from products.ai_chatbot.handlers.config import router as config_router
 
-# router.include_router(chat_router)
-# router.include_router(conversation_router)
+# 注册所有子路由
+router.include_router(chat_router)
+router.include_router(conversation_router)
+router.include_router(config_router)
