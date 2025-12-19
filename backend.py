@@ -1322,6 +1322,11 @@ from products.ai_chatbot import get_router as get_ai_chatbot_router
 app.include_router(get_ai_chatbot_router(), prefix="/api", tags=["AI智能客服"])
 print("✅ AI 客服模块路由已注册: /api/*")
 
+# 注册坐席工作台模块路由
+from products.agent_workbench import get_router as get_agent_workbench_router
+app.include_router(get_agent_workbench_router(), prefix="/api", tags=["坐席工作台"])
+print("✅ 坐席工作台模块路由已注册: /api/*")
+
 
 # ====================
 # JWT 权限中间件 (Agent Authorization Middleware)
