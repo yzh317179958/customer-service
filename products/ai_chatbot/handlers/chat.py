@@ -34,7 +34,7 @@ from products.ai_chatbot.dependencies import (
 from products.ai_chatbot.models import ChatRequest, ChatResponse
 
 # 导入会话状态相关
-from src.session_state import (
+from services.session.state import (
     SessionState,
     SessionStatus,
     Message,

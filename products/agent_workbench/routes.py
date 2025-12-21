@@ -10,7 +10,9 @@
 - /templates/* - 模板管理
 - /agents/* - 坐席管理（Admin）
 - /assist-requests/* - 协助请求
-- /manual/* - 手动操作
+- /shopify/* - Shopify 订单查询
+- /warmup/* - 缓存预热管理
+- /cdn/* - CDN 健康检查
 - /customers/* - 客户信息
 - /admin/* - 管理员操作
 """
@@ -29,6 +31,9 @@ from products.agent_workbench.handlers.templates import router as templates_rout
 from products.agent_workbench.handlers.agents import router as agents_router
 from products.agent_workbench.handlers.assist_requests import router as assist_requests_router
 from products.agent_workbench.handlers.misc import router as misc_router
+from products.agent_workbench.handlers.shopify import router as shopify_router
+from products.agent_workbench.handlers.warmup import router as warmup_router
+from products.agent_workbench.handlers.cdn import router as cdn_router
 
 # Register sub-routers
 router.include_router(auth_router)
@@ -39,3 +44,6 @@ router.include_router(templates_router)
 router.include_router(agents_router)
 router.include_router(assist_requests_router)
 router.include_router(misc_router)
+router.include_router(shopify_router)
+router.include_router(warmup_router)
+router.include_router(cdn_router)

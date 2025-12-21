@@ -1,0 +1,34 @@
+[Unit]
+Description=Fiido AI Backend Service (All-in-One)
+Documentation=https://github.com/fiido/ai-service
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/fiido-ai-service
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+EnvironmentFile=/opt/fiido-ai-service/.env
+
+# 启动命令 - 全家桶模式
+ExecStart=/usr/local/bin/uvicorn backend:app --host 0.0.0.0 --port 8000 --workers 4
+
+# 重启策略
+Restart=always
+RestartSec=5
+
+# 资源限制
+LimitNOFILE=65535
+LimitNPROC=4096
+
+# 日志
+StandardOutput=append:/var/log/fiido/backend.log
+StandardError=append:/var/log/fiido/backend.error.log
+
+# 安全设置
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

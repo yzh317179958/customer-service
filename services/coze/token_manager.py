@@ -9,7 +9,7 @@ from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
 import os
 
-from src.jwt_signer import JWTSigner
+from services.coze.jwt_signer import JWTSigner
 
 
 class OAuthTokenManager:

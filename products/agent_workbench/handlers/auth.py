@@ -21,12 +21,19 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from infrastructure.security.agent_auth import (
-    AgentManager, AgentTokenManager, Agent, AgentStatus,
-    LoginRequest, LoginResponse, agent_to_dict,
-    ChangePasswordRequest, UpdateProfileRequest,
-    PasswordHasher, validate_password
+    AgentManager,
+    AgentTokenManager,
+    Agent,
+    AgentStatus,
+    LoginRequest,
+    LoginResponse,
+    agent_to_dict,
+    ChangePasswordRequest,
+    UpdateProfileRequest,
+    PasswordHasher,
+    validate_password,
 )
-from src.session_state import SessionStatus
+from services.session.state import SessionStatus
 
 from products.agent_workbench.dependencies import (
     get_agent_manager, get_agent_token_manager, get_session_store,

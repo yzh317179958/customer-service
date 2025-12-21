@@ -10,7 +10,7 @@ from typing import List, Optional
 import redis
 import uuid
 
-from src.quick_reply import QuickReply, QuickReplyCategory
+from services.session.quick_reply import QuickReply, QuickReplyCategory
 
 
 class QuickReplyStore:

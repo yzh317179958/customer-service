@@ -12,9 +12,9 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 # 类型导入
 from infrastructure.security.agent_auth import AgentManager, AgentTokenManager
-from src.session_state import SessionStateStore
-from src.ticket_store import TicketStore
-from src.quick_reply_store import QuickReplyStore
+from services.session.state import SessionStateStore
+from services.ticket.store import TicketStore
+from services.session.quick_reply_store import QuickReplyStore
 from services.ticket.audit import AuditLogStore
 
 

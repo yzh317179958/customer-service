@@ -47,12 +47,16 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 
 from services.ticket.models import (
-    Ticket, TicketStatus, TicketPriority, TicketType,
-    TicketCustomerInfo, TicketCommentType
+    Ticket,
+    TicketStatus,
+    TicketPriority,
+    TicketType,
+    TicketCustomerInfo,
+    TicketCommentType,
 )
 from services.ticket.store import TicketStore
-from src.sla_timer import SLATimer, calculate_ticket_sla, SLAStatus
-from src.session_state import SessionState, SessionStatus, MessageRole
+from services.ticket.sla import SLATimer, calculate_ticket_sla, SLAStatus
+from services.session.state import SessionState, SessionStatus, MessageRole
 
 from products.agent_workbench.dependencies import (
     get_ticket_store, get_audit_log_store, get_session_store,

@@ -1,0 +1,8 @@
+{
+  "name": "Copy of Fiido 智能坐席工作台",
+  "description": "专为 Fiido 品牌打造的专业级 AI 智能客服系统，支持全渠道会话、工单流转、实时监控及 AI 坐席辅助。",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

@@ -13,10 +13,12 @@ from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from src.assist_request import (
-    AssistRequest, AssistStatus,
-    CreateAssistRequestRequest, AnswerAssistRequestRequest,
-    AssistRequestStore
+from services.ticket.assist_request import (
+    AssistRequest,
+    AssistStatus,
+    CreateAssistRequestRequest,
+    AnswerAssistRequestRequest,
+    AssistRequestStore,
 )
 
 from products.agent_workbench.dependencies import (

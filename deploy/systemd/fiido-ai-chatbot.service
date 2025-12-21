@@ -1,0 +1,38 @@
+[Unit]
+Description=Fiido AI Chatbot Service (Standalone)
+Documentation=https://github.com/fiido/ai-service
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/fiido-ai-service
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONPATH=/opt/fiido-ai-service"
+EnvironmentFile=/opt/fiido-ai-service/.env
+
+# 产品特定配置
+Environment="AI_CHATBOT_PORT=8001"
+
+# 启动命令 - 独立模式
+ExecStart=/usr/local/bin/uvicorn products.ai_chatbot.main:app --host 0.0.0.0 --port 8001 --workers 2
+
+# 重启策略
+Restart=always
+RestartSec=5
+
+# 资源限制
+LimitNOFILE=32768
+LimitNPROC=2048
+
+# 日志
+StandardOutput=append:/var/log/fiido/ai-chatbot.log
+StandardError=append:/var/log/fiido/ai-chatbot.error.log
+
+# 安全设置
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

@@ -17,6 +17,9 @@ _token_manager = None
 _session_store = None
 _regulator = None
 _jwt_oauth_app = None
+_sse_queues: dict = {}
+_smart_assignment_engine = None
+_customer_reply_auto_reopen = None
 
 # 配置变量
 _workflow_id: str = ""
@@ -60,6 +63,24 @@ def set_config(workflow_id: str, app_id: str):
     _app_id = app_id
 
 
+def set_sse_queues(queues: dict):
+    """设置 SSE 队列（由 backend.py 调用）"""
+    global _sse_queues
+    _sse_queues = queues
+
+
+def set_smart_assignment_engine(engine):
+    """设置智能分配引擎（由 backend.py 调用）"""
+    global _smart_assignment_engine
+    _smart_assignment_engine = engine
+
+
+def set_customer_reply_auto_reopen(rule):
+    """设置客户回复自动恢复规则（由 backend.py 调用）"""
+    global _customer_reply_auto_reopen
+    _customer_reply_auto_reopen = rule
+
+
 # ==================== Getter 函数（用于 Depends 注入）====================
 
 def get_coze_client() -> Coze:
@@ -101,6 +122,21 @@ def get_workflow_id() -> str:
 def get_app_id() -> str:
     """获取 App ID"""
     return _app_id
+
+
+def get_sse_queues() -> dict:
+    """获取 SSE 队列"""
+    return _sse_queues
+
+
+def get_smart_assignment_engine():
+    """获取智能分配引擎"""
+    return _smart_assignment_engine
+
+
+def get_customer_reply_auto_reopen():
+    """获取客户回复自动恢复规则"""
+    return _customer_reply_auto_reopen
 
 
 # ==================== 依赖注入帮助函数 ====================

@@ -15,6 +15,8 @@ AI 智能客服 - API 路由
 - GET /shift/status - 班次状态
 - GET /token/info - Token 信息
 - POST /token/refresh - 刷新 Token
+- POST /manual/escalate - 人工升级
+- POST /manual/messages - 人工消息写入
 """
 
 from fastapi import APIRouter
@@ -26,8 +28,10 @@ router = APIRouter(tags=["AI智能客服"])
 from products.ai_chatbot.handlers.chat import router as chat_router
 from products.ai_chatbot.handlers.conversation import router as conversation_router
 from products.ai_chatbot.handlers.config import router as config_router
+from products.ai_chatbot.handlers.manual import router as manual_router
 
 # 注册所有子路由
 router.include_router(chat_router)
 router.include_router(conversation_router)
 router.include_router(config_router)
+router.include_router(manual_router)

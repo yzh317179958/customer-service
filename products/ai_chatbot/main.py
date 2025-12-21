@@ -1,0 +1,92 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+AI 智能客服 - 独立启动入口
+
+使用方法:
+    # 直接运行
+    python -m products.ai_chatbot.main
+
+    # 使用 uvicorn
+    uvicorn products.ai_chatbot.main:app --host 0.0.0.0 --port 8001
+
+    # 使用环境变量配置
+    AI_CHATBOT_PORT=8001 python -m products.ai_chatbot.main
+
+环境变量:
+    AI_CHATBOT_HOST     - 监听地址，默认 0.0.0.0
+    AI_CHATBOT_PORT     - 监听端口，默认 8001
+    DEBUG               - 调试模式，默认 false
+    ENABLE_REGULATOR    - 启用监管引擎，默认 true
+    WARMUP_ENABLED      - 启用预热，默认 true
+"""
+
+import sys
+from pathlib import Path
+
+# 确保项目根目录在 Python 路径中
+project_root = Path(__file__).parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from products.ai_chatbot.config import get_config
+from products.ai_chatbot.lifespan import lifespan
+from products.ai_chatbot.routes import router
+
+
+def create_app() -> FastAPI:
+    """创建 AI 客服 FastAPI 应用"""
+    config = get_config()
+
+    app = FastAPI(
+        title=config.product_name,
+        description="Fiido AI 智能客服系统 - 独立模式",
+        version="1.0.0",
+        lifespan=lifespan,
+    )
+
+    # 保存配置到 app.state
+    app.state.config = config
+
+    # CORS 中间件
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=config.cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # 注册路由
+    app.include_router(router, prefix=config.api_prefix)
+
+    # 根路径健康检查
+    @app.get("/")
+    async def root():
+        return {
+            "product": config.product_name,
+            "code": config.product_code,
+            "status": "running",
+            "mode": "standalone",
+        }
+
+    return app
+    
+
+# 创建应用实例（供 uvicorn 使用）
+app = create_app()
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    config = get_config()
+    uvicorn.run(
+        "products.ai_chatbot.main:app",
+        host=config.host,
+        port=config.port,
+        reload=config.debug,
+    )

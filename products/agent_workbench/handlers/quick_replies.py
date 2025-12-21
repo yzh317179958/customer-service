@@ -16,9 +16,16 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from src.quick_reply import QuickReply, QUICK_REPLY_CATEGORIES, SUPPORTED_VARIABLES
-from src.quick_reply_store import QuickReplyStore
-from src.variable_replacer import VariableReplacer, build_variable_context
+from services.session.quick_reply import (
+    QuickReply,
+    QUICK_REPLY_CATEGORIES,
+    SUPPORTED_VARIABLES,
+)
+from services.session.quick_reply_store import QuickReplyStore
+from services.session.variable_replacer import (
+    VariableReplacer,
+    build_variable_context,
+)
 
 from products.agent_workbench.dependencies import (
     get_quick_reply_store, require_agent

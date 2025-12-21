@@ -1,0 +1,885 @@
+{
+  "check_time": "2025-12-11T10:22:49.570212",
+  "total": 109,
+  "valid": 109,
+  "invalid": 0,
+  "fixed": 0,
+  "details": {
+    "products": [
+      {
+        "key": "air-carbon-fiber",
+        "title": "Fiido Air Ultra-Light Carbon Fiber E-Bik",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "c11-electric-commute",
+        "title": "Fiido C11 City E-Bike",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "c11-pro",
+        "title": "Fiido C11 Pro City E-Bike",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "c21-lightweight-step",
+        "title": "Fiido C21 Gravel & City E-Bike",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "d3-pro-mini",
+        "title": "Fiido D3 Pro Mini Electric Bike",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "l3-long-range",
+        "title": "Fiido L3 Long Range Electric Bike",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "m1-pro-fat-tire",
+        "title": "Fiido M1 Pro Fat Tire Electric Bike",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "nomads-trekking",
+        "title": "Fiido Nomads Touring E-bike",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "t1",
+        "title": "Fiido T1 Pro Utility Electric Bike",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "t2-longtail-cargo-fo",
+        "title": "Fiido T2 Longtail Cargo E-bike",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "titan-robust-cargo-w",
+        "title": "Titan Fat Tire Touring Ebike - Long Rang",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      }
+    ],
+    "accessories": [
+      {
+        "key": "fiido_bike_brake_pads",
+        "title": "Fiido Electric Bike Brake Pads",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_electric_bike_charg",
+        "title": "Fiido Electric Bike Charger",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_phone_holder_for_c2",
+        "title": "Fiido phone holder",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_handlebar_bag",
+        "title": "Fiido Black Handlebar Bag",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d1_twist_throttle_s",
+        "title": "Fiido Twist Throttle Speed Handlebar for",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "rear_view_mirror",
+        "title": "Rear View Mirror",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_m1_fender",
+        "title": "Fiido Fender for M1/M1Pro/M21",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_x_electric_bike_rea",
+        "title": "Rear Rack Bag for Fiido",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d4s_fender",
+        "title": "Fiido Electric Bike Fender Set for D4S",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_14_inch_us_mouth_pn",
+        "title": "Fiido 14-inch Us Mouth Pneumatic Inner T",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d2_fender",
+        "title": "Fiido Fender for D2/D2S",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_dc_charging_port_d1",
+        "title": "Fiido DC Charging Port for D1/D2/D2S/D4S",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "bike_rack_pannier_bag",
+        "title": "Bike Rack Pannier Bag",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d1_brakerear",
+        "title": "Fiido Rear Brake for D1/D2/D2S/D3/D3S/D4",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "rear_wheel_spokes",
+        "title": "Fiido Electric Bike Rear Wheel Spokes fo",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_electric_bike_pedal",
+        "title": "Fiido Electric Bike Pedals",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_electric_bike_batte",
+        "title": "Fiido Electric Bike Battery Shell for D1",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_m1_pro_charger",
+        "title": "Fiido Electric Bike Charger for M1 Pro",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_battery_d1_d4s_q1_q",
+        "title": "Additional Fiido Battery for D1/D4S/Q1/Q",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_power_off_brake_lev",
+        "title": "Fiido Cut Off Power Brake Lever for D1/D",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d1_battery_shell",
+        "title": "Fiido Battery Shell for D1/D2/D2S/D4S",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d2_inner_tube",
+        "title": "Fiido Inner Tube for D2/D2S/D3S",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d1_d3_l2_l3_tire",
+        "title": "Fiido Ebike Tire for D1/D3/L2/L3",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d1_front_brake",
+        "title": "Fiido Front Brake for D1/D2/D2S/D3/D3S/D",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "t1_inner_tube",
+        "title": "Fiido Electric Bike Inner Tube for T1/M1",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_titan_pannier",
+        "title": "Pannier bag for Titan",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_electric_bike_chain",
+        "title": "Fiido Electric Bike Chain Wheel and Cran",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d1_controller",
+        "title": "Fiido Controller for D1/D2",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_m1pro_battery",
+        "title": "Replacement battery for M1 Pro",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "disc_160",
+        "title": "Fiido Disc 160mm for D1/D2/D2S/D3/D3S/D4",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d11_seat_post_clamp",
+        "title": "Fiido Electric Bike Seat Post Clamp for ",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d1_controller_shell",
+        "title": "Fiido Controller Shell for D1/D2/D2S/D4S",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d4s_display",
+        "title": "Fiido Electric Bike Display for D4S",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_electric_bike_handl",
+        "title": "Fiido Electric Bike Handlebar - M1/M1Pro",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "child_safety_fence_with_s",
+        "title": "Child safety fence (with seat cushion) f",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_m1_outer_tube_tire",
+        "title": "Fiido Outer Tube Tire for M1/M1pro",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "front_basket_set_for_tita",
+        "title": "Front Basket Set for Titan",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d1_freewheel",
+        "title": "Fiido Freewheel for D1/D2/D3 pro",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d11_seatpost_shim",
+        "title": "Fiido D11 Seatpost Shim",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d4s_controller",
+        "title": "Fiido D4S Controller",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d4s_d11_kickstand",
+        "title": "Fiido Electric Bike Kickstand for D4S/D1",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "helmet_for_fiido",
+        "title": "Helmet for Fiido",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d3s_charger",
+        "title": "Fiido Charger for D3/D3S/D3 pro",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_kickstand_d2_d2s",
+        "title": "Fiido Kickstand for D2/D2S",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d2s_display",
+        "title": "Fiido Display for D2S/D3/D3S",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_controller_m1pro",
+        "title": "Fiido Controller for M1 Pro",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d11_electric_bike_r",
+        "title": "Fiido D11/D21 Electric Bike Rear Rack",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_electric_bike_tube_",
+        "title": "Fiido Electric Bike Tube for D4S/D11/D21",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d4s_fork",
+        "title": "Fiido D4S Fork",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d2s_controller",
+        "title": "Fiido Controller for D2S",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_e_gravel_c22_front_",
+        "title": "Front Basket For E-Gravel C22/C11/C11 PR",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_headset_d2s_d3_d4s_",
+        "title": "Fiido Headset for D2S/D3/D4S/Q1/Q1S/L2/L",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d1_integrated_boost",
+        "title": "Fiido Electric Bike Integrated Booster f",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "t1_charger",
+        "title": "Fiido Electric Bike Charger for T1/L3/L2",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d4s_headlight",
+        "title": "Fiido Electric Bike Headlight for D4S",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d1_headlight",
+        "title": "Fiido Headlight for D1/D2/D2S",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_m1_battery",
+        "title": "Fiido M1 Battery",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d11_quick_release",
+        "title": "Fiido Electric Bike Quick Release for D1",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_l2_battery_strip",
+        "title": "Fiido Battery Strip for L2 / L3",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d1_fender",
+        "title": "Fiido D1 Fender",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_m1_integrated_boost",
+        "title": "Fiido Integrated Booster for M1/M1Pro",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d3s_folding_stem",
+        "title": "Fiido Folding Stem for D2/D2S/D3/D3S/L3",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "front_basket_for_t2",
+        "title": "Front basket for T2",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d2_outer_tube_tire",
+        "title": "Fiido Outer Tire for D2/D2s/D3s",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "rear_rack_for_c21",
+        "title": "Rear Rack for C11/C21/C22/C11 PRO",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d11_lifting_ear",
+        "title": "Fiido Electric Bike Derailleur Hanger fo",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_m1_fork",
+        "title": "Fiido Electric Bike Fork for M1 / M1PRO ",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_l2_chain_tensioner",
+        "title": "Fiido L2 Chain Tensioner",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d2s_multi_function_",
+        "title": "Fiido Multi-function Switch for D2s/D3/D",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d1_motor",
+        "title": "Fiido D1 Motor",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d3s_cut_off_power_b",
+        "title": "Fiido Brake Lever Set for D3 pro/D3S/D4S",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_mate_cycling_watch",
+        "title": "Mate Watch for Fiido C11/C11 PRO/C21/AIR",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d11_chain",
+        "title": "Fiido Chain for D11/M1pro/M21",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_e_gravel_rear_rack",
+        "title": "Fiido E-Gravel Rear Rack",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_electric_bike_rear_",
+        "title": "Fiido Electric Bike Rear Wheel Spokes fo",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_l2_display",
+        "title": "Fiido L2 Display",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_frame_bag_q1_q1s",
+        "title": "Fiido Frame Bag for Q1/Q1S",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_m1_headlight",
+        "title": "Fiido Headlight for M1/M1Pro",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_folding_stem_q1_q1s",
+        "title": "Fiido Folding Stem for Q1/Q1S/M1/M1Pro",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_m1pro_battery_shell",
+        "title": "Fiido M21/M1Pro Battery Shell",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_l2_inner_tube",
+        "title": "Fiido Electric Bike Straight Valve Inner",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_m1_controller",
+        "title": "Fiido Controller for M1",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d2s_thumb_shifter",
+        "title": "Fiido Thumb Shifter for D2S/D3S/D4S",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d2_saddle",
+        "title": "Fiido Saddle for D2/D2S/D3/D3S/D4S/D3Pro",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "disc_180",
+        "title": "Fiido Disc 180mm for M1 Pro / M21",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_l3_motor",
+        "title": "Fiido L3 Motor",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d3s_battery",
+        "title": "Additional Fiido Battery for D3/D3S",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d2s_handlebar",
+        "title": "Fiido D2s Handlebar",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "rear_rack_for_m1_pro",
+        "title": "Rear rack for M1 Pro 2024/2025",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d11_controller",
+        "title": "Fiido Electric Bike Controller for D11",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "brake_pads_for_titan",
+        "title": "Brake pads for Titan/T2",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_x_battery",
+        "title": "Fiido X Battery",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_m1pro_rear_wheel_as",
+        "title": "Fiido Electric Bike Rear Wheel Assembly ",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d4s_pedals",
+        "title": "Fiido Electric Bike Pedals for D4S/D11",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_throttle",
+        "title": "Fiido Throttle for D3/D3S/D4S",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "range_extender_battery_fo",
+        "title": "Range Extender Battery for C21/C22/Air（2",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d11_rear_wheel_asse",
+        "title": "Fiido Electric Bike Rear Wheel Assembly ",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      },
+      {
+        "key": "fiido_d1_multi_function_s",
+        "title": "Fiido Multi-function Switch for D1/D2",
+        "valid": true,
+        "status_code": 200,
+        "error": "",
+        "status": "OK"
+      }
+    ]
+  }
+}

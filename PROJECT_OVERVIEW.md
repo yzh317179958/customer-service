@@ -1,13 +1,18 @@
 # Fiido 智能服务平台 - 项目架构概览
 
-> **最后更新**：2025-12-18
-> **文档版本**：v2.1
+> **最后更新**：2025-12-19
+> **文档版本**：v7.0
+> **代码版本**：v8.0.0
 
 ---
 
 ## 一、项目简介
 
 Fiido 智能服务平台是面向跨境电商的一站式 AI 解决方案，采用三层架构设计，支持多产品独立开发与部署。
+
+**支持两种部署模式**：
+- **全家桶模式**：单进程启动所有产品（适合单机部署）
+- **独立模式**：每个产品独立进程（适合商业化按需订阅）
 
 ---
 
@@ -18,18 +23,18 @@ Fiido 智能服务平台是面向跨境电商的一站式 AI 解决方案，采�
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        Products 产品层                           │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
-│  │ AI 智能客服  │  │ 坐席工作台   │  │ 物流通知     │          │
-│  │ ai_chatbot   │  │agent_workbench│  │ notification │          │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘          │
-│         │                 │                 │                   │
-├─────────┴─────────────────┴─────────────────┴───────────────────┤
-│                        Services 服务层                           │
-│  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐        │
-│  │Shopify │ │ Email  │ │ Coze   │ │ Ticket │ │Session │        │
-│  └────┬───┘ └────┬───┘ └────┬───┘ └────┬───┘ └────┬───┘        │
-│       │          │          │          │          │             │
-├───────┴──────────┴──────────┴──────────┴──────────┴─────────────┤
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+│  │ AI 智能客服  │  │ 坐席工作台   │  │ 物流通知     │  │ 客户控制台   │
+│  │ ai_chatbot   │  │agent_workbench│  │ notification │  │customer_portal│
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘
+│         │                 │                 │                 │
+├─────────┴─────────────────┴─────────────────┴─────────────────┴─────────┤
+│                        Services 服务层                                   │
+│  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐     │
+│  │Shopify │ │ Email  │ │ Coze   │ │ Ticket │ │Session │ │Billing │     │
+│  └────┬───┘ └────┬───┘ └────┬───┘ └────┬───┘ └────┬───┘ └────┬───┘     │
+│       │          │          │          │          │          │         │
+├───────┴──────────┴──────────┴──────────┴──────────┴──────────┴─────────┤
 │                     Infrastructure 基础设施层                     │
 │  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐        │
 │  │Database│ │Scheduler│ │Logging │ │Monitor │ │Security│        │
@@ -56,7 +61,7 @@ Fiido 智能服务平台是面向跨境电商的一站式 AI 解决方案，采�
 /home/yzh/AI客服/鉴权/
 │
 ├── 【核心文件】
-├── backend.py                   # 主服务入口（AI客服后端）
+├── backend.py                   # 主服务入口（全家桶模式）
 ├── CLAUDE.md                    # 最高开发规范
 ├── PROJECT_OVERVIEW.md          # 本文档
 ├── requirements.txt             # Python 依赖
@@ -66,8 +71,9 @@ Fiido 智能服务平台是面向跨境电商的一站式 AI 解决方案，采�
 ├── 【三层架构】
 ├── products/                    # 产品层
 │   ├── README.md               # 产品层规范
-│   ├── ai_chatbot/             # AI 智能客服
+│   ├── ai_chatbot/             # AI 智能客服（含 frontend/ 前端、prompts/ 提示词）
 │   ├── agent_workbench/        # 坐席工作台
+│   ├── customer_portal/        # 客户控制台
 │   └── notification/           # 物流通知
 │
 ├── services/                    # 服务层
@@ -76,34 +82,27 @@ Fiido 智能服务平台是面向跨境电商的一站式 AI 解决方案，采�
 │   ├── email/                  # 邮件服务
 │   ├── coze/                   # Coze AI 服务
 │   ├── ticket/                 # 工单服务
-│   └── session/                # 会话服务
+│   ├── session/                # 会话服务
+│   ├── asset/                  # 素材服务（含 data/ 素材数据、tools/ 工具脚本）
+│   └── billing/                # 计费服务
 │
 ├── infrastructure/              # 基础设施层
 │   ├── README.md               # 基础设施规范
+│   ├── bootstrap/              # 启动引导（组件工厂、依赖注入）
 │   ├── database/               # 数据库（Redis）
 │   ├── scheduler/              # 定时任务
 │   ├── logging/                # 日志
 │   ├── monitoring/             # 监控
 │   └── security/               # 安全认证
 │
-├── 【前端应用】
-├── frontend/                    # 用户端前端（Vue）
-│
 ├── 【资源与配置】
-├── prompts/                     # AI 提示词模板
-├── assets/                      # 静态资源（图片等）
 ├── config/                      # 配置文件（私钥等）
-├── data/                        # 数据目录
 │
 ├── 【运维与文档】
-├── scripts/                     # 脚本工具
-├── deploy/                      # 部署配置
+├── deploy/                      # 部署配置（含 scripts/ 启动脚本）
 ├── docs/                        # 文档
 │   └── prd/                    # PRD 文档
 ├── tests/                       # 测试
-│
-└── 【兼容层】
-└── src/                         # 兼容层（重导出新模块，保持旧import可用）
 ```
 
 ---
@@ -114,6 +113,7 @@ Fiido 智能服务平台是面向跨境电商的一站式 AI 解决方案，采�
 |------|------|------|------|
 | AI 智能客服 | products/ai_chatbot | 已上线 | 核心产品 |
 | 坐席工作台 | products/agent_workbench | 已上线 | 人工客服后端 |
+| 客户控制台 | products/customer_portal | 规划中 | 订阅、用量、账单管理 |
 | 物流通知 | products/notification | 规划中 | 预售/拆包裹/异常监控 |
 
 ---
@@ -122,11 +122,13 @@ Fiido 智能服务平台是面向跨境电商的一站式 AI 解决方案，采�
 
 | 服务 | 目录 | 状态 | 说明 |
 |------|------|------|------|
-| Shopify 订单 | services/shopify | 已完成 | 多站点订单查询 |
+| Shopify 订单 | services/shopify | 已完成 | 多站点订单查询、缓存预热 |
 | 邮件服务 | services/email | 已完成 | SMTP 邮件发送 |
-| Coze AI | services/coze | 已完成 | AI 对话服务 |
-| 工单服务 | services/ticket | 已完成 | 工单管理 |
+| Coze AI | services/coze | 已完成 | AI 对话服务、JWT签名 |
+| 工单服务 | services/ticket | 已完成 | 工单管理、协助请求、自动化规则 |
 | 会话服务 | services/session | 已完成 | 会话状态管理 |
+| 素材服务 | services/asset | 已完成 | 产品图片匹配、CDN素材 |
+| 计费服务 | services/billing | 规划中 | 套餐、订阅、用量、账单 |
 
 ---
 
@@ -134,17 +136,83 @@ Fiido 智能服务平台是面向跨境电商的一站式 AI 解决方案，采�
 
 | 组件 | 目录 | 状态 | 说明 |
 |------|------|------|------|
+| **启动引导** | **infrastructure/bootstrap** | **已完成** | **组件工厂、依赖注入、后台任务调度** |
+| 安全认证 | infrastructure/security | 已完成 | JWT签名、坐席认证 |
+| 监控 | infrastructure/monitoring | 已完成 | CDN 健康检查 |
 | 数据库 | infrastructure/database | 待迁移 | Redis 连接 |
 | 定时任务 | infrastructure/scheduler | 待迁移 | APScheduler |
 | 日志 | infrastructure/logging | 待创建 | 日志配置 |
-| 监控 | infrastructure/monitoring | 待迁移 | 健康检查 |
-| 安全认证 | infrastructure/security | 已完成 | JWT签名、坐席认证 |
+
+### Bootstrap 模块详情
+
+Bootstrap 模块负责所有组件的统一初始化，包含以下文件：
+
+| 文件 | 功能 |
+|------|------|
+| `__init__.py` | 模块导出 |
+| `factory.py` | 组件工厂（依赖注入） |
+| `redis.py` | Redis/Session 初始化 |
+| `coze.py` | Coze Client 初始化 |
+| `auth.py` | 坐席认证系统初始化 |
+| `ticket.py` | 工单系统初始化 |
+| `sse.py` | SSE 队列管理 |
+| `scheduler.py` | 后台任务调度器 |
 
 ---
 
-## 七、开发规范
+## 七、部署模式
 
-### 7.1 规范层级
+### 7.1 全家桶模式（推荐单机部署）
+
+```bash
+# 启动命令
+uvicorn backend:app --host 0.0.0.0 --port 8000
+
+# 或使用脚本
+./deploy/scripts/start.sh all
+```
+
+所有产品在同一进程中运行，共享初始化逻辑。
+
+### 7.2 独立模式（推荐商业化部署）
+
+```bash
+# 仅启动 AI 客服
+uvicorn products.ai_chatbot.main:app --host 0.0.0.0 --port 8001
+
+# 仅启动坐席工作台
+uvicorn products.agent_workbench.main:app --host 0.0.0.0 --port 8002
+
+# 或使用脚本
+./deploy/scripts/start.sh ai-chatbot
+./deploy/scripts/start.sh agent-workbench
+```
+
+每个产品独立进程，按需启动。
+
+### 7.3 端口分配
+
+| 服务 | 端口 | 模式 |
+|------|------|------|
+| backend（全家桶） | 8000 | 全家桶 |
+| ai_chatbot | 8001 | 独立 |
+| agent_workbench | 8002 | 独立 |
+
+### 7.4 Systemd 服务
+
+服务配置文件位于 `deploy/systemd/`：
+
+| 文件 | 说明 |
+|------|------|
+| fiido-backend.service | 全家桶模式 |
+| fiido-ai-chatbot.service | AI 客服独立模式 |
+| fiido-agent-workbench.service | 坐席工作台独立模式 |
+
+---
+
+## 八、开发规范
+
+### 8.1 规范层级
 
 ```
 CLAUDE.md（全局最高法）
@@ -154,7 +222,7 @@ CLAUDE.md（全局最高法）
 各模块 README.md（模块规范）
 ```
 
-### 7.2 Vibe Coding 文档
+### 8.2 Vibe Coding 文档
 
 每个产品模块必须包含 `memory-bank/` 文件夹：
 
@@ -168,11 +236,12 @@ CLAUDE.md（全局最高法）
 
 ---
 
-## 八、快速导航
+## 九、快速导航
 
 ### 产品模块
 - [AI 智能客服](products/ai_chatbot/README.md)
 - [坐席工作台](products/agent_workbench/README.md)
+- [客户控制台](products/customer_portal/README.md)
 - [物流通知](products/notification/README.md)
 
 ### 服务模块
@@ -181,6 +250,7 @@ CLAUDE.md（全局最高法）
 - [Coze AI](services/coze/README.md)
 - [工单服务](services/ticket/README.md)
 - [会话服务](services/session/README.md)
+- [计费服务](services/billing/README.md)
 
 ### 基础设施
 - [数据库](infrastructure/database/README.md)
@@ -191,7 +261,7 @@ CLAUDE.md（全局最高法）
 
 ---
 
-## 九、相关文档
+## 十、相关文档
 
 | 文档 | 路径 | 说明 |
 |------|------|------|
@@ -202,4 +272,4 @@ CLAUDE.md（全局最高法）
 
 ---
 
-*文档版本 v2.1 - 2025-12-18*
+*文档版本 v7.0 - 2025-12-19 (清理遗留目录，素材数据迁移至 services/asset/data/)*

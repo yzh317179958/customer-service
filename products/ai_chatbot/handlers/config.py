@@ -26,7 +26,7 @@ from products.ai_chatbot.dependencies import (
 )
 
 # 导入班次配置
-from src.shift_config import get_shift_config, is_in_shift
+from services.session.shift_config import get_shift_config, is_in_shift
 
 router = APIRouter()
 

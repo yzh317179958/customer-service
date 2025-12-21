@@ -21,7 +21,13 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from src.session_state import SessionState, SessionStatus, Message, AgentInfo, MessageRole
+from services.session.state import (
+    SessionState,
+    SessionStatus,
+    Message,
+    AgentInfo,
+    MessageRole,
+)
 from services.ticket.models import TicketType, TicketPriority, TicketCustomerInfo
 from services.ticket.store import TicketStore
 from products.agent_workbench.dependencies import (

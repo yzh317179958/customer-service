@@ -504,7 +504,7 @@ def get_all_cache_stats() -> Dict[str, Any]:
     Returns:
         各站点缓存统计
     """
-    from src.shopify_sites import SiteCode
+    from services.shopify.sites import SiteCode
 
     all_stats = {}
     for site_enum in SiteCode:
