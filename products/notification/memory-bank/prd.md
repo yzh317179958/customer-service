@@ -44,6 +44,7 @@
 | services/shopify | 订单和物流数据 |
 | services/email | 邮件发送 |
 | infrastructure/scheduler | 定时任务 |
+| infrastructure/database | PostgreSQL 持久化（通知记录、用户偏好） |
 
 ---
 

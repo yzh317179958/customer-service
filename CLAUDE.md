@@ -1,8 +1,8 @@
 # Fiido 智能服务平台 - 最高开发规范
 
 > **文档性质**：最高法案，所有开发必须遵守
-> **文档版本**：v5.1
-> **最后更新**：2025-12-19
+> **文档版本**：v5.5
+> **最后更新**：2025-12-22
 
 ---
 
@@ -77,23 +77,30 @@ Fiido 智能服务平台是面向跨境电商的一站式 AI 解决方案，采�
 ├── 【三层架构】
 ├── products/                    # 【产品层】
 │   ├── README.md               # 产品层规范
-│   ├── ai_chatbot/             # AI 智能客服（含 frontend/ 前端、prompts/ 提示词）
-│   ├── agent_workbench/        # 坐席工作台
+│   ├── ai_chatbot/             # AI 智能客服（含 frontend/ 前端）
+│   ├── agent_workbench/        # 坐席工作台（含 frontend/ 前端）
+│   ├── customer_portal/        # 客户控制台（规划中）
 │   └── notification/           # 物流通知
 │
 ├── services/                    # 【服务层】
 │   ├── README.md               # 服务层规范
+│   ├── bootstrap/              # 依赖注入注册（将服务实现注册到基础设施层）
 │   ├── shopify/                # Shopify 订单服务
 │   ├── email/                  # 邮件服务
 │   ├── coze/                   # Coze AI 服务
 │   ├── ticket/                 # 工单服务
 │   ├── session/                # 会话服务
 │   ├── asset/                  # 素材服务（含 data/ 素材数据、tools/ 工具脚本）
+│   └── billing/                # 计费服务（规划中）
 │
 ├── infrastructure/              # 【基础设施层】
 │   ├── README.md               # 基础设施规范
 │   ├── bootstrap/              # 启动引导（组件工厂、依赖注入）
-│   ├── database/               # 数据库连接
+│   ├── database/               # 数据库（PostgreSQL + Redis 双写）
+│   │   ├── models/            # ORM 模型（9 个表）
+│   │   ├── migrations/        # Alembic 数据库迁移
+│   │   ├── converters.py      # Pydantic ↔ ORM 转换器
+│   │   └── connection.py      # 连接池管理
 │   ├── scheduler/              # 定时任务
 │   ├── logging/                # 日志系统
 │   ├── monitoring/             # 监控告警
@@ -151,9 +158,31 @@ products/ ──────► services/ ──────► infrastructure/
 | 方式 | 说明 | 示例 |
 |------|------|------|
 | 共享服务 | 通过 services 层间接通信 | ai_chatbot 和 agent_workbench 都用 session 服务 |
-| 数据库/缓存 | 通过 Redis/数据库共享数据 | ai_chatbot 写入，agent_workbench 读取 |
+| 数据库 | 通过 PostgreSQL/Redis 共享数据 | ai_chatbot 写入工单，agent_workbench 读取 |
 | API 调用 | 通过 HTTP API 通信 | 一个产品调用另一个产品的 API |
 | 事件机制 | 发布/订阅事件 | ai_chatbot 发布事件，notification 订阅 |
+
+### 3.4 数据库双写策略
+
+系统采用 **PostgreSQL 主存储 + Redis 缓存** 的双写模式：
+
+```
+写入流程：
+1. 先写入 PostgreSQL（主存储，数据源）
+2. 再写入 Redis（缓存，高频访问）
+3. Redis 失败重试一次，仍失败则记录日志但不阻塞业务
+
+读取流程：
+1. 优先从 PostgreSQL 查询（保证数据一致性）
+2. PostgreSQL 失败时降级到 Redis/内存
+```
+
+**支持双写的服务：**
+- `services/ticket/store.py` - 工单存储
+- `services/ticket/audit.py` - 审计日志
+- `services/session/archive.py` - 会话归档
+- `services/email/service.py` - 邮件记录
+- `infrastructure/security/agent_auth.py` - 坐席管理
 
 ---
 
@@ -503,7 +532,52 @@ products/xxx/ 或 services/xxx/ 或 infrastructure/xxx/
 └── tests/                      # 测试（推荐）
 ```
 
-### 6.5 新模块开发后同步更新顶层文档（铁律）
+### 6.5 跨模块功能开发（铁律）
+
+**当需求涉及多个模块时（如 ai_chatbot 和 agent_workbench），必须使用跨模块开发工作流。**
+
+#### 6.5.1 主从文档模式
+
+跨模块功能采用「主从模式」管理文档：
+
+| 位置 | 内容 | 职责 |
+|------|------|------|
+| `docs/features/[功能名]/` | 主文档 | 完整的需求、计划、进度、架构 |
+| `products/xxx/memory-bank/cross-module-refs.md` | 引用文档 | 记录本模块参与的跨模块功能 |
+
+#### 6.5.2 跨模块开发流程
+
+```
+1. 需求分析：确定涉及哪些模块
+2. 创建主文档：docs/features/[功能名]/
+   - prd.md（完整需求）
+   - implementation-plan.md（分步计划）
+   - progress.md（进度追踪）
+   - architecture.md（架构说明）
+3. 更新模块引用：各模块 memory-bank/cross-module-refs.md
+4. 按步骤开发：自底向上，每步更新主文档和模块引用
+5. 集成测试：验证完整流程
+```
+
+#### 6.5.3 相关资源
+
+| 资源 | 路径 | 说明 |
+|------|------|------|
+| 跨模块文档目录 | `docs/features/` | 存放跨模块功能的主文档 |
+| 文档模板 | `docs/features/_templates/` | prd/plan/progress/architecture 模板 |
+| 跨模块文档生成 | `.claude/skills/cross-module-docs-guide/SKILL.md` | 生成跨模块功能文档（类似 memory-bank-guide） |
+| 跨模块开发工作流 | `.claude/skills/cross-module-workflow/SKILL.md` | 按步骤执行跨模块开发（类似 vibe-coding-workflow） |
+
+**两个技能的分工：**
+
+| 技能 | 职责 | 触发词 |
+|------|------|--------|
+| cross-module-docs-guide | 生成 docs/features/ 文档，更新模块引用 | "创建跨模块文档"、"生成跨模块需求" |
+| cross-module-workflow | 按步骤开发，更新进度和架构 | "开始跨模块 Step"、"跨模块继续开发" |
+
+---
+
+### 6.6 新模块开发后同步更新顶层文档（铁律）
 
 **每当创建新模块或对现有模块进行重大改动后，Claude 必须同步更新以下顶层文档：**
 
@@ -611,6 +685,9 @@ ssh root@8.211.27.199 'cd /opt/fiido-ai-service && git pull && \
 | 开发参考手册 | docs/开发参考手册.md |
 | 架构对比分析 | docs/架构对比分析.md |
 | Vibe Coding 开发规范 | docs/参考资料/Vibe_Coding开发规范流程说明.md |
+| 跨模块功能文档 | docs/features/README.md |
+| 跨模块文档生成技能 | .claude/skills/cross-module-docs-guide/SKILL.md |
+| 跨模块开发工作流技能 | .claude/skills/cross-module-workflow/SKILL.md |
 
 ---
 
@@ -618,5 +695,9 @@ ssh root@8.211.27.199 'cd /opt/fiido-ai-service && git pull && \
 
 | 版本 | 日期 | 变更内容 |
 |------|------|----------|
+| v5.5 | 2025-12-22 | 拆分跨模块开发技能：cross-module-docs-guide（文档生成）+ cross-module-workflow（开发执行），更新 6.5.3 相关资源 |
+| v5.4 | 2025-12-22 | 新增跨模块开发工作流（6.5 节），创建 docs/features/ 文档结构和 cross-module-workflow 技能 |
+| v5.3 | 2025-12-22 | 新增 PostgreSQL 数据库模块，添加双写策略说明，更新目录结构 |
+| v5.2 | 2025-12-21 | 同步目录结构：新增 customer_portal、billing、services/bootstrap；移除 prompts/；明确 agent_workbench 含前端 |
 | v5.1 | 2025-12-19 | 清理遗留目录：删除 prompts/、assets/、data/、attachments/，素材数据迁移至 services/asset/data/ |
 | v5.0 | 2025-12-19 | 前端移至 products/ai_chatbot/frontend/，脚本归入 deploy/scripts/，素材工具归入 services/asset/tools/ |

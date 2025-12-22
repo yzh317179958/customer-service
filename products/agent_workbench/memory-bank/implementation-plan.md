@@ -1,23 +1,10 @@
-# 坐席工作台（Agent Workbench）- 分步实现计划
+# 坐席工作台 - 实现计划
 
-> **创建日期**：2025-12-19
-> **最后澄清**：2025-12-21
-> **预计步骤数**：20
-> **核心功能步骤（P0）**：Step 1-10
-> **重要功能步骤（P1）**：Step 11-16
-> **扩展功能步骤（P2）**：Step 17-20
-
----
-
-## 关键决策（已确认）
-
-| 决策项 | 选择 | 说明 |
-|--------|------|------|
-| **前端策略** | 改造 fronted_origin | 直接在原型目录上改造，不新建 frontend/ |
-| **前端框架** | React + TypeScript | 保持与原型一致 |
-| **Tailwind CSS** | 改为 npm 依赖 | 移除 CDN，本地安装 tailwindcss + postcss |
-| **SSE 数据源** | 复用现有队列 | 使用 `infrastructure/bootstrap/sse.py` 的全局队列 |
-| **开发顺序** | 允许并行/跳步 | 后端(Step 1-2)与前端(Step 4-5)可并行 |
+> 产品模块：products/agent_workbench
+> 创建日期：2025-12-21
+> 预计步骤数：18
+> 核心功能步骤：Step 1-12
+> 扩展功能步骤：Step 13-18
 
 ---
 
@@ -26,427 +13,517 @@
 遵循 `CLAUDE.md` 自底向上原则：
 
 ```
-（如需新增基础能力）infrastructure/ → services/ → products/ → 前端 → 测试 → 更新文档
+前端工程化 → API 服务层 → 状态管理 → 核心页面 → 扩展功能 → 测试部署
 ```
 
-**允许并行的步骤组**：
-- 后端组：Step 1-2（SSE + 发消息）
-- 前端组：Step 4-5（工程化 + 登录）
-- 可在后端完成前先做前端骨架
-
-本计划以"让前端原型可真实接入并可用"为目标：优先补齐 P0 后端缺口，再工程化落地前端。
+**关键前提**：
+- 后端 API 已完整实现（handlers/*.py）
+- 前端原型已存在（fronted_origin/）
+- 本计划聚焦前端改造和 API 接入
 
 ---
 
-## Step 1: 补齐会话事件 SSE（后端 P0）
-
-**任务描述：**
-新增会话级事件流端点，支持坐席端实时刷新选中会话（`manual_message`/`status_change`）。
-
-**技术方案：**
-- 复用 `infrastructure/bootstrap/sse.py` 的 `get_or_create_sse_queue(session_name)`
-- 参考 `misc.py:524-557` 的 `/api/agent/events` 实现模式
-- 事件类型：`manual_message`、`status_change`、`error`
-
-**涉及文件：**
-- `products/agent_workbench/handlers/sessions.py`（新增 `GET /sessions/{session_name}/events`）
-- 无需修改 `infrastructure/bootstrap/sse.py`（已支持）
-
-**测试方法：**
-1. 启动后端：`uvicorn products.agent_workbench.main:app --port 8002`
-2. 登录获取 token：`POST /api/agent/login`
-3. 打开 SSE（示例）：
-   - `curl -N -H "Authorization: Bearer <token>" http://localhost:8002/api/sessions/<session_name>/events`
-
-**预期结果：**
-- SSE 长连接建立成功
-- 当会话产生 `manual_message/status_change` 时，SSE 推送对应事件 JSON
+## Phase 1: 前端工程化（Step 1-3）
 
 ---
 
-## Step 2: 增加"坐席发送消息"安全端点（后端 P0）
+## Step 1: 创建正式前端项目
 
 **任务描述：**
-在 `agent_workbench` 提供受 `require_agent()` 保护的消息写入端点，避免直接使用 `ai_chatbot` 的未鉴权入口。
-
-**技术方案：**
-- 消息写入 `SessionState.history`（role=agent）
-- 通过 `enqueue_sse_message(session_name, payload)` 推送 `manual_message` 事件
-- 消息需携带 `agent_id` 和 `agent_name` 字段
+将 `fronted_origin/` 重命名为 `frontend/`，更新 package.json 添加生产环境必需依赖。
 
 **涉及文件：**
-- `products/agent_workbench/handlers/sessions.py`（新增 `POST /sessions/{session_name}/messages`）
-- `services/session/state.py`（仅当需要扩展字段/方法时）
+- `fronted_origin/` → `frontend/`（重命名）
+- `frontend/package.json`（修改）
 
 **测试方法：**
-1. `curl -X POST http://localhost:8002/api/sessions/<session>/messages -H "Authorization: Bearer <token>" -H "Content-Type: application/json" -d '{"content":"hello"}'`
-2. `GET /api/sessions/<session>` 校验 `history` 增加 `role=agent` 的消息
-3. 若已完成 Step 1：观察 SSE 是否推送 `manual_message`
+```bash
+cd products/agent_workbench/frontend
+npm install
+npm run dev
+# 浏览器访问 http://localhost:5173
+```
 
 **预期结果：**
-- 接口返回 200 且成功写入会话历史
-- 用户端/坐席端可通过刷新或 SSE 看到新消息
+- 目录已重命名为 frontend/
+- npm install 成功
+- Vite 开发服务器正常启动
+- 页面显示原型界面
 
 ---
 
-## Step 3: CORS/代理联调准备（后端/前端 P0）
+## Step 2: 安装核心依赖
 
 **任务描述：**
-确保坐席前端开发端口可访问后端（推荐 dev proxy；或补充 CORS origin）。
-
-**技术方案（二选一）：**
-- 方案 A（推荐）：前端 `vite.config.ts` 配置 proxy，转发 `/api` 到后端
-- 方案 B：后端 `config.py` 添加 `http://localhost:5173` 到 CORS origins
+安装 axios、zustand、react-router-dom、clsx 等核心依赖。
 
 **涉及文件：**
-- `products/agent_workbench/config.py`（如选择补 CORS）
-- `products/agent_workbench/fronted_origin/vite.config.ts`（如选择 proxy）
+- `frontend/package.json`（修改）
 
 **测试方法：**
-- 前端发起 `GET /api/agent/profile` 不报跨域错误
+```bash
+cd products/agent_workbench/frontend
+npm install axios zustand react-router-dom clsx
+npm install -D @types/react tailwindcss postcss autoprefixer
+npm run dev
+```
 
 **预期结果：**
-- 开发环境前后端可正常联调
+- 所有依赖安装成功
+- 无版本冲突
+- 开发服务器正常运行
 
 ---
 
-## Step 4: 工程化落地前端骨架（前端 P0）
+## Step 3: Tailwind CSS 本地化
 
 **任务描述：**
-改造 `products/agent_workbench/fronted_origin`，使其成为可维护的生产前端工程。
-
-**技术方案：**
-1. 移除 `index.html` 中的 CDN Tailwind（`<script src="https://cdn.tailwindcss.com">`）
-2. 安装本地依赖：`npm install -D tailwindcss postcss autoprefixer`
-3. 创建 `tailwind.config.js` 和 `postcss.config.js`
-4. 创建 `src/index.css` 引入 Tailwind 指令
-5. 统一使用 `VITE_API_BASE` 环境变量配置 API base
-6. 创建 `.env.development` 和 `.env.production`
+将 CDN 引入的 Tailwind 改为本地构建，移除 index.html 中的 CDN 脚本。
 
 **涉及文件：**
-- `products/agent_workbench/fronted_origin/index.html`（移除 CDN）
-- `products/agent_workbench/fronted_origin/package.json`（添加依赖）
-- `products/agent_workbench/fronted_origin/tailwind.config.js`（新增）
-- `products/agent_workbench/fronted_origin/postcss.config.js`（新增）
-- `products/agent_workbench/fronted_origin/src/index.css`（新增）
-- `products/agent_workbench/fronted_origin/.env.development`（新增）
+- `frontend/tailwind.config.js`（新增）
+- `frontend/postcss.config.js`（新增）
+- `frontend/src/index.css`（新增）
+- `frontend/index.html`（修改，移除 CDN）
+- `frontend/src/main.tsx`（修改，引入 index.css）
 
 **测试方法：**
-- `npm install && npm run dev` 可启动，页面可打开
-- Tailwind 样式正常生效
+```bash
+npm run dev
+# 检查页面样式是否正常
+# 检查 bg-fiido、text-fiido-dark 等自定义类是否生效
+```
 
 **预期结果：**
-- 侧边栏/顶部栏/路由或 tab 切换可用（先静态）
+- index.html 中无 CDN script 标签
+- Tailwind 样式正常编译
+- 自定义 fiido 品牌色生效
+- 页面视觉与原型一致
 
 ---
 
-## Step 5: 登录页与鉴权守卫（前端 P0）
-
-**任务描述：**
-实现坐席登录、token 存储、退出登录、401 自动跳转登录。
-
-**技术方案：**
-- 创建 `src/api/` 目录，封装 axios/fetch 请求
-- 创建 `src/stores/auth.ts`（使用 React Context 或 zustand）
-- token 存储在 localStorage，请求拦截器自动注入 Authorization header
-- 401 响应拦截器自动跳转登录页
-
-**涉及文件：**
-- `products/agent_workbench/fronted_origin/src/pages/Login.tsx`（新增）
-- `products/agent_workbench/fronted_origin/src/api/client.ts`（新增，请求封装）
-- `products/agent_workbench/fronted_origin/src/api/agent.ts`（新增，登录 API）
-- `products/agent_workbench/fronted_origin/src/stores/auth.ts`（新增）
-- `products/agent_workbench/fronted_origin/src/App.tsx`（添加路由守卫）
-
-**测试方法：**
-1. 打开前端，未登录访问工作台 → 自动跳转登录
-2. 登录成功后进入工作台
-3. 手动清空 token → 再次请求应回到登录
-
-**预期结果：**
-- 登录可用，token 自动注入请求头
+## Phase 2: API 服务层（Step 4-7）
 
 ---
 
-## Step 6: 会话列表（队列/筛选/轮询）（前端 P0）
+## Step 4: 创建 Axios 客户端
 
 **任务描述：**
-对接 `/api/sessions`、`/api/sessions/queue`、`/api/sessions/stats`，实现队列列表与基础筛选/搜索（参考 `docs/prd/04_任务拆解/L1-1-Part1_会话管理与筛选.md`）。
+创建 Axios 实例，配置 baseURL、JWT 自动注入、401 拦截跳转。
 
 **涉及文件：**
-- `products/agent_workbench/fronted_origin/src/components/Workspace.tsx`（改造）
-- `products/agent_workbench/fronted_origin/src/api/sessions.ts`（新增）
+- `frontend/src/api/client.ts`（新增）
 
 **测试方法：**
-- 列表每 30s 轮询刷新；状态/关键字筛选生效
+```bash
+npm run dev
+# 在浏览器控制台验证：
+# import { apiClient } from './api/client'
+# apiClient.get('/api/health')
+```
 
 **预期结果：**
-- pending_manual 会话可被快速定位，UI 信息与后端一致
+- Axios 实例创建成功
+- 请求自动携带 Authorization header（如有 token）
+- 401 响应触发登录跳转逻辑
 
 ---
 
-## Step 7: 会话详情（含客户档案与内部备注）（前端 P0）
+## Step 5: 封装认证 API
 
 **任务描述：**
-选中会话后加载：
-- `GET /api/sessions/{session_name}`
-- `GET /api/customers/{customer_id}/profile`
-- 内部备注：`/api/sessions/{session_name}/notes`（CRUD）
-- 转接历史：`/api/sessions/{session_name}/transfer-history`
+封装登录、登出、刷新 Token、获取/更新坐席信息等接口。
 
 **涉及文件：**
-- `products/agent_workbench/fronted_origin/src/components/Workspace.tsx`（改造）
-- `products/agent_workbench/fronted_origin/src/api/misc.ts`（新增）
+- `frontend/src/api/auth.ts`（新增）
 
 **测试方法：**
-- 选择会话后详情区展示正确；新增/编辑/删除内部备注成功
+```bash
+# 启动后端
+uvicorn backend:app --reload --port 8000
+
+# 启动前端
+npm run dev
+
+# 浏览器控制台测试
+# import { authApi } from './api/auth'
+# authApi.login({ username: 'test', password: 'test' })
+```
 
 **预期结果：**
-- 会话详情可用且信息完整
+- login/logout/refresh/getProfile 函数可调用
+- 接口请求发送成功
+- 返回数据结构正确
 
 ---
 
-## Step 8: 接管/释放/转接会话（前端 P0）
+## Step 6: 封装会话 API
 
 **任务描述：**
-对接：
-- `POST /api/sessions/{session}/takeover`
-- `POST /api/sessions/{session}/release`
-- `POST /api/sessions/{session}/transfer` + 转接请求处理
+封装会话列表、队列、接管、转接、释放、消息发送等接口。
 
 **涉及文件：**
-- `products/agent_workbench/fronted_origin/src/api/sessions.ts`（扩展）
-- `products/agent_workbench/fronted_origin/src/components/Workspace.tsx`（改造）
+- `frontend/src/api/sessions.ts`（新增）
 
 **测试方法：**
-- 执行操作后会话状态变化正确，冲突提示可读（如已被他人接管）
+```bash
+# 浏览器控制台测试
+# import { sessionsApi } from './api/sessions'
+# sessionsApi.getQueue()
+# sessionsApi.getList()
+```
 
 **预期结果：**
-- 关键业务动作稳定可用
+- 所有会话相关接口函数可调用
+- GET/POST 请求正常发送
 
 ---
 
-## Step 9: 会话聊天发送与实时刷新（前端 P0）
+## Step 7: 封装工单和快捷回复 API
 
 **任务描述：**
-对接 Step 2 的消息接口与 Step 1 的会话 SSE，实现：
-- 坐席发送消息
-- 选中会话时建立 SSE，收到事件自动刷新详情
+封装工单 CRUD、SLA 仪表盘、快捷回复管理等接口。
 
 **涉及文件：**
-- `products/agent_workbench/fronted_origin/src/api/messages.ts`（新增）
-- `products/agent_workbench/fronted_origin/src/api/sse.ts`（新增）
-- `products/agent_workbench/fronted_origin/src/components/Workspace.tsx`（改造）
+- `frontend/src/api/tickets.ts`（新增）
+- `frontend/src/api/quickReplies.ts`（新增）
+- `frontend/src/api/index.ts`（新增，统一导出）
 
 **测试方法：**
-- 发送消息后立即出现在消息列表
-- 另一端触发事件后，坐席端无需手动刷新即可更新
+```bash
+# 浏览器控制台测试
+# import { ticketsApi, quickRepliesApi } from './api'
+# ticketsApi.getList()
+# quickRepliesApi.getList()
+```
 
 **预期结果：**
-- 基本"实时会话"体验成立（轮询 + SSE）
+- 所有 API 模块可通过 index.ts 统一导出
+- 接口调用正常
 
 ---
 
-## Step 10: 工单中心 MVP（列表/详情/创建/状态流转）（前端 P0）
-
-**任务描述：**
-对接 `/api/tickets/*` 实现：
-- 列表/搜索/筛选
-- 创建工单（含从会话创建：`POST /api/sessions/{session}/ticket`）
-- 状态更新与指派（基础）
-
-**涉及文件：**
-- `products/agent_workbench/fronted_origin/src/components/TicketsView.tsx`（改造）
-- `products/agent_workbench/fronted_origin/src/api/tickets.ts`（新增）
-
-**测试方法：**
-- 创建/更新后刷新列表与详情一致
-
-**预期结果：**
-- 工单闭环可跑通
+## Phase 3: 状态管理（Step 8-9）
 
 ---
 
-## Step 11: 工单评论/附件/审计日志 UI（前端 P1）
+## Step 8: 创建认证状态 Store
 
 **任务描述：**
-对接：
-- 评论：`GET/POST/DELETE /api/tickets/{id}/comments`
-- 附件：`GET/POST /api/tickets/{id}/attachments`
-- 审计：`GET /api/tickets/{id}/audit-logs`
+使用 Zustand 创建 authStore，管理登录状态、Token、坐席信息。
 
 **涉及文件：**
-- `products/agent_workbench/fronted_origin/src/components/TicketsView.tsx`（添加评论/附件/审计 Tab）
-- `products/agent_workbench/fronted_origin/src/api/tickets.ts`（扩展）
+- `frontend/src/stores/authStore.ts`（新增）
 
 **测试方法：**
-- 上传文件后可下载；审计日志可展示关键操作
+```bash
+npm run dev
+# 浏览器控制台测试
+# import { useAuthStore } from './stores/authStore'
+# useAuthStore.getState().login({ username: 'test', password: 'test' })
+```
 
 **预期结果：**
-- 工单协作能力补齐
+- authStore 创建成功
+- login/logout 方法可调用
+- Token 存储到 localStorage
+- isAuthenticated 状态正确
 
 ---
 
-## Step 12: 快捷回复（前端 P1）
+## Step 9: 创建会话和工单 Store
 
 **任务描述：**
-实现快捷回复面板与管理页（参考 `L1-1-Part2_快捷回复与标签系统.md`），对接 `/api/quick-replies/*`。
+创建 sessionStore 和 ticketStore，管理列表数据和当前选中项。
 
 **涉及文件：**
-- `products/agent_workbench/fronted_origin/src/components/Workspace.tsx`（添加快捷回复面板）
-- `products/agent_workbench/fronted_origin/src/components/QuickReplyPanel.tsx`（新增）
-- `products/agent_workbench/fronted_origin/src/api/quick-replies.ts`（新增）
+- `frontend/src/stores/sessionStore.ts`（新增）
+- `frontend/src/stores/ticketStore.ts`（新增）
+- `frontend/src/stores/index.ts`（新增，统一导出）
 
 **测试方法：**
-- 插入模板后变量可替换/保留占位，使用统计递增
+```bash
+npm run dev
+# 验证 store 可正常导入
+# 验证 fetchSessions/fetchTickets 可调用
+```
 
 **预期结果：**
-- 坐席回复效率显著提升
+- 两个 store 创建成功
+- 列表加载方法可调用
+- 状态变更触发组件更新
 
 ---
 
-## Step 13: 工单模板管理与渲染（前端 P1）
-
-**任务描述：**
-对接 `/api/templates/*`，在创建工单时支持选择模板并渲染字段。
-
-**涉及文件：**
-- `products/agent_workbench/fronted_origin/src/components/TicketsView.tsx`（创建工单对话框）
-- `products/agent_workbench/fronted_origin/src/api/templates.ts`（新增）
-
-**测试方法：**
-- 选择模板后自动填充标题/描述等字段
-
-**预期结果：**
-- 工单录入更标准化
+## Phase 4: 核心页面接入（Step 10-12）
 
 ---
 
-## Step 14: 监控页（缓存预热 / CDN / SLA 告警）（前端 P1）
+## Step 10: 登录页功能接入
 
 **任务描述：**
-对接：
-- `/api/warmup/*`
-- `/api/cdn/*`
-- `/api/tickets/sla-alerts`、`/api/tickets/sla-summary`
+将 LoginView 组件接入真实登录 API，实现完整登录流程。
 
 **涉及文件：**
-- `products/agent_workbench/fronted_origin/src/components/Monitoring.tsx`（改造）
-- `products/agent_workbench/fronted_origin/src/api/warmup.ts`（新增）
-- `products/agent_workbench/fronted_origin/src/api/cdn.ts`（新增）
+- `frontend/src/components/LoginView.tsx`（修改）
+- `frontend/src/App.tsx`（修改，添加路由守卫）
 
 **测试方法：**
-- 手动触发 warmup、查看 history；CDN 健康检查可返回日志
+```bash
+# 1. 访问 http://localhost:5173
+# 2. 使用测试账号登录
+# 3. 验证登录成功跳转
+# 4. 刷新页面验证登录状态保持
+```
 
 **预期结果：**
-- 运营可观测性建立
+- 正确账号可登录成功
+- 错误账号显示错误提示
+- Token 存储到 localStorage
+- 登录后跳转到工作台
+- 未登录访问工作台自动跳转登录页
 
 ---
 
-## Step 15: 坐席管理后台（Admin）（前端 P1）
+## Step 11: 会话工作台接入
 
 **任务描述：**
-对接 `/api/agents/*` 实现坐席列表、创建/禁用、技能、重置密码等。
+接入会话列表、队列、接管、消息收发功能，实现 SSE 实时推送。
 
 **涉及文件：**
-- `products/agent_workbench/fronted_origin/src/components/Settings.tsx`（添加坐席管理 Tab，或新增 AgentManagement.tsx）
-- `products/agent_workbench/fronted_origin/src/api/agents.ts`（新增）
+- `frontend/src/components/Workspace.tsx`（修改）
+- `frontend/src/hooks/useSSE.ts`（新增）
 
 **测试方法：**
-- admin 登录可见；普通坐席不可见（403 或隐藏）
+```bash
+# 1. 登录后进入工作台
+# 2. 查看待接入队列
+# 3. 接管一个会话
+# 4. 发送消息
+# 5. 验证消息实时显示
+```
 
 **预期结果：**
-- 基础后台管理可用
+- 会话队列从 API 加载
+- 可接管会话
+- 消息发送成功
+- SSE 推送正常接收
 
 ---
 
-## Step 16: 协助请求与@提醒（前端 P1）
+## Step 12: 工单中心接入
 
 **任务描述：**
-对接 `/api/assist-requests/*` 与 `/api/agent/events`（SSE），实现协助流转与提醒弹窗/通知中心。
+接入工单列表、创建、编辑、SLA 管理功能。
 
 **涉及文件：**
-- `products/agent_workbench/fronted_origin/src/components/Workspace.tsx`（添加协助请求入口）
-- `products/agent_workbench/fronted_origin/src/components/NotificationCenter.tsx`（新增）
-- `products/agent_workbench/fronted_origin/src/api/assist-requests.ts`（新增）
-- `products/agent_workbench/fronted_origin/src/stores/notifications.ts`（新增）
+- `frontend/src/components/TicketsView.tsx`（修改）
 
 **测试方法：**
-- 创建协助请求后，被@坐席能实时收到事件并处理
+```bash
+# 1. 进入工单中心
+# 2. 查看工单列表
+# 3. 创建新工单
+# 4. 编辑工单状态
+# 5. 验证 SLA 倒计时
+```
 
 **预期结果：**
-- 多坐席协作成立
+- 工单列表正确加载
+- 列表/看板视图切换正常
+- 工单 CRUD 功能完整
+- SLA 倒计时显示正确
 
 ---
 
-## Step 17: Shopify 订单信息面板（前端 P2）
-
-**任务描述：**
-在会话侧边信息中集成订单查询（按订单号/邮箱），对接 `/api/shopify/*`。
-
-**涉及文件：**
-- `products/agent_workbench/fronted_origin/src/components/Workspace.tsx`（添加订单面板）
-- `products/agent_workbench/fronted_origin/src/components/OrderPanel.tsx`（新增）
-- `products/agent_workbench/fronted_origin/src/api/shopify.ts`（新增）
-
-**测试方法：**
-- 输入订单号/邮箱可返回订单与物流信息
-
-**预期结果：**
-- 售后关键数据在工作台内闭环
+## Phase 5: 辅助功能（Step 13-15）
 
 ---
 
-## Step 18: Dashboard 报表（前端 P2）
+## Step 13: 快捷回复接入
 
 **任务描述：**
-前端聚合展示核心指标（会话/工单/SLA），必要时补充后端聚合接口（P1 可选）。
+接入快捷回复列表、创建、编辑、删除功能。
 
 **涉及文件：**
-- `products/agent_workbench/fronted_origin/src/components/Dashboard.tsx`（改造）
-- `products/agent_workbench/fronted_origin/src/api/metrics.ts`（新增，可选）
+- `frontend/src/components/Workspace.tsx`（修改，右侧面板）
 
 **测试方法：**
-- 指标与 `/api/sessions/stats`、`/api/tickets/sla-summary` 等数据一致
+```bash
+# 1. 在对话中点击快捷回复
+# 2. 验证可插入到输入框
+# 3. 创建/编辑/删除快捷回复
+```
 
 **预期结果：**
-- 基础运营看板可用
+- 快捷回复列表加载
+- 可插入到对话输入框
+- CRUD 功能正常
 
 ---
 
-## Step 19: Billing iframe 接入（前端 P2）
+## Step 14: 客户信息与订单查询
 
 **任务描述：**
-按原型 `BillingView` 设计接入 `products/customer_portal`（或独立部署域名）。
+接入客户档案显示、Shopify 订单查询功能。
 
 **涉及文件：**
-- `products/agent_workbench/fronted_origin/src/components/BillingView.tsx`（改造）
-- `products/agent_workbench/fronted_origin/.env.production`（添加 VITE_BILLING_URL）
+- `frontend/src/api/shopify.ts`（新增）
+- `frontend/src/components/Workspace.tsx`（修改）
 
 **测试方法：**
-- iframe 可加载，且 token 传递方案明确（query/postMessage 二选一）
+```bash
+# 1. 选中一个会话
+# 2. 查看客户信息面板
+# 3. 查询客户订单
+```
 
 **预期结果：**
-- 计费门户可从工作台访问
+- 客户标签显示正确
+- 订单信息加载成功
+- 订单详情可展开
 
 ---
 
-## Step 20: 收尾（文档/验收/回归）
+## Step 15: 侧边栏导航与路由
 
 **任务描述：**
-补齐运行说明、验收清单、回归测试建议，并更新：
-- `memory-bank/progress.md`
-- `memory-bank/architecture.md`（新增文件/模块用途）
-- `products/agent_workbench/README.md`
+实现 react-router-dom 路由，侧边栏导航切换页面。
 
 **涉及文件：**
-- `products/agent_workbench/README.md`
-- `products/agent_workbench/memory-bank/progress.md`
-- `products/agent_workbench/memory-bank/architecture.md`
+- `frontend/src/App.tsx`（修改）
+- `frontend/src/components/Sidebar.tsx`（修改）
 
 **测试方法：**
-- 按 PRD 的成功标准走一遍闭环
+```bash
+# 1. 点击侧边栏各菜单
+# 2. 验证页面切换
+# 3. 验证 URL 变化
+# 4. 刷新后页面保持
+```
 
 **预期结果：**
-- 可交付给下一个 AI/开发者按步骤稳定推进
+- 路由切换正常
+- 浏览器地址栏 URL 正确
+- 刷新页面保持当前路由
 
+---
+
+## Phase 6: 扩展功能（Step 16-17）
+
+---
+
+## Step 16: 效能报表 Dashboard
+
+**任务描述：**
+接入统计数据 API，实现图表展示（可用 Mock 数据）。
+
+**涉及文件：**
+- `frontend/src/components/Dashboard.tsx`（修改）
+- `frontend/src/api/stats.ts`（新增，可选）
+
+**测试方法：**
+```bash
+# 1. 进入 Dashboard 页面
+# 2. 查看各统计卡片
+# 3. 查看图表渲染
+```
+
+**预期结果：**
+- 统计数据显示（真实或 Mock）
+- 图表正确渲染
+- 无 JS 错误
+
+---
+
+## Step 17: 系统设置功能
+
+**任务描述：**
+接入个人配置修改、密码修改功能。
+
+**涉及文件：**
+- `frontend/src/components/Settings.tsx`（修改）
+
+**测试方法：**
+```bash
+# 1. 进入设置页面
+# 2. 修改个人信息
+# 3. 修改密码
+```
+
+**预期结果：**
+- 配置信息加载
+- 修改保存成功
+- 密码修改流程正常
+
+---
+
+## Phase 7: 测试与部署（Step 18）
+
+---
+
+## Step 18: 核心功能测试与生产构建
+
+**任务描述：**
+完整流程测试，修复问题，配置生产构建。
+
+**涉及文件：**
+- `frontend/vite.config.ts`（修改）
+- `frontend/.env.production`（新增）
+
+**测试方法：**
+```bash
+# 完整流程测试：
+# 1. 登录 → 2. 查看队列 → 3. 接管会话 → 4. 发消息
+# → 5. 创建工单 → 6. 结束会话 → 7. 登出
+
+# 生产构建测试：
+npm run build
+npm run preview
+```
+
+**预期结果：**
+- 核心流程无阻塞性 Bug
+- 构建成功无错误
+- 构建产物可正常运行
+- 首屏加载 < 2s
+
+---
+
+## 依赖关系图
+
+```
+Step 1 (项目重命名)
+    ↓
+Step 2 (安装依赖)
+    ↓
+Step 3 (Tailwind 本地化)
+    ↓
+Step 4 (Axios 客户端) ←── API 基础
+    ↓
+Step 5-7 (API 封装) ←── 并行可选
+    ↓
+Step 8-9 (Zustand Stores) ←── 依赖 API
+    ↓
+Step 10 (登录页) ←── 核心入口
+    ↓
+Step 11 (会话工作台) ←── 核心功能
+    ↓
+Step 12 (工单中心) ←── 核心功能
+    ↓
+Step 13-15 (辅助功能) ←── 可并行
+    ↓
+Step 16-17 (扩展功能) ←── 可并行
+    ↓
+Step 18 (测试部署) ←── 最终验收
+```
+
+---
+
+## 开发过程中可能需要的信息
+
+| 信息类型 | 说明 | 获取方式 |
+|----------|------|----------|
+| 后端 API 地址 | 开发环境 URL | 询问用户或检查 .env |
+| 测试账号 | 登录测试用 | 询问用户或后端创建 |
+| Shopify API | 订单查询配置 | 检查 .env 已有配置 |

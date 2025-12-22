@@ -6,6 +6,7 @@
 - 提供人工接管邮件通知
 - 支持 HTML 模板
 - 重试机制和错误处理
+- 邮件发送记录（PostgreSQL）
 
 配置环境变量：
 - SMTP_HOST: SMTP服务器地址
@@ -20,15 +21,18 @@
 import os
 import smtplib
 import time
+import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.utils import formataddr
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 from dotenv import load_dotenv
 
 # 加载环境变量
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 
 class EmailConfig:
@@ -52,12 +56,23 @@ class EmailConfig:
 
 
 class EmailService:
-    """邮件发送服务"""
+    """邮件发送服务（支持 PostgreSQL 记录）"""
 
-    def __init__(self, config: Optional[EmailConfig] = None):
+    def __init__(self, config: Optional[EmailConfig] = None, enable_postgres: bool = False):
         self.config = config or EmailConfig()
         self.max_retries = 3
         self.retry_delay = 2  # 秒
+        self._pg_enabled = enable_postgres
+
+    def enable_postgres(self):
+        """启用 PostgreSQL 记录"""
+        self._pg_enabled = True
+        logger.info("[EmailService] PostgreSQL 记录已启用")
+
+    def disable_postgres(self):
+        """禁用 PostgreSQL 记录"""
+        self._pg_enabled = False
+        logger.info("[EmailService] PostgreSQL 记录已禁用")
 
     def _create_connection(self):
         """创建 SMTP 连接"""
@@ -85,7 +100,10 @@ class EmailService:
         self,
         subject: str,
         html_content: str,
-        recipients: Optional[List[str]] = None
+        recipients: Optional[List[str]] = None,
+        email_type: str = "general",
+        related_id: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
     ) -> dict:
         """
         发送邮件
@@ -94,24 +112,50 @@ class EmailService:
             subject: 邮件主题
             html_content: HTML内容
             recipients: 收件人列表（默认使用配置）
+            email_type: 邮件类型（general, escalation, notification 等）
+            related_id: 关联 ID（如会话 ID、工单 ID）
+            metadata: 额外元数据
 
         Returns:
             dict: {success: bool, message_id: str, error: str}
         """
         if not self.config.is_configured():
-            return {
+            result = {
                 'success': False,
                 'message_id': None,
                 'error': '邮件服务未配置'
             }
+            # 记录失败的邮件
+            if self._pg_enabled:
+                self._record_email(
+                    subject=subject,
+                    recipients=recipients or [],
+                    email_type=email_type,
+                    related_id=related_id,
+                    status='failed',
+                    error='邮件服务未配置',
+                    metadata=metadata
+                )
+            return result
 
         recipients = recipients or self.config.recipients
         if not recipients:
-            return {
+            result = {
                 'success': False,
                 'message_id': None,
                 'error': '没有收件人'
             }
+            if self._pg_enabled:
+                self._record_email(
+                    subject=subject,
+                    recipients=[],
+                    email_type=email_type,
+                    related_id=related_id,
+                    status='failed',
+                    error='没有收件人',
+                    metadata=metadata
+                )
+            return result
 
         # 创建邮件
         msg = MIMEMultipart('alternative')
@@ -138,6 +182,18 @@ class EmailService:
                 message_id = f"mail_{int(time.time() * 1000)}"
                 print(f"✅ 邮件发送成功: {subject} -> {', '.join(recipients)}")
 
+                # 记录成功的邮件
+                if self._pg_enabled:
+                    self._record_email(
+                        subject=subject,
+                        recipients=recipients,
+                        email_type=email_type,
+                        related_id=related_id,
+                        status='sent',
+                        message_id=message_id,
+                        metadata=metadata
+                    )
+
                 return {
                     'success': True,
                     'message_id': message_id,
@@ -155,11 +211,63 @@ class EmailService:
                 print(f"❌ 邮件发送异常: {last_error}")
                 break
 
+        # 记录失败的邮件
+        if self._pg_enabled:
+            self._record_email(
+                subject=subject,
+                recipients=recipients,
+                email_type=email_type,
+                related_id=related_id,
+                status='failed',
+                error=last_error,
+                metadata=metadata
+            )
+
         return {
             'success': False,
             'message_id': None,
             'error': last_error
         }
+
+    def _record_email(
+        self,
+        subject: str,
+        recipients: List[str],
+        email_type: str,
+        related_id: Optional[str],
+        status: str,
+        message_id: Optional[str] = None,
+        error: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ):
+        """记录邮件到 PostgreSQL"""
+        try:
+            from infrastructure.database import get_db_session
+            from infrastructure.database.models import EmailRecordModel
+
+            with get_db_session() as session:
+                # 主收件人
+                to_email = recipients[0] if recipients else ""
+                # 其他收件人作为抄送
+                cc_emails = ",".join(recipients[1:]) if len(recipients) > 1 else None
+
+                record = EmailRecordModel(
+                    record_id=message_id or f"mail_{int(time.time() * 1000)}",
+                    subject=subject,
+                    from_email=self.config.smtp_username or "unknown",
+                    to_email=to_email,
+                    cc_emails=cc_emails,
+                    email_type=email_type,
+                    session_id=related_id,  # 用 session_id 存储关联 ID
+                    status=status,
+                    error_message=error,
+                    external_response=metadata,
+                    created_at=time.time(),
+                    sent_at=time.time() if status == 'sent' else None
+                )
+                session.add(record)
+        except Exception as e:
+            logger.error(f"[EmailService] 邮件记录写入失败: {e}")
 
     def send_manual_escalation_email(self, session_state) -> dict:
         """
@@ -175,7 +283,16 @@ class EmailService:
         subject = f"[Fiido客服] 人工接管请求 - {session_state.session_name}"
         html_content = self._generate_escalation_email_html(session_state)
 
-        result = self.send_email(subject, html_content)
+        result = self.send_email(
+            subject=subject,
+            html_content=html_content,
+            email_type="escalation",
+            related_id=session_state.session_name,
+            metadata={
+                "reason": session_state.escalation.reason if session_state.escalation else "unknown",
+                "status": session_state.status.value if hasattr(session_state.status, 'value') else str(session_state.status)
+            }
+        )
 
         # 记录发送结果
         if result['success']:

@@ -1,7 +1,7 @@
 # 客户控制台 - 技术栈说明
 
 > **创建日期**：2025-12-19
-> **最后更新**：2025-12-19
+> **最后更新**：2025-12-22
 
 ---
 
@@ -10,7 +10,8 @@
 | 层级 | 技术 | 说明 |
 |------|------|------|
 | 后端框架 | FastAPI | 已有，直接复用 |
-| 数据存储 | Redis | 已有，用于缓存和会话 |
+| 数据存储 | PostgreSQL + Redis | 已有，PostgreSQL 主存储 + Redis 缓存（双写模式） |
+| ORM | SQLAlchemy 2.0 | 已有，infrastructure/database |
 | 认证鉴权 | JWT | 已有 infrastructure/security |
 | 前端框架 | Vue 3 + TypeScript | 已有，复用工作台技术栈 |
 
@@ -97,9 +98,9 @@ billing:{customer_id}:invoices = [
 ]
 ```
 
-### 3.2 未来扩展：MySQL
+### 3.2 PostgreSQL 数据表（推荐）
 
-当数据量增大或需要复杂查询时，可迁移到 MySQL：
+使用 `infrastructure/database` 提供的 PostgreSQL 持久化：
 
 ```sql
 -- 客户表
@@ -108,27 +109,27 @@ CREATE TABLE customers (
     company_name VARCHAR(200),
     contact_name VARCHAR(100),
     contact_email VARCHAR(200),
-    created_at DATETIME
+    created_at TIMESTAMP
 );
 
 -- 订阅表
 CREATE TABLE subscriptions (
     id VARCHAR(32) PRIMARY KEY,
-    customer_id VARCHAR(32),
+    customer_id VARCHAR(32) REFERENCES customers(id),
     plan_id VARCHAR(32),
     start_date DATE,
     end_date DATE,
-    status ENUM('active', 'expired', 'cancelled')
+    status VARCHAR(20)  -- active/expired/cancelled
 );
 
 -- 用量表
 CREATE TABLE usage_logs (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     customer_id VARCHAR(32),
     product VARCHAR(50),
     count INT,
     date DATE,
-    INDEX idx_customer_date (customer_id, date)
+    CONSTRAINT idx_customer_date UNIQUE (customer_id, date, product)
 );
 
 -- 账单表
@@ -137,10 +138,12 @@ CREATE TABLE invoices (
     customer_id VARCHAR(32),
     amount DECIMAL(10,2),
     period VARCHAR(7),  -- 2025-12
-    status ENUM('pending', 'paid', 'overdue'),
-    created_at DATETIME
+    status VARCHAR(20),  -- pending/paid/overdue
+    created_at TIMESTAMP
 );
 ```
+
+**注意**：PostgreSQL 已在 infrastructure/database 模块中配置完成，开发时直接使用 SQLAlchemy ORM 模型即可。
 
 ---
 

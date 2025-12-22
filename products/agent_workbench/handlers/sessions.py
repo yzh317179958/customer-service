@@ -6,6 +6,8 @@ Endpoints:
 - GET /sessions/stats - Session statistics
 - GET /sessions/queue - Queue info
 - GET /sessions/{session_name} - Session details
+- GET /sessions/{session_name}/events - Session SSE event stream
+- POST /sessions/{session_name}/messages - Agent send message (NEW)
 - POST /sessions/{session_name}/release - Release session
 - POST /sessions/{session_name}/takeover - Takeover session
 - POST /sessions/{session_name}/transfer - Transfer session
@@ -13,12 +15,14 @@ Endpoints:
 - POST /sessions/{session_name}/notes - Add notes
 - POST /sessions/{session_name}/ticket - Create ticket from session
 """
+import asyncio
 import json
 import time
 import uuid
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from services.session.state import (
@@ -27,13 +31,16 @@ from services.session.state import (
     Message,
     AgentInfo,
     MessageRole,
+    UserProfile,
+    EscalationInfo,
+    EscalationReason,
 )
 from services.ticket.models import TicketType, TicketPriority, TicketCustomerInfo
 from services.ticket.store import TicketStore
 from products.agent_workbench.dependencies import (
     get_session_store, get_agent_manager, get_ticket_store,
     get_sse_queues, get_or_create_sse_queue,
-    require_agent
+    require_agent, verify_agent_token_from_query
 )
 
 router = APIRouter(prefix="/sessions", tags=["Sessions"])
@@ -52,6 +59,12 @@ class SessionTicketRequest(BaseModel):
     description: Optional[str] = None
     ticket_type: TicketType = TicketType.AFTER_SALE
     priority: TicketPriority = TicketPriority.MEDIUM
+
+
+class AgentMessageRequest(BaseModel):
+    """Request model for agent sending message (Step 2)"""
+    content: str = Field(..., min_length=1, max_length=10000, description="消息内容")
+    message_type: str = Field(default="text", description="消息类型：text/image/file")
 
 
 # ============================================================================
@@ -688,4 +701,255 @@ async def create_ticket_from_session(
         raise
     except Exception as e:
         print(f"Error: Create ticket from session failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Create failed: {str(e)}")
+
+
+# ============================================================================
+# Agent Send Message (Step 2 - P0)
+# ============================================================================
+
+@router.post("/{session_name}/messages")
+async def agent_send_message(
+    session_name: str,
+    request: AgentMessageRequest,
+    agent: Dict[str, Any] = Depends(require_agent)
+):
+    """
+    坐席发送消息到会话
+
+    受 require_agent() 保护，确保消息来源可追溯。
+    消息写入 SessionState.history（role=agent），并通过 SSE 推送 manual_message 事件。
+
+    Args:
+        session_name: 会话名称
+        request: 消息内容
+        agent: 当前登录坐席信息（通过 require_agent 依赖注入）
+
+    Returns:
+        发送成功的消息对象
+    """
+    session_store = get_session_store()
+
+    agent_id = agent.get("agent_id")
+    agent_name = agent.get("username")
+
+    if not agent_id or not agent_name:
+        raise HTTPException(status_code=400, detail="Invalid agent info")
+
+    try:
+        # 1. 获取会话
+        session_state = await session_store.get(session_name)
+        if not session_state:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        # 2. 验证会话状态（只有 manual_live 状态才能发送消息）
+        if session_state.status != SessionStatus.MANUAL_LIVE:
+            raise HTTPException(
+                status_code=409,
+                detail=f"INVALID_STATUS: Session status is {session_state.status}, cannot send message. Only manual_live sessions accept agent messages."
+            )
+
+        # 3. 验证是否是当前服务坐席
+        if session_state.assigned_agent:
+            if session_state.assigned_agent.id != agent_id:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"PERMISSION_DENIED: Session is assigned to agent [{session_state.assigned_agent.name}], not you."
+                )
+        else:
+            # 会话没有分配坐席，不允许发送
+            raise HTTPException(
+                status_code=403,
+                detail="PERMISSION_DENIED: Session has no assigned agent."
+            )
+
+        # 4. 创建消息
+        message = Message(
+            role=MessageRole.AGENT,
+            content=request.content,
+            timestamp=time.time(),
+            agent_id=agent_id,
+            agent_name=agent_name
+        )
+
+        # 5. 写入会话历史
+        session_state.add_message(message)
+        await session_store.save(session_state)
+
+        # 6. 推送 SSE 事件
+        sse_payload = {
+            "type": "manual_message",
+            "role": "agent",
+            "content": request.content,
+            "agent_id": agent_id,
+            "agent_name": agent_name,
+            "message_type": request.message_type,
+            "timestamp": message.timestamp
+        }
+        await enqueue_sse_message(session_name, sse_payload)
+
+        # 7. 记录日志
+        print(json.dumps({
+            "event": "agent_message_sent",
+            "session_name": session_name,
+            "agent_id": agent_id,
+            "agent_name": agent_name,
+            "content_length": len(request.content),
+            "timestamp": int(time.time())
+        }, ensure_ascii=False))
+
+        # 8. 更新坐席活跃时间
+        try:
+            agent_manager = get_agent_manager()
+            agent_manager.update_last_active(agent_id)
+        except RuntimeError:
+            pass
+
+        return {
+            "success": True,
+            "data": {
+                "message": {
+                    "role": "agent",
+                    "content": request.content,
+                    "agent_id": agent_id,
+                    "agent_name": agent_name,
+                    "message_type": request.message_type,
+                    "timestamp": message.timestamp
+                },
+                "session_name": session_name
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error: Agent send message failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Send message failed: {str(e)}")
+
+
+# ============================================================================
+# Session SSE Event Stream (Step 1 - P0)
+# ============================================================================
+
+@router.get("/{session_name}/events")
+async def session_events(
+    session_name: str,
+    agent: Dict[str, Any] = Depends(verify_agent_token_from_query)
+):
+    """
+    会话级事件 SSE 流
+
+    用于坐席端实时刷新选中会话的消息和状态变化
+
+    注意: 此端点使用 query 参数传递 token，因为 EventSource 不支持自定义 headers
+
+    事件类型:
+    - manual_message: 人工消息（role=agent/user/system）
+    - status_change: 会话状态变化（pending_manual/manual_live/bot_active）
+    - error: 错误事件
+
+    Args:
+        session_name: 会话名称
+        agent: 当前登录坐席信息（通过 verify_agent_token_from_query 依赖注入）
+
+    Returns:
+        StreamingResponse: SSE 事件流
+    """
+    session_store = get_session_store()
+
+    # 验证会话存在
+    session_state = await session_store.get(session_name)
+    if not session_state:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # 获取或创建该会话的 SSE 队列
+    queue = get_or_create_sse_queue(session_name)
+
+    agent_name = agent.get("username", "unknown")
+    print(f"✅ 会话事件 SSE 连接: session={session_name}, agent={agent_name}")
+
+    async def event_generator():
+        try:
+            # 发送连接成功事件
+            yield f"data: {json.dumps({'type': 'connected', 'session_name': session_name, 'timestamp': int(time.time())}, ensure_ascii=False)}\n\n"
+
+            while True:
+                try:
+                    # 等待队列中的消息，30秒超时发送心跳
+                    payload = await asyncio.wait_for(queue.get(), timeout=30.0)
+                    yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+                except asyncio.TimeoutError:
+                    # 发送心跳保持连接
+                    yield f"data: {json.dumps({'type': 'heartbeat', 'timestamp': int(time.time())}, ensure_ascii=False)}\n\n"
+        except asyncio.CancelledError:
+            print(f"⏹️  会话事件 SSE 断开: session={session_name}, agent={agent_name}")
+            raise
+        except Exception as exc:
+            print(f"❌ 会话事件 SSE 异常: session={session_name}, error={str(exc)}")
+            yield f"data: {json.dumps({'type': 'error', 'message': str(exc), 'timestamp': int(time.time())}, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
+# ============================================================================
+# Test Endpoint (Development Only)
+# ============================================================================
+
+class TestSessionRequest(BaseModel):
+    """测试会话创建请求"""
+    customer_name: str = "测试客户"
+    customer_email: str = "test@example.com"
+    channel: str = "官网"
+    reason: str = "测试转人工"
+
+
+@router.post("/test-create")
+async def create_test_session(request: TestSessionRequest):
+    """
+    创建测试会话（仅开发环境使用）
+
+    用于测试坐席工作台的待接入队列功能
+    """
+    session_store = get_session_store()
+
+    try:
+        # 生成唯一会话名
+        session_name = f"test_{int(time.time() * 1000)}"
+
+        # 创建会话
+        session = SessionState(
+            session_name=session_name,
+            status=SessionStatus.PENDING_MANUAL,
+            user_profile=UserProfile(
+                nickname=request.customer_name,
+                email=request.customer_email
+            ),
+            escalation=EscalationInfo(
+                reason=EscalationReason.MANUAL,
+                details=request.reason
+            )
+        )
+
+        await session_store.save(session)
+
+        return {
+            "success": True,
+            "data": {
+                "session_name": session_name,
+                "customer_name": request.customer_name,
+                "status": "pending_manual",
+                "message": "测试会话创建成功，请刷新待接入队列"
+            }
+        }
+
+    except Exception as e:
+        print(f"Error: Create test session failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Create failed: {str(e)}")

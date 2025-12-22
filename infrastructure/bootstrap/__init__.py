@@ -82,6 +82,14 @@ from .scheduler import (
     register_warmup_service_factory,
 )
 
+# Database
+from .database import (
+    init_database,
+    get_db_session,
+    is_database_initialized,
+    get_database_status,
+)
+
 # Factory
 from .factory import (
     BootstrapFactory,
@@ -131,6 +139,11 @@ __all__ = [
     "start_warmup_scheduler",
     "shutdown_background_tasks",
     "register_warmup_service_factory",
+    # Database
+    "init_database",
+    "get_db_session",
+    "is_database_initialized",
+    "get_database_status",
     # Factory
     "BootstrapFactory",
     "Component",

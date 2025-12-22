@@ -32,3 +32,8 @@ redis>=5.0.0
 
 # APScheduler - 定时任务调度 (用于缓存预热)
 apscheduler>=3.10.0
+
+# PostgreSQL 数据库支持
+SQLAlchemy>=2.0.0
+psycopg2-binary>=2.9.0
+alembic>=1.12.0

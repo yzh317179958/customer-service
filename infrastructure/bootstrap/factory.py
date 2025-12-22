@@ -15,6 +15,7 @@ from typing import List, Set, Dict, Any, Callable
 class Component(str, Enum):
     """可初始化的组件枚举"""
     REDIS = "redis"
+    DATABASE = "database"  # PostgreSQL 数据库
     COZE = "coze"
     REGULATOR = "regulator"
     AGENT_AUTH = "agent_auth"
@@ -26,6 +27,7 @@ class Component(str, Enum):
 # 组件依赖关系
 COMPONENT_DEPENDENCIES: Dict[Component, List[Component]] = {
     Component.REDIS: [],
+    Component.DATABASE: [],  # 无依赖
     Component.COZE: [],
     Component.REGULATOR: [],
     Component.AGENT_AUTH: [Component.REDIS],
@@ -102,6 +104,10 @@ class BootstrapFactory:
         if component == Component.REDIS:
             from .redis import init_redis
             self._instances[component] = init_redis()
+
+        elif component == Component.DATABASE:
+            from .database import init_database
+            self._instances[component] = init_database()
 
         elif component == Component.COZE:
             from .coze import init_coze_client

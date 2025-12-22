@@ -34,9 +34,11 @@ class AgentWorkbenchConfig:
 
     # CORS 配置
     cors_origins: list = field(default_factory=lambda: [
-        "http://localhost:5173",
-        "http://localhost:8080",
-        "https://ai.fiido.com",
+        "http://localhost:3000",   # 坐席工作台前端 (vite dev)
+        "http://localhost:5173",   # 备用前端端口
+        "http://localhost:5174",   # 备用前端端口
+        "http://localhost:8080",   # 其他前端端口
+        "https://ai.fiido.com",    # 生产环境
     ])
 
     def __post_init__(self):

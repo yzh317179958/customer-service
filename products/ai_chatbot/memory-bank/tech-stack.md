@@ -1,7 +1,7 @@
 # AI 智能客服 - 技术栈说明
 
 > **创建日期**：2025-12-21
-> **最后更新**：2025-12-21
+> **最后更新**：2025-12-22
 > **原则**：优先复用三层架构现有能力，避免引入不必要新依赖
 
 ---
@@ -13,8 +13,10 @@
 | 产品层 | FastAPI | API 框架，支持异步和流式响应 |
 | 产品层 | Pydantic | 请求/响应模型验证 |
 | 服务层 | cozepy | Coze API 客户端 |
-| 服务层 | Redis | 会话状态持久化 |
+| 服务层 | Redis | 会话状态缓存 |
 | 服务层 | SMTP | 邮件发送（可选） |
+| 基础设施层 | PostgreSQL | 数据持久化（工单、审计日志、会话归档） |
+| 基础设施层 | SQLAlchemy 2.0 | ORM 框架 |
 | 基础设施层 | APScheduler | 定时任务（缓存预热） |
 | 基础设施层 | JWT | OAuth 鉴权 |
 
@@ -51,6 +53,7 @@
 | Bootstrap | infrastructure.bootstrap | 组件工厂、依赖注入 |
 | 安全 | infrastructure.security | JWT 签名（如独立认证需要） |
 | 定时任务 | infrastructure.scheduler | 缓存预热调度 |
+| 数据库 | infrastructure.database | PostgreSQL + Redis 双写 |
 
 ---
 
@@ -126,4 +129,5 @@ uvicorn backend:app --host 0.0.0.0 --port 8000
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| v1.1 | 2025-12-22 | 新增 PostgreSQL 数据库依赖，更新双写策略说明 |
 | v1.0 | 2025-12-21 | 初始版本 |

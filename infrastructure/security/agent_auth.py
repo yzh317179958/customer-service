@@ -275,20 +275,37 @@ class AgentTokenManager:
 # 坐席账号管理器
 # ====================
 
-class AgentManager:
-    """坐席账号管理器（基于 Redis 存储）"""
+import logging
 
-    def __init__(self, redis_store):
+logger = logging.getLogger(__name__)
+
+
+class AgentManager:
+    """坐席账号管理器（支持 PostgreSQL + Redis 双写模式）"""
+
+    def __init__(self, redis_store, enable_postgres: bool = False):
         """
         初始化坐席管理器
 
         Args:
             redis_store: Redis 存储实例
+            enable_postgres: 是否启用 PostgreSQL 双写
         """
         self.redis = redis_store.redis
         self.key_prefix = "agent:"
         self.id_index_prefix = "agent_id:"
         self.default_ttl = 86400 * 365  # 1年
+        self._pg_enabled = enable_postgres
+
+    def enable_postgres(self):
+        """启用 PostgreSQL 双写"""
+        self._pg_enabled = True
+        logger.info("[AgentManager] PostgreSQL 双写已启用")
+
+    def disable_postgres(self):
+        """禁用 PostgreSQL 双写"""
+        self._pg_enabled = False
+        logger.info("[AgentManager] PostgreSQL 双写已禁用")
 
     def _username_key(self, username: str) -> str:
         return f"{self.key_prefix}{username}"
@@ -297,10 +314,60 @@ class AgentManager:
         return f"{self.id_index_prefix}{agent_id}"
 
     def _store_agent_record(self, agent: Agent):
-        """将坐席信息写入Redis并刷新索引"""
+        """将坐席信息写入存储（双写模式）"""
+        # 1. 写入 PostgreSQL（主存储）
+        if self._pg_enabled:
+            self._pg_save_agent(agent)
+
+        # 2. 写入 Redis（缓存）
         data = agent.json()
-        self.redis.set(self._username_key(agent.username), data, ex=self.default_ttl)
-        self.redis.set(self._id_index_key(agent.id), agent.username, ex=self.default_ttl)
+        try:
+            self.redis.set(self._username_key(agent.username), data, ex=self.default_ttl)
+            self.redis.set(self._id_index_key(agent.id), agent.username, ex=self.default_ttl)
+        except Exception as e:
+            # Redis 失败重试一次
+            try:
+                self.redis.set(self._username_key(agent.username), data, ex=self.default_ttl)
+                self.redis.set(self._id_index_key(agent.id), agent.username, ex=self.default_ttl)
+            except Exception:
+                logger.warning(f"[AgentManager] Redis 缓存写入失败: {e}")
+
+    def _pg_save_agent(self, agent: Agent):
+        """写入 PostgreSQL"""
+        try:
+            from infrastructure.database import get_db_session
+            from infrastructure.database.models import AgentModel
+            from infrastructure.database.converters import agent_to_orm
+
+            with get_db_session() as session:
+                # 查找现有记录
+                existing = session.query(AgentModel).filter_by(
+                    agent_id=agent.id
+                ).first()
+
+                if existing:
+                    # 更新现有记录
+                    existing.username = agent.username
+                    existing.password_hash = agent.password_hash
+                    existing.name = agent.name
+                    existing.avatar_url = agent.avatar_url
+                    existing.role = agent.role.value if hasattr(agent.role, 'value') else agent.role
+                    existing.status = agent.status.value if hasattr(agent.status, 'value') else agent.status
+                    existing.status_note = agent.status_note
+                    existing.status_updated_at = agent.status_updated_at
+                    existing.last_active_at = agent.last_active_at
+                    existing.last_login_at = agent.last_login
+                    existing.max_sessions = agent.max_sessions
+                    existing.skills = [s.model_dump() for s in agent.skills] if agent.skills else []
+                    import time
+                    existing.updated_at = time.time()
+                else:
+                    # 创建新记录
+                    orm_agent = agent_to_orm(agent)
+                    session.add(orm_agent)
+
+        except Exception as e:
+            logger.error(f"[AgentManager] PostgreSQL 写入失败: {e}")
 
     def create_agent(
         self,
@@ -499,12 +566,29 @@ class AgentManager:
         Returns:
             是否删除成功
         """
-        key = self._username_key(username)
         agent = self.get_agent_by_username(username)
+
+        # 1. 从 PostgreSQL 删除
+        if self._pg_enabled and agent:
+            self._pg_delete_agent(agent.id)
+
+        # 2. 从 Redis 删除
+        key = self._username_key(username)
         result = self.redis.delete(key)
         if agent:
             self.redis.delete(self._id_index_key(agent.id))
         return result > 0
+
+    def _pg_delete_agent(self, agent_id: str):
+        """从 PostgreSQL 删除坐席"""
+        try:
+            from infrastructure.database import get_db_session
+            from infrastructure.database.models import AgentModel
+
+            with get_db_session() as session:
+                session.query(AgentModel).filter_by(agent_id=agent_id).delete()
+        except Exception as e:
+            logger.error(f"[AgentManager] PostgreSQL 删除失败: {e}")
 
     def count_admins(self) -> int:
         """

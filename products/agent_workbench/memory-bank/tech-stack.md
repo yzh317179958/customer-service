@@ -1,112 +1,322 @@
-# 坐席工作台（Agent Workbench）- 技术栈说明
+# 坐席工作台 - 技术栈
 
-> **创建日期**：2025-12-19
-> **最后更新**：2025-12-19
-> **原则**：优先复用现有三层架构与服务能力；避免引入不必要新依赖。
+> 产品模块：products/agent_workbench
+> 创建日期：2025-12-21
+> 最后更新：2025-12-22
 
 ---
 
-## 1. 后端（复用现有）
+## 复用现有技术栈
 
 | 层级 | 技术 | 说明 |
-|---|---|---|
-| 产品层 | FastAPI（`products/agent_workbench`） | 已实现坐席工作台 API（多模块路由） |
-| 服务层 | `services/session`、`services/ticket`、`services/shopify`… | 会话/工单/订单查询等复用能力 |
-| 基础设施层 | `infrastructure/bootstrap`、`infrastructure/security`、`infrastructure/database` | 组件工厂、JWT 坐席认证、Redis 等 |
-| 实时推送 | SSE（队列 + `StreamingResponse`） | 已有坐席事件 SSE；建议补齐会话级 SSE |
-| 存储 | Redis（优先）+ 本地文件（附件） | 工单附件默认落到 `ATTACHMENTS_DIR` |
+|------|------|------|
+| **产品层** | FastAPI | products/agent_workbench（后端已完成） |
+| **服务层** | services/session | 会话状态管理 |
+| | services/ticket | 工单服务（PostgreSQL 双写） |
+| | services/shopify | 订单查询 |
+| | services/coze | AI 对话（用于智能建议） |
+| **基础设施层** | infrastructure/bootstrap | 组件工厂、依赖注入 |
+| | infrastructure/security | JWT 认证、坐席管理（PostgreSQL 双写） |
+| | infrastructure/database | PostgreSQL + Redis 双写 |
+| **前端** | React 19 + TypeScript | 复用 fronted_origin 原型 |
+| | Tailwind CSS（CDN） | 样式框架（原型使用 CDN） |
+| | Zustand | 轻量状态管理（待安装） |
+| | Axios | HTTP 客户端（待安装） |
+| | Lucide React | 图标库（已有） |
+| | Recharts | 图表库（已有） |
+| **数据存储** | PostgreSQL | 工单、坐席、审计日志（主存储） |
+| | Redis | 会话、快捷回复（缓存） |
+| **实时通信** | SSE | 服务端推送事件 |
 
 ---
 
-## 2. 前端（基于原型复用）
+## 新增依赖
 
-### 2.1 技术栈与依赖版本
+### 前端原型已有依赖
 
-> **决策**：直接改造 `fronted_origin/` 目录，保持 React 技术栈
+```json
+{
+  "dependencies": {
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "lucide-react": "^0.561.0",
+    "recharts": "^3.6.0",
+    "@google/genai": "^1.34.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0"
+  }
+}
+```
 
-| 模块 | 技术 | 版本 | 说明 |
+### 需要新增的依赖
+
+```json
+{
+  "dependencies": {
+    "react-router-dom": "^6.x",
+    "axios": "^1.6.0",
+    "zustand": "^4.4.0",
+    "clsx": "^2.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "tailwindcss": "^3.4.0",
+    "postcss": "^8.4.0",
+    "autoprefixer": "^10.4.0"
+  }
+}
+```
+
+**说明**：
+- 原型使用 CDN 加载 Tailwind，生产环境需本地化
+- @google/genai 是原型中的依赖，生产环境可能不需要
+
+---
+
+## 数据存储方案
+
+### PostgreSQL 数据表（主存储）
+
+| 表名 | 用途 | 双写模式 |
+|------|------|----------|
+| tickets | 工单主表 | ✅ |
+| ticket_comments | 工单评论 | ✅ |
+| ticket_attachments | 工单附件 | ✅ |
+| ticket_status_history | 状态历史 | ✅ |
+| ticket_assignments | 指派历史 | ✅ |
+| agents | 坐席账号 | ✅ |
+| audit_logs | 审计日志 | ✅ |
+| session_archives | 会话归档 | - |
+| email_records | 邮件记录 | - |
+
+### Redis 数据结构（缓存）
+
+```
+# 会话状态
+session:{session_name} → Hash {
+  status, agent_id, customer_info, messages, ...
+}
+
+# 会话队列
+session:queue:{priority} → Sorted Set (score=timestamp)
+
+# 工单
+ticket:{ticket_id} → Hash {
+  id, title, status, priority, assignee, sla_deadline, ...
+}
+
+# 坐席状态
+agent:{agent_id}:status → String (online/busy/offline)
+
+# 快捷回复
+quick_reply:{agent_id}:{reply_id} → Hash
+```
+
+---
+
+## API 设计
+
+### 认证模块 `/api/agent/*`
+
+| 方法 | 路径 | 说明 | 状态 |
 |------|------|------|------|
-| 构建工具 | Vite | ^6.2.0 | 原型已使用 |
-| 框架 | React | ^19.2.3 | 原型已使用 |
-| 类型 | TypeScript | ~5.8.2 | 原型已使用 |
-| UI 样式 | Tailwind CSS | ^3.4.0 | 改为本地依赖（移除 CDN） |
-| 样式处理 | PostCSS | ^8.4.0 | Tailwind 必需 |
-| 样式处理 | Autoprefixer | ^10.4.0 | 浏览器兼容 |
-| 状态管理 | zustand | ^4.5.0 | **新增**：轻量状态管理 |
-| 图标 | lucide-react | ^0.561.0 | 原型已使用 |
-| 图表 | recharts | ^3.6.0 | Dashboard/报表使用 |
+| POST | /api/login | 坐席登录 | ✅ 已有 |
+| POST | /api/logout | 坐席登出 | ✅ 已有 |
+| POST | /api/refresh | Token 刷新 | ✅ 已有 |
+| GET | /api/profile | 获取坐席信息 | ✅ 已有 |
+| PUT | /api/profile | 更新坐席信息 | ✅ 已有 |
+| GET | /api/status | 获取坐席状态 | ✅ 已有 |
+| PUT | /api/status | 更新坐席状态 | ✅ 已有 |
+| POST | /api/change-password | 修改密码 | ✅ 已有 |
 
-### 2.2 完整依赖清单
+### 会话模块 `/api/sessions/*`
 
-**package.json dependencies:**
-```json
-{
-  "react": "^19.2.3",
-  "react-dom": "^19.2.3",
-  "lucide-react": "^0.561.0",
-  "recharts": "^3.6.0",
-  "zustand": "^4.5.0"
-}
+| 方法 | 路径 | 说明 | 状态 |
+|------|------|------|------|
+| GET | /api/sessions | 获取会话列表 | ✅ 已有 |
+| GET | /api/sessions/queue | 获取待接入队列 | ✅ 已有 |
+| GET | /api/sessions/stats | 会话统计 | ✅ 已有 |
+| GET | /api/sessions/{id} | 获取会话详情 | ✅ 已有 |
+| POST | /api/sessions/{id}/takeover | 接管会话 | ✅ 已有 |
+| POST | /api/sessions/{id}/transfer | 转接会话 | ✅ 已有 |
+| POST | /api/sessions/{id}/release | 释放会话 | ✅ 已有 |
+| POST | /api/sessions/{id}/messages | 发送消息 | ✅ 已有 |
+| GET | /api/sessions/{id}/events | SSE 事件流 | ✅ 已有 |
+
+### 工单模块 `/api/tickets/*`
+
+| 方法 | 路径 | 说明 | 状态 |
+|------|------|------|------|
+| GET | /api/tickets | 工单列表 | ✅ 已有 |
+| POST | /api/tickets | 创建工单 | ✅ 已有 |
+| GET | /api/tickets/{id} | 工单详情 | ✅ 已有 |
+| PATCH | /api/tickets/{id} | 更新工单 | ✅ 已有 |
+| POST | /api/tickets/{id}/assign | 分配工单 | ✅ 已有 |
+| POST | /api/tickets/{id}/comments | 添加评论 | ✅ 已有 |
+| GET | /api/tickets/sla-dashboard | SLA 仪表盘 | ✅ 已有 |
+| POST | /api/tickets/filter | 高级筛选 | ✅ 已有 |
+| POST | /api/tickets/export | 导出工单 | ✅ 已有 |
+
+### 快捷回复 `/api/quick-replies/*`
+
+| 方法 | 路径 | 说明 | 状态 |
+|------|------|------|------|
+| GET | /api/quick-replies | 获取快捷回复列表 | ✅ 已有 |
+| POST | /api/quick-replies | 创建快捷回复 | ✅ 已有 |
+| PUT | /api/quick-replies/{id} | 更新快捷回复 | ✅ 已有 |
+| DELETE | /api/quick-replies/{id} | 删除快捷回复 | ✅ 已有 |
+
+### Shopify 订单 `/api/shopify/*`
+
+| 方法 | 路径 | 说明 | 状态 |
+|------|------|------|------|
+| GET | /api/shopify/order/{order_id} | 查询订单 | ✅ 已有 |
+| GET | /api/shopify/customer/{email} | 客户订单 | ✅ 已有 |
+
+### 模板管理 `/api/templates/*`
+
+| 方法 | 路径 | 说明 | 状态 |
+|------|------|------|------|
+| GET | /api/templates | 模板列表 | ✅ 已有 |
+| POST | /api/templates | 创建模板 | ✅ 已有 |
+| PUT | /api/templates/{id} | 更新模板 | ✅ 已有 |
+| DELETE | /api/templates/{id} | 删除模板 | ✅ 已有 |
+
+### 客户信息 `/api/customers/*`
+
+| 方法 | 路径 | 说明 | 状态 |
+|------|------|------|------|
+| GET | /api/customers/{id} | 客户详情 | ✅ 已有 |
+| PUT | /api/customers/{id} | 更新客户 | ✅ 已有 |
+
+### 管理员操作 `/api/admin/*`
+
+| 方法 | 路径 | 说明 | 状态 |
+|------|------|------|------|
+| GET | /api/admin/agents | 坐席列表 | ✅ 已有 |
+| POST | /api/admin/agents | 创建坐席 | ✅ 已有 |
+
+---
+
+## 前端架构
+
+### 原型目录结构（fronted_origin/）
+
 ```
-
-**package.json devDependencies:**
-```json
-{
-  "@types/node": "^22.14.0",
-  "@types/react": "^19.0.0",
-  "@types/react-dom": "^19.0.0",
-  "@vitejs/plugin-react": "^5.0.0",
-  "autoprefixer": "^10.4.0",
-  "postcss": "^8.4.0",
-  "tailwindcss": "^3.4.0",
-  "typescript": "~5.8.2",
-  "vite": "^6.2.0"
-}
-```
-
-### 2.3 前端目录结构
-
-```
-fronted_origin/
-├── package.json
+products/agent_workbench/fronted_origin/
+├── index.html                  # 入口（CDN Tailwind）
+├── index.tsx                   # React 入口
+├── App.tsx                     # 根组件
+├── types.ts                    # 类型定义
+├── constants.tsx               # 常量
+├── components/                 # 12 个页面组件
+│   ├── LoginView.tsx
+│   ├── Sidebar.tsx
+│   ├── Topbar.tsx
+│   ├── Workspace.tsx
+│   ├── TicketsView.tsx
+│   ├── Dashboard.tsx
+│   ├── KnowledgeBase.tsx
+│   ├── Monitoring.tsx
+│   ├── QualityAudit.tsx
+│   ├── BillingView.tsx
+│   ├── BillingPortal.tsx
+│   └── Settings.tsx
 ├── vite.config.ts
-├── tailwind.config.js      # 新增
-├── postcss.config.js       # 新增
-├── .env.development        # 新增：VITE_API_BASE=http://localhost:8002
-├── .env.production         # 新增：VITE_API_BASE=/
-└── src/
-    ├── api/                # 新增：API 请求封装
-    ├── stores/             # 新增：zustand 状态
-    ├── pages/              # 新增：登录页等
-    ├── components/         # 现有：Workspace/TicketsView/...
-    ├── hooks/              # 新增：自定义 Hooks
-    └── types/              # 新增：TypeScript 类型
+├── tsconfig.json
+└── package.json
+```
+
+### 改造后目录结构（frontend/，规划中）
+
+```
+products/agent_workbench/frontend/
+├── public/
+│   └── index.html
+├── src/
+│   ├── api/                    # API 服务层（新增）
+│   │   ├── client.ts          # Axios 实例（拦截器）
+│   │   ├── auth.ts            # 认证 API
+│   │   ├── sessions.ts        # 会话 API
+│   │   ├── tickets.ts         # 工单 API
+│   │   └── index.ts           # 统一导出
+│   ├── stores/                 # Zustand 状态管理（新增）
+│   │   ├── authStore.ts       # 认证状态
+│   │   ├── sessionStore.ts    # 会话状态
+│   │   ├── ticketStore.ts     # 工单状态
+│   │   └── index.ts
+│   ├── components/             # 页面组件（迁移自原型）
+│   │   └── ...
+│   ├── hooks/                  # 自定义 Hooks（新增）
+│   │   └── useSSE.ts          # SSE 连接管理
+│   ├── types/                  # TypeScript 类型
+│   │   └── index.ts
+│   ├── App.tsx                 # 根组件
+│   ├── main.tsx               # 入口
+│   └── index.css              # Tailwind 入口
+├── tailwind.config.js
+├── vite.config.ts
+├── tsconfig.json
+└── package.json
+```
+
+### 状态管理架构
+
+```
+┌─────────────────────────────────────────────────────┐
+│                    React Components                   │
+└─────────────────────────────────────────────────────┘
+                         ↓ use hooks
+┌─────────────────────────────────────────────────────┐
+│                    Zustand Stores                     │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐          │
+│  │ authStore│  │sessionStore│  │ticketStore│         │
+│  └────┬─────┘  └────┬─────┘  └────┬─────┘          │
+└───────┼─────────────┼─────────────┼─────────────────┘
+        ↓             ↓             ↓
+┌─────────────────────────────────────────────────────┐
+│                    API Services                       │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐          │
+│  │ auth.ts  │  │sessions.ts│  │tickets.ts │          │
+│  └────┬─────┘  └────┬─────┘  └────┬─────┘          │
+└───────┼─────────────┼─────────────┼─────────────────┘
+        ↓             ↓             ↓
+┌─────────────────────────────────────────────────────┐
+│                    Axios Client                       │
+│  - BaseURL 配置                                      │
+│  - JWT 自动注入                                      │
+│  - 401 拦截跳转                                      │
+│  - 错误统一处理                                      │
+└─────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 3. 接口与鉴权约定
+## 生产环境要求
 
-### 3.1 API Base
-开发建议同时支持两种模式：
-- **独立模式**：`agent_workbench` 后端 `http://localhost:8002/api`；`ai_chatbot` 后端 `http://localhost:8001/api`
-- **全家桶模式**：统一 `http://localhost:8000/api`（按部署脚本与后端注册情况）
+### 安全性
+- HTTPS 强制
+- JWT Token 过期自动刷新
+- 敏感操作二次确认
+- CORS 白名单配置
 
-### 3.2 鉴权
-- 坐席侧 API 使用 `Authorization: Bearer <token>`（`/api/agent/login` 获取）
-- 管理员能力需 `require_admin()` 保护（403）
+### 性能
+- 代码分割（React.lazy）
+- 资源 CDN 加速
+- API 响应缓存
+- SSE 断线重连
 
----
+### 可维护性
+- TypeScript 类型安全
+- ESLint + Prettier 代码规范
+- 环境变量配置分离
+- 统一错误处理
 
-## 4. 前端工程化约束（建议）
-
-### 4.1 环境变量（示例）
-- `VITE_AGENT_WORKBENCH_API_BASE`：坐席工作台 API Base（如 `http://localhost:8002`）
-- `VITE_AI_CHATBOT_API_BASE`：AI 客服 API Base（如 `http://localhost:8001`）
-- `VITE_CUSTOMER_PORTAL_URL`：计费门户 iframe 地址（如 `https://portal.fiido.com`）
-
-### 4.2 CORS / Proxy
-- 后端 `cors_origins` 目前未包含 `http://localhost:5174`（坐席端常用 dev 端口），建议：
-  - 方案A：后端补充 origin；或
-  - 方案B：前端 dev server 配置 proxy 到后端，避免跨域。
-
+### 监控
+- API 请求日志
+- 错误上报
+- 性能指标收集

@@ -1,6 +1,6 @@
 # AI 智能客服 - 架构说明
 
-> **最后更新**：2025-12-21
+> **最后更新**：2025-12-22
 
 ## 目录结构
 
@@ -39,8 +39,21 @@ products/ai_chatbot
 ├── services/session (会话状态管理)
 ├── services/coze (Coze Token 管理)
 ├── services/email (邮件发送)
-└── infrastructure/security (认证)
+├── services/ticket (工单管理 - PostgreSQL 双写)
+└── infrastructure/
+    ├── security (认证)
+    └── database (PostgreSQL + Redis 双写)
 ```
+
+## 数据存储
+
+| 数据类型 | 主存储 | 缓存 | 说明 |
+|----------|--------|------|------|
+| 活跃会话 | Redis | - | 高频读写 |
+| 工单数据 | PostgreSQL | Redis | 双写模式 |
+| 审计日志 | PostgreSQL | Redis | 双写模式 |
+| 会话归档 | PostgreSQL | - | 持久化存储 |
+| Shopify 缓存 | Redis | - | TTL 过期 |
 
 ## 核心组件
 

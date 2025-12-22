@@ -1,13 +1,16 @@
 """
 工单存储管理
 
-最小可行版本：支持创建与列出工单
+支持 PostgreSQL + Redis 双写模式：
+- PostgreSQL: 持久化存储（主）
+- Redis: 缓存层（可选）
 """
 
 from __future__ import annotations
 
 import json
 import time
+import logging
 from typing import List, Optional, Dict, Any
 
 try:
@@ -27,15 +30,32 @@ from services.ticket.models import (
 )
 from services.ticket.sla import check_sla_alerts, SLAAlert, SLA_PAUSE_STATUSES
 
+logger = logging.getLogger(__name__)
+
 
 class TicketStore:
-    """工单存储（支持 Redis / 内存双模式）"""
+    """工单存储（支持 PostgreSQL + Redis 双写模式）"""
 
-    def __init__(self, redis_client: Optional["redis.Redis"] = None):
+    def __init__(
+        self,
+        redis_client: Optional["redis.Redis"] = None,
+        enable_postgres: bool = False
+    ):
         self.redis = redis_client
         self.key_prefix = "ticket"
         self.index_key = f"{self.key_prefix}:index"
         self._memory_store = {} if redis_client is None else None
+        self._pg_enabled = enable_postgres
+
+    def enable_postgres(self):
+        """启用 PostgreSQL 双写"""
+        self._pg_enabled = True
+        logger.info("[TicketStore] PostgreSQL 双写已启用")
+
+    def disable_postgres(self):
+        """禁用 PostgreSQL 双写"""
+        self._pg_enabled = False
+        logger.info("[TicketStore] PostgreSQL 双写已禁用")
 
     def _ticket_searchable_strings(self, ticket: Ticket) -> List[str]:
         fields: List[str] = [
@@ -71,14 +91,87 @@ class TicketStore:
     # 基础方法
     # ------------------
     def _save_ticket(self, ticket: Ticket):
+        """保存工单（双写模式）"""
+        # 1. 写入 PostgreSQL（主存储）
+        if self._pg_enabled:
+            self._pg_save_ticket(ticket)
+
+        # 2. 写入 Redis/内存（缓存）
         data = json.dumps(ticket.to_dict(), ensure_ascii=False)
         if self.redis:
-            pipe = self.redis.pipeline()
-            pipe.set(f"{self.key_prefix}:{ticket.ticket_id}", data)
-            pipe.sadd(self.index_key, ticket.ticket_id)
-            pipe.execute()
+            try:
+                pipe = self.redis.pipeline()
+                pipe.set(f"{self.key_prefix}:{ticket.ticket_id}", data)
+                pipe.sadd(self.index_key, ticket.ticket_id)
+                pipe.execute()
+            except Exception as e:
+                # Redis 失败重试一次
+                try:
+                    pipe = self.redis.pipeline()
+                    pipe.set(f"{self.key_prefix}:{ticket.ticket_id}", data)
+                    pipe.sadd(self.index_key, ticket.ticket_id)
+                    pipe.execute()
+                except Exception:
+                    logger.warning(f"[TicketStore] Redis 缓存写入失败: {e}")
         else:
             self._memory_store[ticket.ticket_id] = data  # type: ignore
+
+    def _pg_save_ticket(self, ticket: Ticket):
+        """写入 PostgreSQL"""
+        try:
+            from infrastructure.database import get_db_session
+            from infrastructure.database.models import (
+                TicketModel, TicketCommentModel, TicketAttachmentModel,
+                TicketStatusHistoryModel, TicketAssignmentModel
+            )
+            from infrastructure.database.converters import (
+                ticket_to_orm, comment_to_orm, attachment_to_orm,
+                status_history_to_orm, assignment_to_orm
+            )
+
+            with get_db_session() as session:
+                # 查找现有记录
+                existing = session.query(TicketModel).filter_by(
+                    ticket_id=ticket.ticket_id
+                ).first()
+
+                if existing:
+                    # 更新现有记录
+                    existing.title = ticket.title
+                    existing.description = ticket.description
+                    existing.session_name = ticket.session_name
+                    existing.ticket_type = ticket.ticket_type.value if hasattr(ticket.ticket_type, 'value') else ticket.ticket_type
+                    existing.status = ticket.status.value if hasattr(ticket.status, 'value') else ticket.status
+                    existing.priority = ticket.priority.value if hasattr(ticket.priority, 'value') else ticket.priority
+                    existing.assigned_agent_id = ticket.assigned_agent_id
+                    existing.assigned_agent_name = ticket.assigned_agent_name
+                    existing.customer = ticket.customer.model_dump() if ticket.customer else None
+                    existing.extra_data = ticket.metadata
+                    existing.closed_at = ticket.closed_at
+                    existing.archived_at = ticket.archived_at
+                    existing.first_response_at = ticket.first_response_at
+                    existing.resolved_at = ticket.resolved_at
+                    existing.reopened_at = ticket.reopened_at
+                    existing.reopened_count = ticket.reopened_count
+                    existing.reopened_by = ticket.reopened_by
+                    existing.updated_at = ticket.updated_at
+                else:
+                    # 创建新记录
+                    orm_ticket = ticket_to_orm(ticket)
+                    session.add(orm_ticket)
+
+                    # 添加关联数据
+                    for comment in ticket.comments:
+                        session.add(comment_to_orm(comment, ticket.ticket_id))
+                    for attachment in ticket.attachments:
+                        session.add(attachment_to_orm(attachment, ticket.ticket_id))
+                    for history in ticket.history:
+                        session.add(status_history_to_orm(history, ticket.ticket_id))
+                    for assignment in ticket.assignments:
+                        session.add(assignment_to_orm(assignment, ticket.ticket_id))
+
+        except Exception as e:
+            logger.error(f"[TicketStore] PostgreSQL 写入失败: {e}")
 
     def _load_ticket(self, ticket_id: str) -> Optional[Ticket]:
         if self.redis:

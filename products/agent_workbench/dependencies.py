@@ -7,7 +7,7 @@
 import asyncio
 from typing import Any, Dict, Optional
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 # 类型导入
@@ -200,3 +200,35 @@ async def require_agent(
         管理员和普通坐席都可以访问
     """
     return agent
+
+
+async def verify_agent_token_from_query(
+    token: str = Query(..., description="JWT Token")
+) -> Dict[str, Any]:
+    """
+    从 Query 参数验证 JWT Token（用于 SSE 等不支持 Header 的场景）
+
+    Args:
+        token: URL query 参数中的 JWT token
+
+    Returns:
+        Dict: Token 载荷（包含 agent_id, username, role）
+
+    Raises:
+        HTTPException 401: Token 无效或已过期
+    """
+    if _agent_token_manager is None:
+        raise HTTPException(
+            status_code=503,
+            detail="坐席认证系统未初始化"
+        )
+
+    payload = _agent_token_manager.verify_token(token)
+
+    if not payload:
+        raise HTTPException(
+            status_code=401,
+            detail="Token 无效或已过期"
+        )
+
+    return payload
