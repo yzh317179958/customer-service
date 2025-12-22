@@ -53,3 +53,26 @@
 | 功能           | 主文档                         | 状态 | 本模块职责                   |
 | -------------- | ------------------------------ | ---- | ---------------------------- |
 | 转人工会话流转 | `docs/features/human-handoff/` | ✅   | 接收通知、坐席接管、消息收发 |
+| 微服务 SSE 通信 | `docs/features/microservice-sse-communication/` | ⏳ 开发中 | 订阅 SSE 消息 |
+
+---
+
+### 微服务跨进程 SSE 通信
+
+**主文档**: `docs/features/microservice-sse-communication/`
+
+**状态**: ⏳ 开发中
+
+**本模块职责**:
+- 通过 `subscribe_sse_events()` 订阅会话消息
+- 接收转人工通知、状态变化等实时消息
+- 改造 SSE 事件流端点使用新接口
+
+**涉及文件**:
+| 文件 | 改动类型 | 说明 |
+|------|----------|------|
+| `handlers/sessions.py` | 修改 | 改造 SSE 订阅方式 |
+
+**对接模块**:
+- `infrastructure/bootstrap/sse.py` - SSE 消息订阅
+- `products/ai_chatbot` - 发送消息

@@ -96,6 +96,14 @@ cp docs/features/_templates/*.md docs/features/[功能名]/
 
 ---
 
+## 功能清单
+
+| 功能名称 | 路径 | 状态 | 涉及模块 | 说明 |
+|---------|------|------|----------|------|
+| 微服务 SSE 通信 | `microservice-sse-communication/` | ⏳ 开发中 | ai_chatbot, agent_workbench, infrastructure | Redis Pub/Sub 跨进程实时通信 |
+
+---
+
 ## 模板使用指南
 
 | 模板 | 用途 | 何时创建 |

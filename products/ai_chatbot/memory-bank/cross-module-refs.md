@@ -45,3 +45,26 @@
 | 功能 | 主文档 | 状态 | 本模块职责 |
 |------|--------|------|-----------|
 | 转人工会话流转 | `docs/features/human-handoff/` | ✅ | 触发转人工、发布事件 |
+| 微服务 SSE 通信 | `docs/features/microservice-sse-communication/` | ⏳ 开发中 | 发送 SSE 消息 |
+
+---
+
+### 微服务跨进程 SSE 通信
+
+**主文档**: `docs/features/microservice-sse-communication/`
+
+**状态**: ⏳ 开发中
+
+**本模块职责**:
+- 通过 `enqueue_sse_message()` 发送转人工消息
+- 发送会话状态变化消息
+- 无需代码改动（依赖注入，底层自动切换 Redis/内存）
+
+**涉及文件**:
+| 文件 | 改动类型 | 说明 |
+|------|----------|------|
+| `handlers/manual.py` | 检查 | 调用 enqueue_sse_message |
+
+**对接模块**:
+- `infrastructure/bootstrap/sse.py` - SSE 消息发布
+- `products/agent_workbench` - 接收消息
