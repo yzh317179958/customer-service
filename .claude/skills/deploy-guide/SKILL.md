@@ -20,6 +20,24 @@ description: 部署 Fiido 项目到生产服务器时，自动检查部署前提
 | 前端部署 | /var/www/fiido-frontend/ |
 | 后端服务名 | fiido-ai-backend |
 | 用户端地址 | https://ai.fiido.com/chat-test/ |
+| SSH 认证 | 密码登录（使用 sshpass） |
+
+## SSH 连接方式
+
+服务器使用密码登录，Claude Code 中需使用 sshpass：
+
+```bash
+# 密码存储在环境变量中（安全）
+export FIIDO_SSH_PASS="你的密码"
+
+# 使用 sshpass 执行命令
+sshpass -e ssh root@8.211.27.199 '命令'
+```
+
+**注意**：如果 sshpass 未安装，先安装：
+```bash
+sudo apt-get install sshpass
+```
 
 ## 部署前检查清单（必须全部通过）
 
@@ -34,22 +52,24 @@ description: 部署 Fiido 项目到生产服务器时，自动检查部署前提
 
 ## 部署命令
 
+> **前提**：已设置环境变量 `export FIIDO_SSH_PASS="密码"`
+
 ### 方式一：仅后端部署
 
 ```bash
-ssh root@8.211.27.199 'cd /opt/fiido-ai-service && git pull && systemctl restart fiido-ai-backend'
+sshpass -e ssh root@8.211.27.199 'cd /opt/fiido-ai-service && git pull && systemctl restart fiido-ai-backend'
 ```
 
 ### 方式二：仅前端部署（AI 客服）
 
 ```bash
-ssh root@8.211.27.199 'cd /opt/fiido-ai-service/products/ai_chatbot/frontend && npm run build && rm -rf /var/www/fiido-frontend/* && cp -r dist/* /var/www/fiido-frontend/'
+sshpass -e ssh root@8.211.27.199 'cd /opt/fiido-ai-service/products/ai_chatbot/frontend && npm run build && rm -rf /var/www/fiido-frontend/* && cp -r dist/* /var/www/fiido-frontend/'
 ```
 
 ### 方式三：完整部署（后端+前端）
 
 ```bash
-ssh root@8.211.27.199 'cd /opt/fiido-ai-service && git pull && \
+sshpass -e ssh root@8.211.27.199 'cd /opt/fiido-ai-service && git pull && \
   systemctl restart fiido-ai-backend && \
   cd products/ai_chatbot/frontend && npm run build && \
   rm -rf /var/www/fiido-frontend/* && \
@@ -60,7 +80,7 @@ ssh root@8.211.27.199 'cd /opt/fiido-ai-service && git pull && \
 
 ```bash
 # 1. 检查后端服务状态
-ssh root@8.211.27.199 'systemctl status fiido-ai-backend'
+sshpass -e ssh root@8.211.27.199 'systemctl status fiido-ai-backend'
 
 # 2. 检查后端健康
 curl https://ai.fiido.com/api/health
@@ -75,19 +95,19 @@ curl https://ai.fiido.com/api/health
 
 ```bash
 # 1. 查看最近的版本
-ssh root@8.211.27.199 'cd /opt/fiido-ai-service && git log --oneline -5'
+sshpass -e ssh root@8.211.27.199 'cd /opt/fiido-ai-service && git log --oneline -5'
 
 # 2. 回滚到指定版本
-ssh root@8.211.27.199 'cd /opt/fiido-ai-service && git reset --hard HEAD~1 && systemctl restart fiido-ai-backend'
+sshpass -e ssh root@8.211.27.199 'cd /opt/fiido-ai-service && git reset --hard HEAD~1 && systemctl restart fiido-ai-backend'
 
 # 3. 如果前端也需要回滚
-ssh root@8.211.27.199 'cd /opt/fiido-ai-service/products/ai_chatbot/frontend && npm run build && rm -rf /var/www/fiido-frontend/* && cp -r dist/* /var/www/fiido-frontend/'
+sshpass -e ssh root@8.211.27.199 'cd /opt/fiido-ai-service/products/ai_chatbot/frontend && npm run build && rm -rf /var/www/fiido-frontend/* && cp -r dist/* /var/www/fiido-frontend/'
 ```
 
 ### 回滚到指定版本号
 
 ```bash
-ssh root@8.211.27.199 'cd /opt/fiido-ai-service && git checkout vX.X.X && systemctl restart fiido-ai-backend'
+sshpass -e ssh root@8.211.27.199 'cd /opt/fiido-ai-service && git checkout vX.X.X && systemctl restart fiido-ai-backend'
 ```
 
 ## 常见问题处理
@@ -96,7 +116,7 @@ ssh root@8.211.27.199 'cd /opt/fiido-ai-service && git checkout vX.X.X && system
 
 ```bash
 # 查看错误日志
-ssh root@8.211.27.199 'journalctl -u fiido-ai-backend -n 50'
+sshpass -e ssh root@8.211.27.199 'journalctl -u fiido-ai-backend -n 50'
 
 # 常见原因：
 # 1. Python 依赖缺失 → pip install -r requirements.txt
@@ -108,7 +128,7 @@ ssh root@8.211.27.199 'journalctl -u fiido-ai-backend -n 50'
 
 ```bash
 # 查看 npm 错误
-ssh root@8.211.27.199 'cd /opt/fiido-ai-service/products/ai_chatbot/frontend && npm run build'
+sshpass -e ssh root@8.211.27.199 'cd /opt/fiido-ai-service/products/ai_chatbot/frontend && npm run build'
 
 # 常见原因：
 # 1. 依赖缺失 → npm install

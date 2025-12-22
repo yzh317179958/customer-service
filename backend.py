@@ -1,18 +1,14 @@
 """
-Fiido智能客服后端服务 - 全家桶模式入口
+Fiido智能客服后端服务 - AI 客服入口
 
 使用 FastAPI 提供 RESTful API，采用 OAuth+JWT 鉴权
 支持基于 Workflow 的多轮对话
 
-【架构说明】
-这是全家桶模式的统一入口，负责：
-1. 初始化所有组件（通过 bootstrap 模块）
-2. 注册所有产品路由
-3. 提供静态文件服务
-
-独立模式请使用：
-- AI 客服：uvicorn products.ai_chatbot.main:app --port 8001
-- 坐席工作台：uvicorn products.agent_workbench.main:app --port 8002
+【架构说明 - 微服务模式】
+各产品独立部署，本文件仅负责 AI 客服：
+- AI 客服 (8000)：本服务
+- 坐席工作台 (8002)：独立微服务，见 products/agent_workbench/main.py
+- 通知服务 (8003)：规划中
 """
 
 import os
@@ -159,20 +155,6 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"[Bootstrap] ⚠️ AI 客服模块依赖初始化失败: {e}")
 
-    # 坐席工作台模块依赖
-    try:
-        from products.agent_workbench import dependencies as aw_deps
-        aw_deps.set_agent_manager(agent_manager)
-        aw_deps.set_agent_token_manager(agent_token_manager)
-        aw_deps.set_session_store(session_store)
-        aw_deps.set_ticket_store(ticket_store)
-        aw_deps.set_quick_reply_store(quick_reply_store)
-        aw_deps.set_audit_log_store(audit_log_store)
-        aw_deps.set_sse_queues(sse_queues)
-        print("[Bootstrap] ✅ 坐席工作台模块依赖初始化成功")
-    except Exception as e:
-        print(f"[Bootstrap] ⚠️ 坐席工作台模块依赖初始化失败: {e}")
-
     # ============================================================
     # 5. 启动后台任务
     # ============================================================
@@ -238,10 +220,6 @@ from products.ai_chatbot import get_router as get_ai_chatbot_router
 app.include_router(get_ai_chatbot_router(), prefix="/api", tags=["AI智能客服"])
 print("✅ AI 客服模块路由已注册: /api/*")
 
-from products.agent_workbench import get_router as get_agent_workbench_router
-app.include_router(get_agent_workbench_router(), prefix="/api", tags=["坐席工作台"])
-print("✅ 坐席工作台模块路由已注册: /api/*")
-
 
 # ====================
 # 根路由与静态文件端点
@@ -256,8 +234,7 @@ async def root():
         "auth_mode": "OAUTH_JWT",
         "architecture": "三层架构 (products/services/infrastructure)",
         "modules": {
-            "ai_chatbot": "AI 智能客服",
-            "agent_workbench": "坐席工作台"
+            "ai_chatbot": "AI 智能客服"
         },
         "docs": {
             "swagger": "/docs",
