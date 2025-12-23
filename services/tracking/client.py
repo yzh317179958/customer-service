@@ -63,6 +63,9 @@ class Track17Client:
         "parcelforce": 21052,
         "uk mail": 21053,
         "collect+": 21066,
+        "dx freight": 100024,
+        "dxfreight": 100024,
+        "dx": 100024,
         # 欧洲承运商
         "dhl": 100001,
         "dhl express": 100001,
@@ -102,6 +105,9 @@ class Track17Client:
         "Yodel": "yodel",
         "Parcelforce": "parcelforce",
         "Parcelforce Worldwide": "parcelforce",
+        "DX Freight": "dx freight",
+        "DX FREIGHT": "dx freight",
+        "DX": "dx",
         # 欧洲
         "DHL": "dhl",
         "DHL Express": "dhl express",
@@ -298,6 +304,7 @@ class Track17Client:
         carrier_code: Optional[str] = None,
         order_id: Optional[str] = None,
         tag: Optional[str] = None,
+        destination_postal_code: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         注册运单到 17track 进行追踪
@@ -307,6 +314,7 @@ class Track17Client:
             carrier_code: 承运商代码或名称（可选，17track 会自动识别）
             order_id: 关联订单号（可选，用于后续查询）
             tag: 自定义标签（可选）
+            destination_postal_code: 目的地邮编（可选，某些承运商如 DX FREIGHT 需要）
 
         Returns:
             注册结果，包含：
@@ -332,10 +340,12 @@ class Track17Client:
             tracking_data["order"] = order_id
         if tag:
             tracking_data["tag"] = tag
+        if destination_postal_code:
+            tracking_data["destination_postal_code"] = destination_postal_code
 
         data = [tracking_data]
 
-        logger.info(f"注册运单到 17track: {tracking_number}, carrier={carrier_code}")
+        logger.info(f"注册运单到 17track: {tracking_number}, carrier={carrier_code}, postal_code={destination_postal_code}")
 
         result = await self._request("register", data)
 

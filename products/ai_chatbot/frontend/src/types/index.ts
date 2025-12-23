@@ -6,6 +6,7 @@ export interface Message {
   sender?: string
   agent_info?: AgentInfo  // 人工消息的坐席信息
   isDivider?: boolean     // 是否为分隔线消息
+  isTyping?: boolean      // AI 占位消息：打字中
 }
 
 export interface BotConfig {

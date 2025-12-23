@@ -235,8 +235,9 @@ const sendMessage = async () => {
   const status = chatStore.sessionStatus
 
   // Add user message
+  const localMessageId = Date.now().toString()
   chatStore.addMessage({
-    id: Date.now().toString(),
+    id: localMessageId,
     content: message,
     role: 'user',
     timestamp: new Date(),
@@ -247,6 +248,24 @@ const sendMessage = async () => {
   scrollToBottom(true)
 
   chatStore.setLoading(true)
+
+  // ✅ 关键修复：AI 模式下先立刻插入占位气泡，避免等待网络返回才出现气泡
+  const botPlaceholder =
+    status === 'bot_active'
+      ? {
+          id: (Date.now() + 1).toString(),
+          content: '',
+          role: 'assistant' as const,
+          timestamp: new Date(),
+          sender: chatStore.botConfig.name,
+          isTyping: true
+        }
+      : null
+
+  if (botPlaceholder) {
+    chatStore.addMessage(botPlaceholder)
+    scrollToBottom(true)
+  }
 
   try {
     // 🔴 P0-9.2: pending_manual状态 - 禁止发送
@@ -280,6 +299,15 @@ const sendMessage = async () => {
         throw new Error(data.error || '发送失败')
       }
 
+      // ✅ 关键修复：对齐本地消息时间戳到后端写入时间，避免轮询同步时再次追加同一条消息
+      const backendTimestamp = data?.data?.timestamp
+      if (typeof backendTimestamp === 'number') {
+        const localMessage = chatStore.messages.find(m => m.id === localMessageId)
+        if (localMessage) {
+          localMessage.timestamp = new Date(backendTimestamp * 1000)
+        }
+      }
+
       console.log('✅ 人工模式消息已发送')
       chatStore.setLoading(false)
       return
@@ -302,17 +330,13 @@ const sendMessage = async () => {
       body: JSON.stringify(requestBody)
     })
 
-    if (!response.ok) throw new Error(`HTTP ${response.status}`)
-
-    // Add bot message placeholder
-    const botMessage = {
-      id: (Date.now() + 1).toString(),
-      content: '',
-      role: 'assistant' as const,
-      timestamp: new Date(),
-      sender: chatStore.botConfig.name
+    if (!response.ok) {
+      if (botPlaceholder) {
+        botPlaceholder.content = `Sorry, an error occurred (HTTP ${response.status}).`
+        botPlaceholder.isTyping = false
+      }
+      throw new Error(`HTTP ${response.status}`)
     }
-    chatStore.addMessage(botMessage)
 
     const reader = response.body?.getReader()
     const decoder = new TextDecoder()
@@ -397,13 +421,20 @@ const sendMessage = async () => {
     }
   } catch (error) {
     console.error('Error:', error)
-    chatStore.addMessage({
-      id: `system-${Date.now()}`,
-      content: 'Sorry, failed to send. Please try again.',
-      role: 'system',
-      timestamp: new Date(),
-      sender: 'System'
-    })
+    // 优先复用 bot 占位气泡展示错误，避免多出一条系统气泡
+    const last = chatStore.messages[chatStore.messages.length - 1]
+    if (status === 'bot_active' && last?.role === 'assistant' && (last as any).isTyping) {
+      ;(last as any).isTyping = false
+      last.content = last.content || 'Sorry, failed to send. Please try again.'
+    } else {
+      chatStore.addMessage({
+        id: `system-${Date.now()}`,
+        content: 'Sorry, failed to send. Please try again.',
+        role: 'system',
+        timestamp: new Date(),
+        sender: 'System'
+      })
+    }
   } finally {
     chatStore.setLoading(false)
     inputRef.value?.focus()
@@ -501,10 +532,13 @@ const loadSessionHistory = async () => {
         // 添加历史消息到前端
         sortedHistory.forEach((msg: any) => {
           // 检查是否已存在（避免重复）
-          const exists = chatStore.messages.some(
-            m => Math.abs(m.timestamp.getTime() / 1000 - msg.timestamp) < 0.1 &&
-                 m.content === msg.content
-          )
+          const exists = chatStore.messages.some(m => {
+            const sameRole = m.role === msg.role
+            const sameContent = m.content === msg.content
+            const sameAgentId = (m.agent_info?.id || null) === (msg.agent_id || null)
+            const closeTime = Math.abs(m.timestamp.getTime() / 1000 - msg.timestamp) < 3
+            return sameRole && sameContent && sameAgentId && closeTime
+          })
 
           if (!exists) {
             let sender = 'System'
@@ -643,9 +677,13 @@ const pollSessionStatus = async () => {
           // 添加新消息到前端
           newMessages.forEach((msg: any) => {
             // 检查是否已存在（避免重复）
-            const exists = chatStore.messages.some(
-              m => Math.abs(m.timestamp.getTime() / 1000 - msg.timestamp) < 0.1
-            )
+            const exists = chatStore.messages.some(m => {
+              const sameRole = m.role === msg.role
+              const sameContent = m.content === msg.content
+              const sameAgentId = (m.agent_info?.id || null) === (msg.agent_id || null)
+              const closeTime = Math.abs(m.timestamp.getTime() / 1000 - msg.timestamp) < 3
+              return sameRole && sameContent && sameAgentId && closeTime
+            })
 
             if (!exists) {
               chatStore.addMessage({
@@ -764,19 +802,6 @@ onUnmounted(() => {
           :key="message.id"
           :message="message"
         />
-        <!-- Typing Indicator -->
-        <div v-if="chatStore.isLoading" class="message bot">
-          <div class="message-avatar">
-            <img src="/fiido2.png" :alt="chatStore.botConfig.name">
-          </div>
-          <div class="message-body">
-            <div class="typing-indicator">
-              <div class="typing-dot"></div>
-              <div class="typing-dot"></div>
-              <div class="typing-dot"></div>
-            </div>
-          </div>
-        </div>
       </div>
 
       <!-- Input Area -->
@@ -1092,41 +1117,6 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 6px;
   max-width: 78%;
-}
-
-/* Typing Indicator - 使用 fiido 品牌色 */
-.typing-indicator {
-  display: flex;
-  gap: 6px;
-  padding: 14px 18px;
-  background: #ffffff;
-  border-radius: 16px;
-  border-bottom-left-radius: 4px;
-  width: fit-content;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  border: 1px solid #e2e8f0;
-}
-
-.typing-dot {
-  width: 8px;
-  height: 8px;
-  background: var(--fiido, #00a6a0);
-  border-radius: 50%;
-  animation: typingBounce 1.6s infinite;
-}
-
-.typing-dot:nth-child(2) { animation-delay: 0.2s; }
-.typing-dot:nth-child(3) { animation-delay: 0.4s; }
-
-@keyframes typingBounce {
-  0%, 60%, 100% {
-    opacity: 0.5;
-    transform: translateY(0);
-  }
-  30% {
-    opacity: 1;
-    transform: translateY(-6px);
-  }
 }
 
 /* Input Area - 统一 fiido 风格 */

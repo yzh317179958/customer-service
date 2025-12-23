@@ -157,6 +157,7 @@ export const useChatStore = defineStore('chat', () => {
     const last = messages.value[messages.value.length - 1]
     if (last && last.role === 'assistant') {
       last.content += content
+      last.isTyping = false
     }
   }
 
@@ -398,4 +399,3 @@ export const useChatStore = defineStore('chat', () => {
     resetManualState
   }
 })
-

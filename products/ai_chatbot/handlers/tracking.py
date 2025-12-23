@@ -15,6 +15,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from services.tracking import get_tracking_service, TrackingStatus
+from services.shopify import get_shopify_service
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +69,8 @@ async def get_tracking(
     tracking_number: str,
     carrier: Optional[str] = None,
     order_id: Optional[str] = None,
+    order_number: Optional[str] = None,
+    postal_code: Optional[str] = None,
     refresh: bool = False,
 ):
     """
@@ -77,15 +80,23 @@ async def get_tracking(
         tracking_number: 运单号
         carrier: 承运商代码（可选）
         order_id: 订单 ID（可选，用于自动注册）
+        order_number: 订单号（可选，用于从 Shopify 获取邮编）
+        postal_code: 目的地邮编（可选，某些承运商如 DX FREIGHT 需要）
         refresh: 是否强制刷新缓存
 
     Returns:
         物流轨迹信息，如果正在追踪中则 is_pending=True
     """
-    logger.info(f"查询物流轨迹: {tracking_number}, order_id={order_id}")
+    logger.info(f"查询物流轨迹: {tracking_number}, order_id={order_id}, order_number={order_number}, postal_code={postal_code}")
 
     try:
         service = get_tracking_service()
+
+        # 如果有订单号但没有邮编，尝试从 Shopify 获取
+        if order_number and not postal_code:
+            postal_code = await _get_postal_code_from_order(order_number)
+            if postal_code:
+                logger.info(f"从订单 {order_number} 获取到邮编: {postal_code}")
 
         if refresh:
             await service.clear_cache(tracking_number)
@@ -95,6 +106,7 @@ async def get_tracking(
             tracking_number=tracking_number,
             carrier=carrier,
             order_id=order_id,
+            destination_postal_code=postal_code,
             refresh=refresh,
         )
 
@@ -209,3 +221,43 @@ async def get_tracking_status(
             status_code=500,
             detail=f"查询物流状态失败: {str(e)}",
         )
+
+
+# ============ 辅助函数 ============
+
+async def _get_postal_code_from_order(order_number: str) -> Optional[str]:
+    """
+    从 Shopify 订单中获取收货地址邮编
+
+    Args:
+        order_number: 订单号（如 UK22080）
+
+    Returns:
+        邮编字符串，如果获取失败返回 None
+    """
+    try:
+        # 从订单号判断站点
+        site = "uk" if order_number.upper().startswith("UK") else "de"
+        shopify = get_shopify_service(site)
+
+        # 查询订单
+        result = await shopify.search_order_by_number(order_number)
+        if not result or not result.get("order"):
+            logger.warning(f"订单 {order_number} 未找到")
+            return None
+
+        order = result["order"]
+
+        # 获取收货地址邮编
+        shipping_address = order.get("shipping_address", {})
+        postal_code = shipping_address.get("zip") or shipping_address.get("postal_code")
+
+        if postal_code:
+            return postal_code.strip()
+
+        logger.warning(f"订单 {order_number} 没有收货地址邮编")
+        return None
+
+    except Exception as e:
+        logger.error(f"从订单获取邮编失败: {order_number}, 错误: {e}")
+        return None

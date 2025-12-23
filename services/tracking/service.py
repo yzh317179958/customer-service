@@ -180,6 +180,7 @@ class TrackingService:
         tracking_number: str,
         carrier: Optional[str] = None,
         order_number: Optional[str] = None,
+        destination_postal_code: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         注册订单物流追踪
@@ -191,6 +192,7 @@ class TrackingService:
             tracking_number: 运单号
             carrier: 承运商名称或代码
             order_number: 订单显示号（如 #1234）
+            destination_postal_code: 目的地邮编（某些承运商如 DX FREIGHT 需要）
 
         Returns:
             注册结果:
@@ -208,6 +210,7 @@ class TrackingService:
                 carrier_code=carrier,
                 order_id=order_number or order_id,
                 tag=tag,
+                destination_postal_code=destination_postal_code,
             )
 
             # 保存映射
@@ -497,6 +500,7 @@ class TrackingService:
         carrier: Optional[str] = None,
         order_id: Optional[str] = None,
         order_number: Optional[str] = None,
+        destination_postal_code: Optional[str] = None,
         refresh: bool = False,
     ) -> TrackingInfo:
         """
@@ -513,6 +517,7 @@ class TrackingService:
             carrier: 承运商（可选）
             order_id: 订单 ID（用于注册）
             order_number: 订单显示号（如 #1234）
+            destination_postal_code: 目的地邮编（某些承运商如 DX FREIGHT 需要）
 
         Returns:
             TrackingInfo 对象，如果正在追踪中则 is_pending=True
@@ -529,12 +534,12 @@ class TrackingService:
         if order_id and await self._mark_register_attempt(tracking_number):
             logger.info(f"运单未注册，后台异步注册(含订单映射): {tracking_number} -> {order_id}")
             asyncio.create_task(
-                self._async_register(tracking_number, carrier, order_id, order_number)
+                self._async_register(tracking_number, carrier, order_id, order_number, destination_postal_code)
             )
-        # 2.2 无 order_id：仍尝试注册到 17track（用于“查看物流”场景，避免一直 pending）
+        # 2.2 无 order_id：仍尝试注册到 17track（用于"查看物流"场景，避免一直 pending）
         elif await self._mark_register_attempt(tracking_number):
             logger.info(f"运单未注册，后台异步注册(无订单映射): {tracking_number}")
-            asyncio.create_task(self._async_register_tracking_only(tracking_number, carrier))
+            asyncio.create_task(self._async_register_tracking_only(tracking_number, carrier, destination_postal_code))
 
         # 3. 返回"追踪中"状态，让用户稍后刷新
         return TrackingInfo(
@@ -552,18 +557,27 @@ class TrackingService:
         carrier: Optional[str],
         order_id: str,
         order_number: Optional[str] = None,
+        destination_postal_code: Optional[str] = None,
     ):
         """
         异步注册运单（后台任务）
 
         注册完成后清除缓存，下次查询可获取最新数据。
+        如果没有传入邮编，会自动从订单中获取。
         """
         try:
+            # 如果没有邮编，尝试从订单中获取
+            if not destination_postal_code and order_number:
+                destination_postal_code = await self._get_postal_code_from_order(order_number)
+                if destination_postal_code:
+                    logger.info(f"从订单 {order_number} 获取到邮编: {destination_postal_code}")
+
             result = await self.register_order_tracking(
                 order_id=order_id,
                 tracking_number=tracking_number,
                 carrier=carrier,
                 order_number=order_number,
+                destination_postal_code=destination_postal_code,
             )
             if result.get("success"):
                 # 注册成功，清除缓存
@@ -612,11 +626,12 @@ class TrackingService:
         self,
         tracking_number: str,
         carrier: Optional[str],
+        destination_postal_code: Optional[str] = None,
     ):
         """
         异步注册运单（无订单映射）
 
-        适用于仅“查看物流”场景：允许用户没有 order_id 时也能完成 17track 注册并后续查询到轨迹。
+        适用于仅"查看物流"场景：允许用户没有 order_id 时也能完成 17track 注册并后续查询到轨迹。
         """
         try:
             result = await self.client.register_tracking(
@@ -624,6 +639,7 @@ class TrackingService:
                 carrier_code=carrier,
                 order_id=None,
                 tag=None,
+                destination_postal_code=destination_postal_code,
             )
             if result.get("success"):
                 await self.clear_cache(tracking_number)
@@ -634,6 +650,31 @@ class TrackingService:
             logger.warning(f"异步注册失败(无订单映射): {tracking_number}, {e}")
         except Exception as e:
             logger.error(f"异步注册异常(无订单映射): {tracking_number}, {e}")
+
+    async def _get_postal_code_from_order(self, order_number: str) -> Optional[str]:
+        """
+        从订单中获取收货地址邮编
+
+        Args:
+            order_number: 订单号（如 UK22080）
+
+        Returns:
+            邮编字符串，获取失败返回 None
+        """
+        try:
+            from services.shopify import search_order_across_sites
+
+            result = await search_order_across_sites(order_number)
+            if result:
+                order = result.get("order", {})
+                shipping_address = order.get("shipping_address", {})
+                postal_code = shipping_address.get("zip")
+                if postal_code:
+                    return postal_code
+        except Exception as e:
+            logger.debug(f"获取订单邮编失败: {order_number}, {e}")
+
+        return None
 
 
 # 全局服务实例

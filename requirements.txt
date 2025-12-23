@@ -1,39 +1,110 @@
-# FastAPI - 现代化的Web框架
+# Fiido 智能服务平台 - Python 依赖
+# 最后更新: 2025-12-23
+# Python 版本: 3.10+
+
+# =====================
+# 核心框架
+# =====================
+
+# FastAPI - 现代化的 Web 框架
 fastapi==0.115.6
 
-# Uvicorn - ASGI服务器
+# Uvicorn - ASGI 服务器
 uvicorn[standard]==0.34.0
-
-# Python-dotenv - 环境变量管理
-python-dotenv==1.0.1
-
-# Coze Python SDK - Coze API客户端
-cozepy==0.20.0
 
 # Pydantic - 数据验证
 pydantic==2.10.5
 
-# httpx - HTTP客户端（cozepy依赖）
+# =====================
+# HTTP 客户端
+# =====================
+
+# httpx - 异步 HTTP 客户端（Coze、17track API）
 httpx==0.28.1
 
-# Requests - HTTP库（用于OAuth token获取）
+# Requests - 同步 HTTP 库（OAuth token 获取）
 requests==2.32.3
 
-# PyJWT - JWT编码和解码
-PyJWT==2.10.1
+# aiohttp - 异步 HTTP（备选客户端）
+aiohttp>=3.9.0
 
-# cryptography - RSA加密支持（PyJWT依赖）
-cryptography==44.0.0
+# =====================
+# Coze AI
+# =====================
 
-# 其他可选依赖
-# aiofiles==24.1.0  # 异步文件操作
-# python-multipart==0.0.20  # 文件上传支持
+# Coze Python SDK - Coze API 客户端
+cozepy==0.20.0
+
+# =====================
+# 数据库
+# =====================
+
+# Redis - 缓存和会话存储
 redis>=5.0.0
 
-# APScheduler - 定时任务调度 (用于缓存预热)
+# PostgreSQL 支持
+SQLAlchemy>=2.0.0
+asyncpg>=0.29.0
+psycopg2-binary>=2.9.0
+
+# Alembic - 数据库迁移
+alembic>=1.12.0
+
+# =====================
+# 安全认证
+# =====================
+
+# PyJWT - JWT 编码和解码
+PyJWT==2.10.1
+
+# cryptography - RSA 加密支持（PyJWT 依赖）
+cryptography==44.0.0
+
+# bcrypt - 密码哈希
+bcrypt>=4.0.0
+
+# =====================
+# Web 功能
+# =====================
+
+# python-multipart - 文件上传支持
+python-multipart>=0.0.20
+
+# SSE - 服务端推送事件
+sse-starlette>=2.0.0,<3.0.0
+
+# Starlette - ASGI 框架（FastAPI 依赖）
+starlette>=0.40.0,<0.42.0
+
+# Jinja2 - 模板引擎（邮件模板）
+jinja2>=3.1.0
+
+# =====================
+# 工具库
+# =====================
+
+# python-dotenv - 环境变量管理
+python-dotenv==1.0.1
+
+# pytz - 时区支持
+pytz>=2024.1
+
+# aiofiles - 异步文件操作
+aiofiles>=24.1.0
+
+# =====================
+# 定时任务
+# =====================
+
+# APScheduler - 定时任务调度（缓存预热）
 apscheduler>=3.10.0
 
-# PostgreSQL 数据库支持
-SQLAlchemy>=2.0.0
-psycopg2-binary>=2.9.0
-alembic>=1.12.0
+# =====================
+# 可选依赖（按需安装）
+# =====================
+
+# Shopify GraphQL（如使用 Shopify Admin API）
+# shopify-api>=0.6.0
+
+# 邮件发送（标准库 smtplib 已足够）
+# aiosmtplib>=3.0.0

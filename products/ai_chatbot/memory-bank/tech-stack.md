@@ -1,12 +1,40 @@
 # AI 智能客服 - 技术栈说明
 
 > **创建日期**：2025-12-21
-> **最后更新**：2025-12-22
+> **最后更新**：2025-12-23
 > **原则**：优先复用三层架构现有能力，避免引入不必要新依赖
 
 ---
 
-## 一、后端技术栈
+## 一、部署架构
+
+### 1.1 微服务模式
+
+AI 智能客服作为独立微服务运行：
+
+| 配置项 | 值 |
+|--------|-----|
+| 服务端口 | 8000 |
+| systemd 服务 | fiido-ai-chatbot |
+| 前端部署 | /var/www/fiido-frontend/ |
+| API 路径 | /api/* |
+| 访问地址 | https://ai.fiido.com/chat-test/ |
+
+### 1.2 启动方式
+
+```bash
+# 微服务启动（生产环境）
+uvicorn products.ai_chatbot.main:app --host 127.0.0.1 --port 8000
+
+# systemd 管理
+systemctl start fiido-ai-chatbot
+systemctl status fiido-ai-chatbot
+journalctl -u fiido-ai-chatbot -f
+```
+
+---
+
+## 二、后端技术栈
 
 | 层级 | 技术 | 说明 |
 |------|------|------|
@@ -15,6 +43,7 @@
 | 服务层 | cozepy | Coze API 客户端 |
 | 服务层 | Redis | 会话状态缓存 |
 | 服务层 | SMTP | 邮件发送（可选） |
+| 服务层 | httpx | 17track API 客户端 |
 | 基础设施层 | PostgreSQL | 数据持久化（工单、审计日志、会话归档） |
 | 基础设施层 | SQLAlchemy 2.0 | ORM 框架 |
 | 基础设施层 | APScheduler | 定时任务（缓存预热） |
@@ -22,7 +51,7 @@
 
 ---
 
-## 二、前端技术栈
+## 三、前端技术栈
 
 | 模块 | 技术 | 说明 |
 |------|------|------|
@@ -34,7 +63,7 @@
 
 ---
 
-## 三、依赖的服务层
+## 四、依赖的服务层
 
 | 服务 | 模块路径 | 功能 |
 |------|----------|------|
@@ -43,29 +72,30 @@
 | Shopify | services.shopify | 订单查询、物流追踪（可选） |
 | 邮件 | services.email | 邮件发送（可选） |
 | 素材 | services.asset | 产品图片匹配 |
+| 物流追踪 | services.tracking | 17track API 集成、运单注册 |
 
 ---
 
-## 四、依赖的基础设施层
+## 五、依赖的基础设施层
 
 | 组件 | 模块路径 | 功能 |
 |------|----------|------|
-| Bootstrap | infrastructure.bootstrap | 组件工厂、依赖注入 |
+| Bootstrap | infrastructure.bootstrap | 组件工厂、依赖注入、SSE |
 | 安全 | infrastructure.security | JWT 签名（如独立认证需要） |
 | 定时任务 | infrastructure.scheduler | 缓存预热调度 |
 | 数据库 | infrastructure.database | PostgreSQL + Redis 双写 |
 
 ---
 
-## 五、API 鉴权约定
+## 六、API 鉴权约定
 
-### 5.1 Coze API 鉴权
+### 6.1 Coze API 鉴权
 
 - 模式：OAuth + JWT（COZE_AUTH_MODE=OAUTH_JWT）
 - 私钥：`config/private_key.pem`
 - Token 自动刷新：OAuthTokenManager 管理
 
-### 5.2 API 端点（无需鉴权）
+### 6.2 API 端点（无需鉴权）
 
 AI 客服面向终端用户，所有端点无需认证：
 
@@ -74,12 +104,13 @@ AI 客服面向终端用户，所有端点无需认证：
 | POST /api/chat | 同步聊天 |
 | POST /api/chat/stream | 流式聊天 |
 | GET /api/health | 健康检查 |
+| GET /api/config | 配置信息 |
 
 ---
 
-## 六、环境配置
+## 七、环境配置
 
-### 6.1 必需配置
+### 7.1 必需配置
 
 ```bash
 # Coze API
@@ -93,9 +124,12 @@ COZE_OAUTH_PRIVATE_KEY_FILE=./config/private_key.pem
 # Redis
 USE_REDIS=true
 REDIS_URL=redis://localhost:6379/0
+
+# PostgreSQL
+DATABASE_URL=postgresql+asyncpg://fiido:password@localhost:5432/fiido
 ```
 
-### 6.2 可选配置
+### 7.2 可选配置
 
 ```bash
 # 功能开关
@@ -105,29 +139,69 @@ WARMUP_ENABLED=true        # 缓存预热
 # 工作时间
 HUMAN_SHIFT_START=09:00
 HUMAN_SHIFT_END=18:00
+
+# 17track（物流追踪）
+TRACK17_API_KEY=...
 ```
 
 ---
 
-## 七、启动模式
+## 八、systemd 服务配置
 
-### 7.1 独立模式
+```ini
+# /etc/systemd/system/fiido-ai-chatbot.service
+[Unit]
+Description=Fiido AI Chatbot Microservice
+After=network.target redis-server.service
 
-```bash
-uvicorn products.ai_chatbot.main:app --host 0.0.0.0 --port 8001
-```
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/fiido-ai-service
+Environment="PATH=/opt/fiido-ai-service/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONPATH=/opt/fiido-ai-service"
+EnvironmentFile=/opt/fiido-ai-service/.env
+ExecStart=/opt/fiido-ai-service/venv/bin/uvicorn products.ai_chatbot.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+MemoryMax=8G
 
-### 7.2 全家桶模式
-
-```bash
-uvicorn backend:app --host 0.0.0.0 --port 8000
+[Install]
+WantedBy=multi-user.target
 ```
 
 ---
 
-## 八、文档更新记录
+## 九、nginx 配置
+
+```nginx
+# AI 客服前端
+location /chat-test/ {
+    alias /var/www/fiido-frontend/;
+    try_files $uri $uri/ /chat-test/index.html;
+}
+
+# AI 客服 API
+location /api/ {
+    proxy_pass http://127.0.0.1:8000;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 300s;
+    proxy_buffering off;
+}
+```
+
+---
+
+## 十、文档更新记录
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| v2.0 | 2025-12-23 | 更新为微服务架构，添加 systemd/nginx 配置，删除全家桶模式 |
 | v1.1 | 2025-12-22 | 新增 PostgreSQL 数据库依赖，更新双写策略说明 |
 | v1.0 | 2025-12-21 | 初始版本 |

@@ -44,6 +44,7 @@ const API_BASE = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '')
 async function fetchTrackingData(
   trackingNumber: string,
   carrier?: string,
+  orderNumber?: string,
   options?: { force?: boolean }
 ): Promise<void> {
   const existing = trackingDataMap.value.get(trackingNumber)
@@ -63,7 +64,11 @@ async function fetchTrackingData(
   })
 
   try {
-    const query = carrier ? `?carrier=${encodeURIComponent(carrier)}` : ''
+    // 构建查询参数
+    const params = new URLSearchParams()
+    if (carrier) params.set('carrier', carrier)
+    if (orderNumber) params.set('order_number', orderNumber)
+    const query = params.toString() ? `?${params.toString()}` : ''
     const url = `${API_BASE}/api/tracking/${encodeURIComponent(trackingNumber)}${query}`
     const response = await fetch(url)
 
@@ -100,7 +105,7 @@ async function fetchTrackingData(
 }
 
 // 切换时间线展开/收起
-function toggleTracking(trackingNumber: string, carrier?: string): void {
+function toggleTracking(trackingNumber: string, carrier?: string, orderNumber?: string): void {
   if (expandedTrackings.value.has(trackingNumber)) {
     expandedTrackings.value.delete(trackingNumber)
     updateTimelineDOM(trackingNumber, false)
@@ -108,7 +113,7 @@ function toggleTracking(trackingNumber: string, carrier?: string): void {
     expandedTrackings.value.add(trackingNumber)
     const existing = trackingDataMap.value.get(trackingNumber)
     const force = !!existing && (existing.error !== null || existing.is_pending)
-    fetchTrackingData(trackingNumber, carrier, { force }).then(() => {
+    fetchTrackingData(trackingNumber, carrier, orderNumber, { force }).then(() => {
       updateTimelineDOM(trackingNumber, true)
     })
     // 先显示加载状态
@@ -239,8 +244,9 @@ function handleTrackingClick(event: Event): void {
   if (button) {
     const trackingNumber = button.dataset.tracking
     const carrier = button.dataset.carrier
+    const orderNumber = button.dataset.order
     if (trackingNumber) {
-      toggleTracking(trackingNumber, carrier)
+      toggleTracking(trackingNumber, carrier, orderNumber)
     }
   }
 }
@@ -272,10 +278,32 @@ const formattedTime = computed(() => {
 })
 
 /**
+ * 从消息内容中提取订单号
+ * 匹配格式：订单 UK22080、Order #UK22080、订单号：UK22080 等
+ */
+function extractOrderNumber(content: string): string | null {
+  // 匹配常见订单号格式
+  const patterns = [
+    /订单\s*[#：:]*\s*([A-Z]{2}\d+)/i,         // 订单 UK22080、订单：UK22080
+    /Order\s*[#：:]*\s*([A-Z]{2}\d+)/i,        // Order #UK22080、Order UK22080
+    /订单号\s*[：:]*\s*([A-Z]{2}\d+)/i,        // 订单号：UK22080
+    /Order\s*Number\s*[：:]*\s*([A-Z]{2}\d+)/i // Order Number: UK22080
+  ]
+
+  for (const pattern of patterns) {
+    const match = content.match(pattern)
+    if (match && match[1]) {
+      return match[1]
+    }
+  }
+  return null
+}
+
+/**
  * 将 [PRODUCT]...[/PRODUCT] 标记转换为商品卡片 HTML
  * 格式：[PRODUCT]图片URL|商品名称|数量|价格|状态|承运商|运单号|追踪链接[/PRODUCT]
  */
-function transformProductCards(content: string): string {
+function transformProductCards(content: string, orderNumber?: string | null): string {
   const productRegex = /\[PRODUCT\](.*?)\[\/PRODUCT\]/g
 
   return content.replace(productRegex, (match, productData) => {
@@ -434,7 +462,7 @@ function transformProductCards(content: string): string {
             </div>
             <div class="tracking-actions">
               ${trackingUrl ? `<a href="${trackingUrl}" target="_blank" class="tracking-link"><span class="link-icon">↗</span>${trackText}</a>` : ''}
-              ${trackingNumber ? `<button class="tracking-expand-btn" data-tracking="${trackingNumber}" data-carrier="${carrier}" data-expand="${expandText}" data-collapse="${collapseText}" data-loading="${loadingText}"><span class="expand-icon">▼</span><span class="expand-text">${expandText}</span></button>` : ''}
+              ${trackingNumber ? `<button class="tracking-expand-btn" data-tracking="${trackingNumber}" data-carrier="${carrier}" data-order="${orderNumber || ''}" data-expand="${expandText}" data-collapse="${collapseText}" data-loading="${loadingText}"><span class="expand-icon">▼</span><span class="expand-text">${expandText}</span></button>` : ''}
             </div>
           </div>
           ${trackingNumber ? `<div class="tracking-timeline-container" data-tracking="${trackingNumber}" data-carrier="${carrier}"></div>` : ''}
@@ -454,6 +482,9 @@ const renderedContent = computed(() => {
   const hasProductCards = content.includes('[PRODUCT]')
 
   if (hasProductCards) {
+    // 提取订单号用于物流查询
+    const orderNumber = extractOrderNumber(content)
+
     // 先将 [PRODUCT] 标记替换为占位符，避免被 marked 处理
     const productMatches: string[] = []
     content = content.replace(/\[PRODUCT\](.*?)\[\/PRODUCT\]/g, (match) => {
@@ -464,9 +495,9 @@ const renderedContent = computed(() => {
     // 2. 渲染 Markdown
     content = marked.parse(content) as string
 
-    // 3. 将占位符替换为商品卡片 HTML
+    // 3. 将占位符替换为商品卡片 HTML，传递订单号
     productMatches.forEach((productMatch, index) => {
-      const cardHtml = transformProductCards(productMatch)
+      const cardHtml = transformProductCards(productMatch, orderNumber)
       content = content.replace(`<!--PRODUCT_PLACEHOLDER_${index}-->`, cardHtml)
     })
 
@@ -487,6 +518,8 @@ const avatarContent = computed(() => {
   }
   return chatStore.botConfig.name.charAt(0)
 })
+
+const isTyping = computed(() => props.message.role === 'assistant' && props.message.isTyping === true)
 
 // 发送者名称
 const senderName = computed(() => {
@@ -526,6 +559,11 @@ const senderName = computed(() => {
       </div>
       <div class="message-content" v-if="isUser">
         {{ renderedContent }}
+      </div>
+      <div v-else-if="isTyping" class="message-content typing-indicator" aria-label="typing">
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
       </div>
       <div class="message-content" v-else v-html="renderedContent"></div>
     </div>
@@ -825,6 +863,35 @@ const senderName = computed(() => {
 
 .message-content :deep(p) {
   margin: 0;
+}
+
+/* Typing Indicator - 合并到 bot 占位气泡 */
+.typing-indicator {
+  display: flex;
+  gap: 6px;
+  width: fit-content;
+}
+
+.typing-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--fiido, #00a6a0);
+  border-radius: 50%;
+  animation: typingBounce 1.6s infinite;
+}
+
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes typingBounce {
+  0%, 60%, 100% {
+    opacity: 0.5;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-6px);
+  }
 }
 
 .message-content :deep(p + p) {
