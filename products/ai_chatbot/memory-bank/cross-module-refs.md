@@ -76,18 +76,30 @@
 
 **主文档**: `docs/features/17track-integration/`
 
-**状态**: ⏳ 开发中
+**状态**: ⏳ Phase 5 开发中
+
+**版本历史**:
+- v1.0：✅ 已完成（2025-12-23）- Phase 1-4 基础功能
+- v2.0：⏳ 开发中 - Phase 5 集成完善
 
 **本模块职责**:
 - 商品卡片展示物流状态
 - 点击「查看物流」展开完整轨迹时间线
 - 调用 tracking 服务获取物流事件
+- **Phase 5 新增**：处理"追踪中"状态，优化错误提示
 
 **涉及文件**:
 | 文件 | 改动类型 | 说明 |
 |------|----------|------|
 | `frontend/src/components/ChatMessage.vue` | 修改 | 添加可折叠物流轨迹 |
-| `routes.py` 或 `handlers/` | 新增 | 物流轨迹查询 API |
+| `handlers/tracking.py` | 新增 | 物流轨迹查询 API |
+| `routes.py` | 修改 | 注册 tracking 路由 |
+
+**Phase 5 涉及文件**:
+| 文件 | 改动类型 | 说明 |
+|------|----------|------|
+| `handlers/tracking.py` | 修改 | 调用自动注册方法，传递承运商 |
+| `frontend/src/components/ChatMessage.vue` | 修改 | 优化错误状态显示 |
 
 **对接模块**:
 - `services/tracking` - 17track API 封装

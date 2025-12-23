@@ -631,41 +631,13 @@ const senderName = computed(() => {
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.2);
 }
 
-/* Agent Avatar - Premium Dark Style */
+/* Agent Avatar - 简洁样式（与用户头像格式一致，只是颜色不同） */
 .message-avatar.agent-avatar {
-  background: linear-gradient(135deg, var(--fiido-black, #0f172a) 0%, #1e293b 100%);
+  background: var(--fiido, #00a6a0);
   color: #ffffff;
   font-size: 15px;
   border-color: transparent;
-  box-shadow:
-    0 4px 12px rgba(15, 23, 42, 0.25),
-    0 2px 4px rgba(0, 0, 0, 0.1);
-  position: relative;
-  overflow: visible;
-}
-
-/* Agent Avatar Ring Effect */
-.message-avatar.agent-avatar::before {
-  content: '';
-  position: absolute;
-  inset: -3px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, var(--fiido, #00a6a0) 0%, #00c4bd 100%);
-  z-index: -1;
-  opacity: 0.6;
-}
-
-.message-avatar.agent-avatar::after {
-  content: '';
-  position: absolute;
-  bottom: -2px;
-  right: -2px;
-  width: 10px;
-  height: 10px;
-  background: #10b981;
-  border-radius: 50%;
-  border: 2px solid #ffffff;
-  box-shadow: 0 2px 4px rgba(16, 185, 129, 0.4);
+  box-shadow: 0 2px 8px rgba(0, 166, 160, 0.2);
 }
 
 /* Message Body */
@@ -794,13 +766,13 @@ const senderName = computed(() => {
   border: 1px solid #e2e8f0;
 }
 
-/* Agent Message - Premium Dark Theme (与坐席工作台一致) */
+/* Agent Message - 白色气泡（与用户黑色气泡对比，格式一致） */
 .message.agent .message-content {
-  background: var(--fiido-black, #0f172a);
-  color: #ffffff;
+  background: #ffffff;
+  color: var(--fiido-slate, #1e293b);
   border-bottom-left-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  border: 1px solid #e2e8f0;
 }
 
 /* Agent Message Accent Line - 移除过度装饰 */
@@ -876,20 +848,20 @@ const senderName = computed(() => {
   border-bottom-color: #ffffff;
 }
 
-/* Agent Message Links - Teal on Dark */
+/* Agent Message Links - 与 Bot 消息链接样式一致 */
 .message.agent .message-content :deep(a) {
-  color: #5eead4;
-  border-bottom-color: rgba(94, 234, 212, 0.3);
+  color: #00a6a0;
+  border-bottom-color: rgba(0, 166, 160, 0.3);
 }
 
 .message.agent .message-content :deep(a:hover) {
-  color: #99f6e4;
-  border-bottom-color: #99f6e4;
+  color: #00c4bd;
+  border-bottom-color: #00c4bd;
 }
 
-/* Agent Message Strong Text */
+/* Agent Message Strong Text - 深色文本 */
 .message.agent .message-content :deep(strong) {
-  color: #ffffff;
+  color: var(--fiido-slate, #1e293b);
   font-weight: 600;
 }
 
@@ -906,10 +878,10 @@ const senderName = computed(() => {
   background: rgba(255, 255, 255, 0.12);
 }
 
-/* Agent Message Code Blocks */
+/* Agent Message Code Blocks - 与 Bot 消息代码块样式一致 */
 .message.agent .message-content :deep(code) {
-  background: rgba(255, 255, 255, 0.1);
-  color: #e2e8f0;
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--fiido-slate, #1e293b);
 }
 
 /* Product Images - Premium Style */

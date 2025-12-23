@@ -1,20 +1,176 @@
 # 17track 物流追踪集成 - 实施计划
 
-> **文档版本**：v1.0
+> **文档版本**：v2.0
 > **创建日期**：2025-12-22
+> **最后更新**：2025-12-23
 
 ---
 
 ## 开发阶段
 
-| 阶段 | 内容 | 步骤数 |
-|------|------|--------|
-| Phase 1 | services/tracking 服务层 | 4 步 |
-| Phase 2 | products/notification 产品层 | 6 步 |
-| Phase 3 | ai_chatbot 物流轨迹展示 | 3 步 |
-| Phase 4 | 集成测试与部署 | 2 步 |
+| 阶段 | 内容 | 步骤数 | 状态 |
+|------|------|--------|------|
+| Phase 1 | services/tracking 服务层 | 4 步 | ✅ 完成 |
+| Phase 2 | products/notification 产品层 | 6 步 | ✅ 完成 |
+| Phase 3 | ai_chatbot 物流轨迹展示 | 3 步 | ✅ 完成 |
+| Phase 4 | 集成测试与部署 | 2 步 | ✅ 完成 |
+| **Phase 5** | **17track 集成完善** | **4 步** | **⏳ 开发中** |
 
 ---
+
+## Phase 5: 17track 集成完善（2025-12-23 新增）
+
+> **前置条件**：Phase 1-4 已完成
+> **预计步骤**：Step 5.1 ~ Step 5.4
+> **涉及模块**：services/tracking、products/ai_chatbot
+
+### Step 5.1: 运单自动注册机制
+
+**所属模块：** `services/tracking/`
+
+**任务描述：**
+查询物流时，如果运单未注册，后台异步注册后返回"追踪中"状态
+
+**涉及文件：**
+- `services/tracking/service.py`（修改）
+
+**实现逻辑：**
+```python
+async def get_tracking_info_with_auto_register(
+    tracking_number: str,
+    carrier: Optional[str] = None,
+    order_id: Optional[str] = None,
+):
+    # 1. 先尝试直接查询
+    info = await get_tracking_info(tracking_number, carrier)
+
+    if info:
+        return info
+
+    # 2. 查询失败，后台异步注册（不等待）
+    if order_id:
+        asyncio.create_task(register_order_tracking(order_id, tracking_number, carrier))
+
+    # 3. 返回"追踪中"状态
+    return TrackingInfo(
+        tracking_number=tracking_number,
+        status=TrackingStatus.NOT_FOUND,
+        status_zh="追踪中",
+        is_pending=True,
+    )
+```
+
+**测试方法：**
+```bash
+curl http://localhost:8000/api/tracking/TEST123456789GB
+# 首次返回 is_pending=true
+# 等待几秒后再次请求应返回实际数据
+```
+
+**验收标准：**
+- [ ] 未注册运单查询返回 is_pending=true
+- [ ] 后台异步注册成功
+- [ ] 再次查询返回实际物流信息
+
+---
+
+### Step 5.2: 承运商自动识别
+
+**所属模块：** `products/ai_chatbot/`
+
+**任务描述：**
+从 Shopify 订单的 fulfillment 中提取承运商，传递给 17track
+
+**涉及文件：**
+- `products/ai_chatbot/handlers/tracking.py`（修改）
+- `services/tracking/client.py`（扩展承运商映射）
+
+**承运商映射：**
+```python
+CARRIER_MAPPING = {
+    "Royal Mail": "royal mail",
+    "DPD": "dpd",
+    "Evri": "evri",
+    "Hermes": "evri",  # Hermes 改名为 Evri
+    "UPS": "ups",
+    "FedEx": "fedex",
+    # ... 更多映射
+}
+```
+
+**测试方法：**
+```bash
+# 查询带承运商的物流
+curl http://localhost:8000/api/shopify/uk/orders/ORDER123/tracking
+```
+
+**验收标准：**
+- [ ] 从 fulfillment 正确提取承运商
+- [ ] 承运商名称正确映射到 17track 代码
+
+---
+
+### Step 5.3: 前端错误信息优化
+
+**所属模块：** `products/ai_chatbot/frontend/`
+
+**任务描述：**
+区分"未注册"、"暂无信息"、"查询失败"等不同状态，优化用户提示
+
+**涉及文件：**
+- `products/ai_chatbot/frontend/src/components/ChatMessage.vue`（修改）
+
+**UI 改进：**
+
+| 状态 | 显示内容 |
+|------|----------|
+| 加载中 | 加载动画 + "查询中..." |
+| 追踪中 (is_pending) | "物流信息更新中，请稍后刷新" |
+| 暂无轨迹 (events=[]) | "暂无物流轨迹" |
+| 已签收 | 绿色徽章 + 完整轨迹 |
+| 异常 | 红色警告 + 异常说明 |
+
+**测试方法：**
+```bash
+npm run build
+# 在浏览器测试各种状态
+```
+
+**验收标准：**
+- [ ] 不同状态显示不同提示
+- [ ] "追踪中"状态显示刷新提示
+- [ ] 用户体验友好
+
+---
+
+### Step 5.4: SMTP 邮件配置文档
+
+**所属模块：** 文档
+
+**任务描述：**
+提供 SMTP 配置说明，让邮件通知功能可用
+
+**输出文件：**
+- 更新 `.env` 注释说明
+- 更新 `docs/features/17track-integration/` 添加配置说明
+
+**配置项：**
+```bash
+# SMTP 邮件服务配置
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=your_email@example.com
+SMTP_PASSWORD=your_password
+SMTP_USE_TLS=true
+```
+
+**验收标准：**
+- [ ] 配置文档清晰完整
+- [ ] 测试邮件发送成功
+
+---
+
+## Phase 1-4: 初始开发（已完成）
 
 ## Phase 1: services/tracking（17track API 封装）
 
