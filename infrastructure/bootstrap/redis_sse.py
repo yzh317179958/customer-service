@@ -43,6 +43,7 @@ class RedisSseManager:
         """
         self.redis_url = redis_url or os.getenv("REDIS_URL", "redis://localhost:6379/0")
         self._redis: Optional[aioredis.Redis] = None
+        self._pubsub_redis: Optional[aioredis.Redis] = None  # Pub/Sub 专用连接
         self._connected = False
 
     async def connect(self) -> bool:
@@ -56,6 +57,7 @@ class RedisSseManager:
             return True
 
         try:
+            # 普通操作使用的连接（短超时）
             self._redis = await aioredis.from_url(
                 self.redis_url,
                 encoding="utf-8",
@@ -73,6 +75,20 @@ class RedisSseManager:
             self._connected = False
             print(f"[RedisSse] ❌ 连接失败: {e}")
             raise
+
+    async def _get_pubsub_redis(self) -> aioredis.Redis:
+        """
+        获取 Pub/Sub 专用连接（无超时，长时间等待消息）
+        """
+        if self._pubsub_redis is None:
+            self._pubsub_redis = await aioredis.from_url(
+                self.redis_url,
+                encoding="utf-8",
+                decode_responses=True,
+                socket_timeout=None,  # Pub/Sub 无超时
+                socket_connect_timeout=5.0
+            )
+        return self._pubsub_redis
 
     def _mask_url(self, url: str) -> str:
         """隐藏 URL 中的密码"""
@@ -121,10 +137,10 @@ class RedisSseManager:
             - 此方法会阻塞直到收到消息或连接断开
             - 调用方需要在 try/finally 中处理取消
         """
-        if self._redis is None or not self._connected:
-            await self.connect()
+        # 使用 Pub/Sub 专用连接（无超时）
+        redis = await self._get_pubsub_redis()
 
-        pubsub = self._redis.pubsub()
+        pubsub = redis.pubsub()
         await pubsub.subscribe(channel)
         print(f"[RedisSse] 📡 订阅频道: {channel}")
 
@@ -158,14 +174,24 @@ class RedisSseManager:
 
     async def close(self):
         """关闭 Redis 连接"""
+        # 关闭普通连接
         if self._redis:
             try:
                 await self._redis.close()
                 self._redis = None
                 self._connected = False
-                print("[RedisSse] 🔌 连接关闭")
             except Exception as e:
                 print(f"[RedisSse] ⚠️ 关闭连接失败: {e}")
+
+        # 关闭 Pub/Sub 专用连接
+        if self._pubsub_redis:
+            try:
+                await self._pubsub_redis.close()
+                self._pubsub_redis = None
+            except Exception as e:
+                print(f"[RedisSse] ⚠️ 关闭 Pub/Sub 连接失败: {e}")
+
+        print("[RedisSse] 🔌 连接关闭")
 
     @property
     def is_connected(self) -> bool:
