@@ -11,7 +11,7 @@
 |------|------|----------|
 | Phase 1: services/tracking | ✅ 完成 | 4/4 |
 | Phase 2: products/notification | ✅ 完成 | 6/6 |
-| Phase 3: ai_chatbot 扩展 | ⏳ 开发中 | 2/3 |
+| Phase 3: ai_chatbot 扩展 | ✅ 完成 | 3/3 |
 | Phase 4: 集成与部署 | 待开始 | 0/2 |
 
 ---
@@ -385,3 +385,61 @@ products/notification/
 ---
 
 *下一步: Step 3.3 集成测试完整流程*
+
+---
+
+### Step 3.3: 集成测试完整流程
+
+**完成时间:** 2025-12-23
+**所属模块:** 跨模块集成
+
+**测试内容:**
+1. tracking 服务导入测试
+2. API handler 导入测试
+3. 响应模型序列化测试
+4. 路由注册验证
+5. ai_chatbot 独立模式测试
+
+**测试结果:**
+- ✅ tracking 服务初始化成功
+- ✅ API handler 导入成功
+- ✅ 响应模型序列化正常
+- ✅ tracking 路由数量: 5
+  - GET /api/tracking/{tracking_number}
+  - GET /api/tracking/{tracking_number}/status
+  - GET /api/shopify/{site}/orders/{order_id}/tracking
+  - GET /api/shopify/tracking
+  - GET /api/shopify/orders/{order_id}/tracking
+- ✅ AI 客服路由总数: 40
+
+---
+
+## Phase 3 完成总结
+
+**完成时间:** 2025-12-23
+
+**修改文件:**
+```
+products/ai_chatbot/
+├── handlers/tracking.py         # 新增：物流轨迹查询 API
+├── routes.py                    # 修改：注册 tracking 路由
+└── frontend/
+    └── src/components/
+        └── ChatMessage.vue      # 修改：添加物流时间线
+```
+
+**核心能力:**
+- 物流轨迹查询 API（GET /api/tracking/{tracking_number}）
+- 物流状态查询 API（GET /api/tracking/{tracking_number}/status）
+- 前端可折叠物流时间线组件
+- 支持加载状态、错误处理、空数据展示
+- 响应式 UI，支持中英文
+
+**交互流程:**
+1. 用户在 AI 客服查询订单
+2. 商品卡片显示物流状态和「查看物流」按钮
+3. 点击按钮展开时间线，调用 /api/tracking API
+4. 显示物流轨迹列表，最新事件高亮
+5. 再次点击收起时间线
+
+**下一步:** Phase 4 集成与部署

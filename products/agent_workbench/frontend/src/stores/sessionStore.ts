@@ -363,17 +363,37 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
             case 'message':
               get().addMessageToCurrentSession(data.message);
               break;
+            case 'manual_message':
+              // 处理人工消息（来自 AI 客服用户或坐席）
+              get().addMessageToCurrentSession({
+                role: data.role,
+                content: data.content,
+                timestamp: data.timestamp,
+                agent_id: data.agent_id,
+                agent_name: data.agent_name,
+                message_type: data.message_type,
+              });
+              break;
             case 'session_update':
               if (data.session) {
                 set({ currentSession: data.session });
                 get().updateSessionInList(data.session);
               }
               break;
+            case 'status_change':
+              // 处理会话状态变化，刷新会话列表
+              console.log('Session status changed:', data.status);
+              get().refreshSessions();
+              break;
             case 'history':
               // 初始消息历史
               if (Array.isArray(data.messages)) {
                 set({ currentMessages: data.messages });
               }
+              break;
+            case 'connected':
+            case 'heartbeat':
+              // 连接和心跳事件，忽略
               break;
             default:
               console.log('Unknown SSE event:', data.type);

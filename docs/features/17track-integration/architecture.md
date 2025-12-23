@@ -284,3 +284,44 @@ services/tracking/client.py
 | `products/ai_chatbot/routes.py` | 注册 tracking 路由 |
 | `backend.py` | 注册 notification 路由 |
 | `.env` | 添加 17track 配置 |
+
+---
+
+## Phase 3 新增文件详情
+
+### products/ai_chatbot/handlers/tracking.py
+
+**用途:** 提供物流轨迹查询 API，供前端展示物流时间线
+
+**主要端点:**
+- `GET /api/tracking/{tracking_number}` - 查询完整物流轨迹
+- `GET /api/tracking/{tracking_number}/status` - 查询物流状态（轻量接口）
+
+**响应模型:**
+- `TrackingResponse` - 完整物流信息响应
+- `TrackingEventResponse` - 单个物流事件
+- `CarrierResponse` - 承运商信息
+
+**跨模块交互:**
+- 依赖: `services/tracking/service.py`
+- 被调用: `products/ai_chatbot/frontend/ChatMessage.vue`
+
+---
+
+### products/ai_chatbot/frontend/src/components/ChatMessage.vue
+
+**用途:** AI 客服聊天消息组件，包含可折叠物流时间线
+
+**新增功能:**
+- `trackingDataMap` - 存储物流轨迹数据
+- `expandedTrackings` - 存储展开状态
+- `fetchTrackingData()` - 调用 API 获取物流轨迹
+- `toggleTracking()` - 切换展开/收起
+- `updateTimelineDOM()` - 更新时间线 DOM
+
+**交互流程:**
+1. 商品卡片显示「查看物流」按钮
+2. 点击展开时间线，显示加载动画
+3. 调用 `/api/tracking/{tracking_number}` 获取数据
+4. 渲染时间线事件列表
+5. 再次点击收起
