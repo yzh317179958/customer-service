@@ -173,48 +173,48 @@ async def chat(request: ChatRequest) -> ChatResponse:
             "Content-Type": "application/json"
         }
 
-        http_client = httpx.Client(timeout=HTTP_TIMEOUT, trust_env=False)
+        # 使用异步客户端避免阻塞事件循环
+        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT, trust_env=False) as http_client:
+            async with http_client.stream('POST', url, json=payload, headers=headers) as response:
+                if response.status_code != 200:
+                    error_text = await response.aread()
+                    raise HTTPException(
+                        status_code=response.status_code,
+                        detail=f"Coze API 错误: {error_text.decode()}"
+                    )
 
-        with http_client.stream('POST', url, json=payload, headers=headers) as response:
-            if response.status_code != 200:
-                error_text = response.text
-                raise HTTPException(
-                    status_code=response.status_code,
-                    detail=f"Coze API 错误: {error_text}"
-                )
+                response_messages = []
+                returned_conversation_id = None
+                event_type = None
 
-            response_messages = []
-            returned_conversation_id = None
-            event_type = None
+                async for line in response.aiter_lines():
+                    if not line:
+                        continue
 
-            for line in response.iter_lines():
-                if not line:
-                    continue
+                    line = line.strip()
+                    if line.startswith('event:'):
+                        event_type = line[6:].strip()
+                    elif line.startswith('data:'):
+                        try:
+                            data_str = line[5:].strip()
+                            data = json.loads(data_str)
 
-                line = line.strip()
-                if line.startswith('event:'):
-                    event_type = line[6:].strip()
-                elif line.startswith('data:'):
-                    try:
-                        data_str = line[5:].strip()
-                        data = json.loads(data_str)
+                            if 'conversation_id' in data and not returned_conversation_id:
+                                returned_conversation_id = data['conversation_id']
 
-                        if 'conversation_id' in data and not returned_conversation_id:
-                            returned_conversation_id = data['conversation_id']
+                            if event_type == 'conversation.message.delta':
+                                if 'content' in data and data.get('role') == 'assistant':
+                                    content = data['content']
+                                    if content:
+                                        response_messages.append(content)
 
-                        if event_type == 'conversation.message.delta':
-                            if 'content' in data and data.get('role') == 'assistant':
+                            elif event_type is None and data.get('type') == 'answer' and data.get('content'):
                                 content = data['content']
-                                if content:
-                                    response_messages.append(content)
+                                response_messages.append(content)
+                                print(f"📤 同步接口收到 answer 类型消息: {len(content)} 字符")
 
-                        elif event_type is None and data.get('type') == 'answer' and data.get('content'):
-                            content = data['content']
-                            response_messages.append(content)
-                            print(f"📤 同步接口收到 answer 类型消息: {len(content)} 字符")
-
-                    except json.JSONDecodeError:
-                        pass
+                        except json.JSONDecodeError:
+                            pass
 
         # 保存自动生成的 conversation_id
         if not conversation_id and returned_conversation_id:
@@ -383,78 +383,78 @@ async def chat_stream(request: ChatRequest):
                 "Content-Type": "application/json"
             }
 
-            http_client = httpx.Client(timeout=HTTP_TIMEOUT, trust_env=False)
+            # 使用异步客户端避免阻塞事件循环（关键修复！）
+            async with httpx.AsyncClient(timeout=HTTP_TIMEOUT, trust_env=False) as http_client:
+                async with http_client.stream('POST', url, json=payload, headers=headers) as response:
+                    if response.status_code != 200:
+                        error_text = await response.aread()
+                        error_data = {
+                            "type": "error",
+                            "content": f"Coze API 错误: {error_text.decode()}"
+                        }
+                        yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
+                        return
 
-            with http_client.stream('POST', url, json=payload, headers=headers) as response:
-                if response.status_code != 200:
-                    error_text = response.text
-                    error_data = {
-                        "type": "error",
-                        "content": f"Coze API 错误: {error_text}"
-                    }
-                    yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
-                    return
+                    event_type = None
+                    returned_conversation_id = None
+                    full_ai_response = []
 
-                event_type = None
-                returned_conversation_id = None
-                full_ai_response = []
-
-                for line in response.iter_lines():
-                    # 检查队列中的人工消息
-                    try:
-                        while not sse_queues[session_id].empty():
-                            queued_msg = await sse_queues[session_id].get()
-                            yield f"data: {json.dumps(queued_msg, ensure_ascii=False)}\n\n"
-                            print(f"✅ SSE 推送队列消息: {queued_msg.get('type')}")
-                    except Exception as queue_error:
-                        print(f"⚠️  SSE 队列检查异常: {str(queue_error)}")
-
-                    if not line:
-                        continue
-
-                    line = line.strip()
-                    if line.startswith('event:'):
-                        event_type = line[6:].strip()
-                    elif line.startswith('data:'):
+                    async for line in response.aiter_lines():
+                        # 检查队列中的人工消息
                         try:
-                            data_str = line[5:].strip()
-                            data = json.loads(data_str)
+                            while not sse_queues[session_id].empty():
+                                queued_msg = await sse_queues[session_id].get()
+                                yield f"data: {json.dumps(queued_msg, ensure_ascii=False)}\n\n"
+                                print(f"✅ SSE 推送队列消息: {queued_msg.get('type')}")
+                        except Exception as queue_error:
+                            print(f"⚠️  SSE 队列检查异常: {str(queue_error)}")
 
-                            if 'conversation_id' in data and not returned_conversation_id:
-                                returned_conversation_id = data['conversation_id']
+                        if not line:
+                            continue
 
-                            if event_type == 'conversation.message.delta':
-                                if 'content' in data and data.get('role') == 'assistant':
+                        line = line.strip()
+                        if line.startswith('event:'):
+                            event_type = line[6:].strip()
+                        elif line.startswith('data:'):
+                            try:
+                                data_str = line[5:].strip()
+                                data = json.loads(data_str)
+
+                                if 'conversation_id' in data and not returned_conversation_id:
+                                    returned_conversation_id = data['conversation_id']
+
+                                if event_type == 'conversation.message.delta':
+                                    if 'content' in data and data.get('role') == 'assistant':
+                                        content = data['content']
+                                        if content:
+                                            full_ai_response.append(content)
+                                            sse_data = {
+                                                "type": "message",
+                                                "content": content
+                                            }
+                                            yield f"data: {json.dumps(sse_data, ensure_ascii=False)}\n\n"
+
+                                elif event_type is None and data.get('type') == 'answer' and data.get('content'):
                                     content = data['content']
-                                    if content:
-                                        full_ai_response.append(content)
-                                        sse_data = {
-                                            "type": "message",
-                                            "content": content
-                                        }
-                                        yield f"data: {json.dumps(sse_data, ensure_ascii=False)}\n\n"
+                                    full_ai_response.append(content)
+                                    sse_data = {
+                                        "type": "message",
+                                        "content": content
+                                    }
+                                    yield f"data: {json.dumps(sse_data, ensure_ascii=False)}\n\n"
+                                    print(f"📤 Workflow answer 类型消息: {len(content)} 字符")
 
-                            elif event_type is None and data.get('type') == 'answer' and data.get('content'):
-                                content = data['content']
-                                full_ai_response.append(content)
-                                sse_data = {
-                                    "type": "message",
-                                    "content": content
-                                }
-                                yield f"data: {json.dumps(sse_data, ensure_ascii=False)}\n\n"
-                                print(f"📤 Workflow answer 类型消息: {len(content)} 字符")
+                                elif event_type == 'conversation.chat.failed':
+                                    error_content = data.get('last_error', {}).get('msg', '未知错误')
+                                    error_data = {
+                                        "type": "error",
+                                        "content": error_content
+                                    }
+                                    yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
+                                    return
 
-                            elif event_type == 'conversation.chat.failed':
-                                error_content = data.get('last_error', {}).get('msg', '未知错误')
-                                error_data = {
-                                    "type": "error",
-                                    "content": error_content
-                                }
-                                yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
-                                return
-
-                        except json.JSONDecodeError:
-                            pass
+                            except json.JSONDecodeError:
+                                pass
 
             # 保存 conversation_id
             if not conversation_id and returned_conversation_id:
