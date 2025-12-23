@@ -351,3 +351,37 @@ products/notification/
 ---
 
 *下一步: Step 3.2 前端添加可折叠物流时间线*
+
+---
+
+### Step 3.2: 前端添加可折叠物流时间线
+
+**完成时间:** 2025-12-23
+**所属模块:** products/ai_chatbot/frontend
+
+**完成内容:**
+- 修改 `ChatMessage.vue` 组件
+- 添加物流时间线状态管理（trackingDataMap、expandedTrackings）
+- 实现 `fetchTrackingData()` 调用后端 API
+- 实现 `toggleTracking()` 展开/收起切换
+- 实现 `updateTimelineDOM()` 动态更新时间线内容
+- 商品卡片新增「查看物流」按钮
+- 时间线展示：状态徽章、事件列表、地点信息
+- 支持加载状态、错误状态、空数据状态
+- 添加完整 CSS 样式（时间线、按钮、动画）
+
+**交互设计:**
+1. 商品卡片底部显示「查看物流 ▼」按钮
+2. 点击展开时间线，显示加载动画
+3. 加载完成后显示物流轨迹列表
+4. 再次点击收起时间线
+5. 最新事件高亮显示
+
+**测试结果:**
+- ✅ TypeScript 类型检查通过
+- ✅ Vite 构建成功
+- ✅ 产出文件正常（index.html, index.css, index.js）
+
+---
+
+*下一步: Step 3.3 集成测试完整流程*
