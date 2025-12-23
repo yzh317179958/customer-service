@@ -835,11 +835,20 @@ onUnmounted(() => {
 
 <style scoped>
 /* =====================================================
-   Fiido Premium Chat Panel - Nano Banana Style
-   - Clean, minimal design
-   - Subtle shadows and smooth animations
-   - Premium feel with elegant spacing
+   Fiido Premium Chat Panel - 统一坐席工作台风格
+   - 品牌色: #00a6a0 (fiido)
+   - 配色系统: slate 灰色系 + fiido 青绿色
+   - 与坐席工作台 UI 保持一致
    ===================================================== */
+
+/* CSS 变量定义 - 与坐席工作台保持一致 */
+:root {
+  --fiido: #00a6a0;
+  --fiido-dark: #008b86;
+  --fiido-light: #f0f9f9;
+  --fiido-black: #0f172a;
+  --fiido-slate: #1e293b;
+}
 
 /* Overlay - transparent, not blocking main content */
 .chat-overlay {
@@ -894,7 +903,7 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   position: relative;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .header-left {
@@ -911,32 +920,33 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
-/* 状态点颜色 */
+/* 状态点颜色 - 使用 fiido 品牌色系 */
 .header-left .status-dot.status-ai {
-  background: #10b981;
-  box-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
+  background: var(--fiido, #00a6a0);
+  box-shadow: 0 0 6px rgba(0, 166, 160, 0.5);
 }
 
 .header-left .status-dot.status-pending {
-  background: #f59e0b;
-  box-shadow: 0 0 6px rgba(245, 158, 11, 0.5);
+  background: var(--fiido, #00a6a0);
+  box-shadow: 0 0 6px rgba(0, 166, 160, 0.5);
+  animation: statusPulse 1.5s ease-in-out infinite;
 }
 
 .header-left .status-dot.status-manual {
-  background: #3b82f6;
-  box-shadow: 0 0 6px rgba(59, 130, 246, 0.5);
+  background: var(--fiido, #00a6a0);
+  box-shadow: 0 0 6px rgba(0, 166, 160, 0.5);
 }
 
 .header-left .status-dot.status-closed {
-  background: #ef4444;
-  box-shadow: 0 0 6px rgba(239, 68, 68, 0.5);
+  background: #94a3b8;
+  box-shadow: 0 0 6px rgba(148, 163, 184, 0.5);
 }
 
 .chat-header h2 {
   font-size: 15px;
   font-weight: 600;
   margin: 0;
-  color: #1a1a1a;
+  color: var(--fiido-slate, #1e293b);
   letter-spacing: -0.01em;
 }
 
@@ -948,11 +958,12 @@ onUnmounted(() => {
 
 .status-label {
   font-size: 12px;
-  color: #737373;
+  color: #64748b;
   font-weight: 500;
   padding: 4px 10px;
-  background: #f5f5f5;
+  background: #f8fafc;
   border-radius: 12px;
+  border: 1px solid #e2e8f0;
 }
 
 @keyframes statusPulse {
@@ -961,9 +972,9 @@ onUnmounted(() => {
 }
 
 .chat-close {
-  background: #f5f5f5;
-  border: none;
-  color: #737373;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
   font-size: 18px;
   cursor: pointer;
   padding: 0;
@@ -978,8 +989,9 @@ onUnmounted(() => {
 }
 
 .chat-close:hover {
-  background: #1a1a1a;
+  background: var(--fiido-black, #0f172a);
   color: #ffffff;
+  border-color: transparent;
   transform: rotate(90deg);
 }
 
@@ -987,12 +999,12 @@ onUnmounted(() => {
   transform: rotate(90deg) scale(0.92);
 }
 
-/* Messages Area */
+/* Messages Area - 统一 slate 色系 */
 .chat-messages {
   flex: 1;
   overflow-y: auto;
   padding: 24px;
-  background: linear-gradient(180deg, #fafafa 0%, #f5f5f5 100%);
+  background: #f8fafc;
 }
 
 .chat-messages::-webkit-scrollbar {
@@ -1038,26 +1050,25 @@ onUnmounted(() => {
 .message-avatar {
   width: 40px;
   height: 40px;
-  border-radius: 50%;
+  border-radius: 12px;
   background: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #1a1a1a;
+  color: var(--fiido-slate, #1e293b);
   font-weight: 600;
   font-size: 13px;
   flex-shrink: 0;
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.06),
-    0 1px 3px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   padding: 6px;
   overflow: hidden;
-  transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+  transition: all 0.35s cubic-bezier(0.23, 1, 0.32, 1);
+  border: 1px solid #e2e8f0;
 }
 
 .message-avatar:hover {
-  transform: scale(1.1);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .message-avatar img {
@@ -1073,22 +1084,23 @@ onUnmounted(() => {
   max-width: 78%;
 }
 
-/* Typing Indicator */
+/* Typing Indicator - 使用 fiido 品牌色 */
 .typing-indicator {
   display: flex;
   gap: 6px;
-  padding: 16px 20px;
+  padding: 14px 18px;
   background: #ffffff;
-  border-radius: 20px;
-  border-bottom-left-radius: 6px;
+  border-radius: 16px;
+  border-bottom-left-radius: 4px;
   width: fit-content;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  border: 1px solid #e2e8f0;
 }
 
 .typing-dot {
   width: 8px;
   height: 8px;
-  background: linear-gradient(145deg, #00c4bd 0%, #00a6a0 100%);
+  background: var(--fiido, #00a6a0);
   border-radius: 50%;
   animation: typingBounce 1.6s infinite;
 }
@@ -1107,11 +1119,11 @@ onUnmounted(() => {
   }
 }
 
-/* Input Area */
+/* Input Area - 统一 fiido 风格 */
 .chat-input-area {
   padding: 20px 24px 24px;
   background: #ffffff;
-  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  border-top: 1px solid #e2e8f0;
 }
 
 .chat-input-wrapper {
@@ -1132,10 +1144,10 @@ onUnmounted(() => {
   width: 46px;
   height: 46px;
   border-radius: 50%;
-  background: #1a1a1a;
+  background: var(--fiido-black, #0f172a);
   border: none;
   box-shadow:
-    0 4px 16px rgba(0, 0, 0, 0.12),
+    0 4px 16px rgba(15, 23, 42, 0.15),
     0 2px 6px rgba(0, 0, 0, 0.08);
   cursor: pointer;
   display: flex;
@@ -1151,7 +1163,7 @@ onUnmounted(() => {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(145deg, #00a6a0 0%, #00c4bd 100%);
+  background: var(--fiido, #00a6a0);
   border-radius: 50%;
   opacity: 0;
   transition: opacity 0.3s ease;
@@ -1175,7 +1187,7 @@ onUnmounted(() => {
 
 .main-bubble.active {
   transform: rotate(45deg);
-  background: #525252;
+  background: #64748b;
 }
 
 .main-bubble svg {
@@ -1226,14 +1238,12 @@ onUnmounted(() => {
   padding: 0 20px;
   border-radius: 21px;
   background: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  border: 1px solid #e2e8f0;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow:
-    0 4px 16px rgba(0, 0, 0, 0.06),
-    0 2px 4px rgba(0, 0, 0, 0.02);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
   transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
   white-space: nowrap;
   position: relative;
@@ -1244,7 +1254,7 @@ onUnmounted(() => {
   content: '';
   position: absolute;
   inset: 0;
-  background: #1a1a1a;
+  background: var(--fiido-black, #0f172a);
   opacity: 0;
   transition: opacity 0.3s ease;
 }
@@ -1272,8 +1282,8 @@ onUnmounted(() => {
 }
 
 .sub-bubble.disabled {
-  background: #f5f5f5;
-  border-color: transparent;
+  background: #f8fafc;
+  border-color: #e2e8f0;
   cursor: not-allowed;
   opacity: 0.5;
   box-shadow: none;
@@ -1289,55 +1299,55 @@ onUnmounted(() => {
 }
 
 .sub-bubble.disabled .bubble-text {
-  color: #a3a3a3;
+  color: #94a3b8;
 }
 
 .sub-bubble.disabled:hover .bubble-text {
-  color: #a3a3a3;
+  color: #94a3b8;
 }
 
 .bubble-text {
   font-size: 14px;
   font-weight: 500;
-  color: #525252;
+  color: #64748b;
   transition: color 0.3s ease;
   position: relative;
   z-index: 1;
   letter-spacing: -0.01em;
 }
 
-/* Input Field */
+/* Input Field - 统一 fiido 风格 */
 .chat-input {
   flex: 1;
   padding: 14px 20px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  border: 1px solid #e2e8f0;
   border-radius: 24px;
   font-family: inherit;
   font-size: 15px;
   outline: none;
-  color: #1a1a1a;
-  background: #f5f5f5;
+  color: var(--fiido-slate, #1e293b);
+  background: #f8fafc;
   transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 .chat-input::placeholder {
-  color: #a3a3a3;
+  color: #94a3b8;
 }
 
 .chat-input:hover {
-  border-color: rgba(0, 0, 0, 0.12);
+  border-color: #cbd5e1;
   background: #ffffff;
 }
 
 .chat-input:focus {
-  border-color: rgba(0, 166, 160, 0.5);
+  border-color: var(--fiido, #00a6a0);
   background: #ffffff;
-  box-shadow: 0 0 0 4px rgba(0, 166, 160, 0.08);
+  box-shadow: 0 0 0 4px rgba(0, 166, 160, 0.1);
 }
 
-/* Send Button */
+/* Send Button - 统一 fiido 风格 */
 .chat-send {
-  background: #1a1a1a;
+  background: var(--fiido-black, #0f172a);
   color: #ffffff;
   border: none;
   width: 46px;
@@ -1350,7 +1360,7 @@ onUnmounted(() => {
   transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
   flex-shrink: 0;
   box-shadow:
-    0 4px 16px rgba(0, 0, 0, 0.12),
+    0 2px 8px rgba(15, 23, 42, 0.15),
     0 2px 6px rgba(0, 0, 0, 0.08);
   position: relative;
   overflow: hidden;
@@ -1360,7 +1370,7 @@ onUnmounted(() => {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(145deg, #00a6a0 0%, #00c4bd 100%);
+  background: var(--fiido, #00a6a0);
   border-radius: 50%;
   opacity: 0;
   transition: opacity 0.3s ease;
@@ -1382,7 +1392,7 @@ onUnmounted(() => {
 }
 
 .chat-send:disabled {
-  background: #e5e5e5;
+  background: #e2e8f0;
   cursor: not-allowed;
   opacity: 0.5;
   box-shadow: none;
@@ -1401,17 +1411,18 @@ onUnmounted(() => {
   transform: translateX(2px);
 }
 
-/* Waiting Tip */
+/* Waiting Tip - 统一 fiido 风格 */
 .waiting-tip {
   padding: 14px 18px;
-  background: linear-gradient(145deg, rgba(0, 166, 160, 0.08) 0%, rgba(0, 196, 189, 0.04) 100%);
-  border: 1px solid rgba(0, 166, 160, 0.15);
+  background: var(--fiido-light, #f0f9f9);
+  border: 1px solid rgba(0, 166, 160, 0.2);
   border-radius: 14px;
   display: flex;
   align-items: center;
   gap: 12px;
   font-size: 14px;
-  color: #00a6a0;
+  color: var(--fiido, #00a6a0);
+  font-weight: 500;
   margin-top: 14px;
   animation: messageIn 0.35s ease;
 }

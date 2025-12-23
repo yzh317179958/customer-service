@@ -258,12 +258,7 @@ description: 创建或更新跨模块功能文档。支持两种场景：1）新
 
 ### 3.1 数据流
 
-```
-[模块1] ──(数据A)──► [服务层] ──(数据B)──► [模块2]
-                         │
-                         ▼
-                    [数据库/缓存]
-```
+（此处绘制数据流图）
 
 ### 3.2 接口定义
 
@@ -299,18 +294,310 @@ description: 创建或更新跨模块功能文档。支持两种场景：1）新
 - 安全：[要求]
 ```
 
+**示例输出（微服务 SSE 通信）：**
+
+```markdown
+# 微服务跨进程 SSE 通信 - 跨模块 PRD
+
+> **文档类型**：跨模块功能 PRD
+> **创建日期**：2025-12-22
+> **涉及模块**：ai_chatbot、agent_workbench、infrastructure/bootstrap
+
 ---
 
-## 第四步：生成实现计划 (implementation-plan.md)
+## 一、功能概述
+
+### 1.1 功能名称
+微服务跨进程 SSE 实时通信
+
+### 1.2 背景与目标
+当前 AI 客服和坐席工作台作为独立微服务运行，SSE 使用内存队列无法跨进程。
+需要改造为 Redis Pub/Sub 实现跨进程实时消息传递。
+
+### 1.3 涉及模块
+
+| 模块 | 路径 | 职责 |
+|------|------|------|
+| AI 客服 | `products/ai_chatbot/` | 发送转人工消息、状态变化 |
+| 坐席工作台 | `products/agent_workbench/` | 订阅并接收实时消息 |
+| SSE 管理 | `infrastructure/bootstrap/sse.py` | 统一 SSE 接口 |
+
+---
+
+## 二、各模块需求
+
+### 2.1 AI 客服需求
+
+**输入：**
+- 用户触发转人工请求
+- 会话状态变化事件
+
+**输出：**
+- 发布 SSE 消息到 Redis
+
+**交互流程：**
+1. 用户请求转人工
+2. 调用 `enqueue_sse_message()` 发送消息
+3. 底层自动通过 Redis Pub/Sub 发布
+
+### 2.2 坐席工作台需求
+
+**输入：**
+- 订阅 Redis Channel 接收消息
+
+**输出：**
+- SSE 事件流推送到前端
+
+**交互流程：**
+1. 前端建立 SSE 连接
+2. 后端订阅 Redis Channel
+3. 收到消息后推送到前端
+
+---
+
+## 三、模块间交互
+
+### 3.1 数据流
+
+AI 客服 ──(PUBLISH)──► Redis Pub/Sub ──(SUBSCRIBE)──► 坐席工作台
+                              │
+                              ▼
+                         sse:session:{name}
+
+### 3.2 接口定义
+
+#### 事件定义
+
+| 事件名 | 发布者 | 订阅者 | 数据格式 |
+|--------|--------|--------|----------|
+| status_change | ai_chatbot | agent_workbench | `{"type":"status_change","payload":{...}}` |
+| transfer_request | ai_chatbot | agent_workbench | `{"type":"transfer_request","payload":{...}}` |
+
+---
+
+## 四、用户故事
+
+1. 作为坐席，我希望在用户请求转人工时立即收到通知，以便快速响应
+2. 作为系统管理员，我希望 AI 客服和坐席工作台可以独立部署，互不影响
+
+---
+
+## 五、成功标准
+
+### 5.1 功能验收
+- [ ] AI 客服发送消息后，坐席工作台 100ms 内收到
+- [ ] Redis 不可用时自动降级到内存队列
+
+### 5.2 非功能要求
+- 性能：消息延迟 < 100ms
+- 可靠性：支持降级策略
+```
+
+---
+
+## 第四步：生成技术栈文档 (tech-stack.md)
+
+**文件名：** `docs/features/[功能名]/tech-stack.md`
+
+**生成提示词（内部使用）：**
+
+```
+我正在开发跨模块功能：[功能描述]
+
+涉及模块：[模块列表]
+
+当前项目已有技术栈（Fiido 智能服务平台）：
+- 后端: Python/FastAPI
+- 前端: React/Vue + TypeScript + Tailwind CSS
+- 数据库: PostgreSQL + SQLAlchemy
+- 缓存: Redis
+- 三层架构: products/ → services/ → infrastructure/
+
+请基于现有技术栈，为跨模块功能推荐：
+1. 各模块复用的现有服务
+2. 需要的新依赖（如果有）
+3. 跨模块通信方案
+4. 数据存储方案
+5. API 设计建议
+
+要求：
+- 优先复用现有技术栈和 services/ 服务
+- 避免引入不必要的新依赖
+- 遵循三层架构依赖规则
+- 考虑企业级场景：高并发、容错、可维护性
+```
+
+**输出格式：**
+
+````markdown
+# [功能名] - 跨模块技术栈
+
+> **功能名称**：[功能名]
+> **创建日期**：YYYY-MM-DD
+> **涉及模块**：[模块列表]
+
+---
+
+## 一、复用现有技术栈
+
+| 层级 | 技术/服务 | 用途 |
+|------|----------|------|
+| 产品层 | products/ai_chatbot | [用途] |
+| 产品层 | products/agent_workbench | [用途] |
+| 服务层 | services/session | [用途] |
+| 基础设施层 | infrastructure/bootstrap | [用途] |
+| 数据存储 | Redis / PostgreSQL | [用途] |
+
+## 二、新增依赖
+
+| 依赖 | 版本 | 用途 | 原因 |
+|------|------|------|------|
+| 无 / [依赖名] | - | - | - |
+
+## 三、跨模块通信方案
+
+### 通信方式选型
+
+| 方式 | 优点 | 缺点 | 是否采用 |
+|------|------|------|----------|
+| Redis Pub/Sub | 实时、简单 | 不持久化 | ✅ |
+| HTTP API | 简单 | 延迟高 | ❌ |
+| 消息队列 | 可靠 | 复杂 | ❌ |
+
+### 消息格式
+
+```json
+{
+  "type": "xxx",
+  "payload": {},
+  "timestamp": 0
+}
+```
+
+## 四、数据存储方案
+
+### Redis 数据结构
+
+| Key 模式 | 类型 | 用途 | TTL |
+|---------|------|------|-----|
+| `xxx:{id}` | String/Hash | [用途] | [时间] |
+
+### 数据库表（如需要）
+
+| 表名 | 用途 |
+|------|------|
+| [表名] | [用途] |
+
+## 五、API 设计
+
+| 模块 | 方法 | 路径 | 说明 |
+|------|------|------|------|
+| [模块] | POST | /api/xxx | [说明] |
+````
+
+**示例输出（微服务 SSE 通信）：**
+
+````markdown
+# 微服务跨进程 SSE 通信 - 跨模块技术栈
+
+> **功能名称**：微服务跨进程 SSE 实时通信
+> **创建日期**：2025-12-22
+> **涉及模块**：infrastructure/bootstrap、products/ai_chatbot、products/agent_workbench
+
+---
+
+## 一、复用现有技术栈
+
+| 层级 | 技术/服务 | 用途 |
+|------|----------|------|
+| 产品层 | products/ai_chatbot | 发送转人工消息、状态变化消息 |
+| 产品层 | products/agent_workbench | 订阅并接收实时消息 |
+| 服务层 | services/session | 会话状态管理（已 Redis 化） |
+| 基础设施层 | infrastructure/bootstrap/sse.py | SSE 消息队列管理 |
+| 数据存储 | Redis | Pub/Sub 跨进程消息传递 |
+
+## 二、新增依赖
+
+| 依赖 | 版本 | 用途 | 原因 |
+|------|------|------|------|
+| 无 | - | - | 项目已有 redis-py，支持 Pub/Sub |
+
+## 三、跨模块通信方案
+
+### 通信方式选型
+
+| 方式 | 优点 | 缺点 | 是否采用 |
+|------|------|------|----------|
+| **Redis Pub/Sub** | 实时、简单、项目已有 | 不持久化 | ✅ **采用** |
+| HTTP API 轮询 | 简单 | 延迟高、浪费资源 | ❌ |
+| Redis Stream | 持久化、消费者组 | 复杂度高 | ❌ |
+
+### Channel 命名规范
+
+| Channel 模式 | 用途 | 示例 |
+|-------------|------|------|
+| `sse:session:{session_name}` | 会话级消息 | `sse:session:user_123` |
+| `sse:agent:{agent_id}` | 坐席级消息 | `sse:agent:agent_001` |
+| `sse:broadcast` | 全局广播 | `sse:broadcast` |
+
+### 消息格式
+
+```json
+{
+  "type": "status_change|new_message|transfer_request",
+  "payload": {
+    "session_name": "user_123",
+    "status": "waiting_agent",
+    "data": {}
+  },
+  "timestamp": 1703246400,
+  "source": "ai_chatbot"
+}
+```
+
+## 四、数据存储方案
+
+### Redis 使用方式
+
+本功能不新增 Redis Key 存储，仅使用 Pub/Sub 功能：
+
+| 功能 | Redis 命令 | 说明 |
+|------|-----------|------|
+| 发布消息 | `PUBLISH sse:session:{name} {json}` | 发送 SSE 消息 |
+| 订阅频道 | `SUBSCRIBE sse:session:{name}` | 订阅 SSE 消息 |
+
+## 五、API 设计
+
+### 现有 API（无需修改）
+
+| 模块 | 方法 | 路径 | 说明 |
+|------|------|------|------|
+| ai_chatbot | POST | /api/manual/escalate | 触发转人工 |
+| agent_workbench | GET | /api/sessions/{name}/events | SSE 事件流 |
+
+### 内部接口（需改造）
+
+| 模块 | 函数 | 当前实现 | 改造后 |
+|------|------|---------|--------|
+| infrastructure | `enqueue_sse_message()` | 内存队列 | Redis PUBLISH |
+| infrastructure | `subscribe_sse_events()` | 新增 | Redis SUBSCRIBE |
+````
+
+---
+
+## 第五步：生成实现计划 (implementation-plan.md)
 
 **文件名：** `docs/features/[功能名]/implementation-plan.md`
 
 **生成提示词（内部使用）：**
 
 ```
-请根据以下 PRD 生成跨模块实现计划：
+
+请根据以下 PRD 和技术栈文档生成跨模块实现计划：
 
 【PRD 文档】@prd.md
+
+【技术栈文档】@tech-stack.md
 
 【最高约束性文档】@CLAUDE.md
 
@@ -322,26 +609,28 @@ description: 创建或更新跨模块功能文档。支持两种场景：1）新
    Phase 3: products/[模块A]
    Phase 4: products/[模块B]
    Phase 5: 集成测试
-
 2. 每个 Step 要小且具体
 3. 每个 Step 标注所属模块
 4. 每个 Step 包含测试方法
 5. 只写指令，不写具体代码
 
 格式要求：
+
 ## Phase N: [阶段标题]
 
 ### Step X: [步骤标题]
+
 - **所属模块**：products/xxx 或 services/xxx
 - **任务描述**：做什么
 - **涉及文件**：改哪里
 - **测试方法**：如何验证
 - **验收标准**：通过条件
+
 ```
 
 **输出格式：**
 
-```markdown
+````markdown
 # [功能名] - 跨模块实现计划
 
 > **预计步骤数**：N
@@ -354,19 +643,19 @@ description: 创建或更新跨模块功能文档。支持两种场景：1）新
 
 ```
 Phase 1: 基础设施层 (infrastructure/)
-   └── Step 1-X
+└── Step 1-X
 
 Phase 2: 服务层 (services/)
-   └── Step X+1-Y
+└── Step X+1-Y
 
 Phase 3: 产品层 - [模块A] (products/xxx/)
-   └── Step Y+1-Z
+└── Step Y+1-Z
 
 Phase 4: 产品层 - [模块B] (products/yyy/)
-   └── Step Z+1-W
+└── Step Z+1-W
 
 Phase 5: 集成测试
-   └── Step W+1
+└── Step W+1
 ```
 
 ---
@@ -389,6 +678,7 @@ Phase 5: 集成测试
 ```
 
 **验收标准：**
+
 - [ ] [标准1]
 - [ ] [标准2]
 
@@ -438,14 +728,178 @@ Phase 5: 集成测试
 | [场景1] | 1. xxx 2. yyy | [预期] |
 
 **验收标准：**
+
 - [ ] 完整流程通过
 - [ ] 模块间数据正确传递
 - [ ] 异常处理正常
+````
+
+**示例输出（微服务 SSE 通信）：**
+
+````markdown
+# 微服务跨进程 SSE 通信 - 跨模块实现计划
+
+> **预计步骤数**：6
+> **开发顺序**：infrastructure → products
+> **涉及模块**：infrastructure/bootstrap、products/ai_chatbot、products/agent_workbench
+
+---
+
+## 开发阶段总览
+
+```
+Phase 1: 基础设施层 (infrastructure/)
+└── Step 1-3: Redis SSE 管理器实现
+
+Phase 2: 产品层 - AI 客服 (products/ai_chatbot/)
+└── Step 4: 消息发送方改造
+
+Phase 3: 产品层 - 坐席工作台 (products/agent_workbench/)
+└── Step 5: SSE 订阅改造
+
+Phase 4: 集成测试
+└── Step 6: 端到端测试
 ```
 
 ---
 
-## 第五步：创建空白追踪文件
+## Phase 1: 基础设施层
+
+### Step 1: 创建 Redis SSE 管理器
+
+**所属模块：** `infrastructure/bootstrap/`
+
+**任务描述：**
+创建 `redis_sse.py`，实现 Redis Pub/Sub 的 SSE 消息管理
+
+**涉及文件：**
+- `infrastructure/bootstrap/redis_sse.py`（新增）
+
+**接口规格：**
+```python
+class RedisSSEManager:
+    async def publish(self, channel: str, message: dict) -> bool
+    async def subscribe(self, channel: str) -> AsyncIterator[dict]
+```
+
+**测试方法：**
+```bash
+python3 -c "
+from infrastructure.bootstrap.redis_sse import RedisSSEManager
+import asyncio
+manager = RedisSSEManager()
+asyncio.run(manager.publish('test', {'type': 'test'}))
+print('Publish test passed')
+"
+```
+
+**验收标准：**
+- [ ] 可以发布消息到 Redis Channel
+- [ ] 可以订阅 Redis Channel 接收消息
+
+---
+
+### Step 2: 改造 SSE 接口支持双模式
+
+**所属模块：** `infrastructure/bootstrap/`
+
+**任务描述：**
+修改 `sse.py`，支持 Redis 和内存队列双模式，自动降级
+
+**涉及文件：**
+- `infrastructure/bootstrap/sse.py`（修改）
+
+**测试方法：**
+```bash
+# 测试 Redis 模式
+USE_REDIS_SSE=true python3 -c "from infrastructure.bootstrap.sse import enqueue_sse_message"
+
+# 测试降级模式
+USE_REDIS_SSE=false python3 -c "from infrastructure.bootstrap.sse import enqueue_sse_message"
+```
+
+**验收标准：**
+- [ ] USE_REDIS_SSE=true 时使用 Redis
+- [ ] USE_REDIS_SSE=false 时使用内存队列
+
+---
+
+## Phase 2: 产品层 - AI 客服
+
+### Step 3: 验证 AI 客服消息发送
+
+**所属模块：** `products/ai_chatbot/`
+
+**任务描述：**
+验证现有 `enqueue_sse_message()` 调用自动使用 Redis
+
+**涉及文件：**
+- `products/ai_chatbot/handlers/manual.py`（检查，无需修改）
+
+**测试方法：**
+```bash
+curl -X POST http://localhost:8000/api/manual/escalate \
+  -H "Content-Type: application/json" \
+  -d '{"session_name": "test_001"}'
+```
+
+**验收标准：**
+- [ ] 转人工消息通过 Redis 发布
+- [ ] 日志显示使用 Redis SSE
+
+---
+
+## Phase 3: 产品层 - 坐席工作台
+
+### Step 4: 改造 SSE 订阅
+
+**所属模块：** `products/agent_workbench/`
+
+**任务描述：**
+修改 SSE 事件流端点，使用 `subscribe_sse_events()` 订阅 Redis
+
+**涉及文件：**
+- `products/agent_workbench/handlers/sessions.py`（修改）
+
+**测试方法：**
+```bash
+# 终端1: 启动 SSE 订阅
+curl -N http://localhost:8002/api/sessions/test_001/events
+
+# 终端2: 发送消息
+curl -X POST http://localhost:8000/api/manual/escalate \
+  -d '{"session_name": "test_001"}'
+```
+
+**验收标准：**
+- [ ] SSE 端点能接收 Redis 消息
+- [ ] 消息延迟 < 100ms
+
+---
+
+## Phase 4: 集成测试
+
+### Step 5: 跨进程通信测试
+
+**任务描述：**
+验证两个独立进程间的 SSE 通信
+
+**测试场景：**
+
+| 场景 | 步骤 | 预期结果 |
+|------|------|----------|
+| 正常通信 | 1. 启动两个服务 2. 发送转人工 3. 检查接收 | 100ms 内收到消息 |
+| Redis 降级 | 1. 停止 Redis 2. 发送消息 | 日志警告，内存队列工作 |
+
+**验收标准：**
+- [ ] 跨进程消息正常传递
+- [ ] 降级策略正常工作
+- [ ] 无消息丢失
+````
+
+---
+
+## 第六步：创建空白追踪文件
 
 ### progress.md
 
@@ -521,7 +975,7 @@ Phase 5: 集成测试
 
 ---
 
-## 第六步：更新各模块引用
+## 第七步：更新各模块引用
 
 **在每个涉及模块的 `memory-bank/cross-module-refs.md` 添加引用：**
 
@@ -553,6 +1007,7 @@ Phase 5: 集成测试
 - [ ] 已分析涉及模块并获用户确认
 - [ ] 创建 `docs/features/[功能名]/` 目录
 - [ ] 生成 `prd.md`
+- [ ] 生成 `tech-stack.md`
 - [ ] 生成 `implementation-plan.md`
 - [ ] 创建空白 `progress.md`
 - [ ] 创建空白 `architecture.md`
@@ -569,6 +1024,7 @@ Phase 5: 集成测试
 
 文档位置：docs/features/[功能名]/
 - prd.md（完整需求）
+- tech-stack.md（技术栈）
 - implementation-plan.md（分步计划）
 - progress.md（进度追踪）
 - architecture.md（架构说明）
@@ -795,10 +1251,10 @@ docs/features/_templates/
 
 ## 相关资源
 
-| 资源 | 路径 |
-|------|------|
-| 单模块文档生成 | `.claude/skills/memory-bank-guide/SKILL.md` |
-| 跨模块开发执行 | `.claude/skills/cross-module-workflow/SKILL.md` |
-| Vibe Coding 规范 | `docs/参考资料/Vibe_Coding开发规范流程说明.md` |
-| 架构规范 | `CLAUDE.md` |
-| 模块清单 | `PROJECT_OVERVIEW.md` |
+| 资源             | 路径                                              |
+| ---------------- | ------------------------------------------------- |
+| 单模块文档生成   | `.claude/skills/memory-bank-guide/SKILL.md`     |
+| 跨模块开发执行   | `.claude/skills/cross-module-workflow/SKILL.md` |
+| Vibe Coding 规范 | `docs/参考资料/Vibe_Coding开发规范流程说明.md`  |
+| 架构规范         | `CLAUDE.md`                                     |
+| 模块清单         | `PROJECT_OVERVIEW.md`                           |

@@ -169,8 +169,8 @@ const Workspace: React.FC = () => {
         {/* 待接入队列 */}
         {queue.length > 0 && (
           <div className="border-b border-slate-200">
-            <div className="h-10 flex items-center px-4 bg-amber-50 border-b border-amber-100">
-              <span className="text-[11px] font-black text-amber-600 uppercase tracking-widest flex items-center gap-2">
+            <div className="h-10 flex items-center px-4 bg-fiido-light border-b border-fiido/10">
+              <span className="text-[11px] font-black text-fiido uppercase tracking-widest flex items-center gap-2">
                 <Clock size={12} className="animate-pulse" />
                 待接入 ({queue.length})
               </span>
@@ -196,7 +196,7 @@ const Workspace: React.FC = () => {
                         )}
                       </div>
                       <p className="text-[10px] text-slate-500 truncate mt-1">{reason}</p>
-                      <p className="text-[9px] text-amber-500 font-bold mt-1">等待 {formatWaitTime(waitTime)}</p>
+                      <p className="text-[9px] text-fiido font-bold mt-1">等待 {formatWaitTime(waitTime)}</p>
                     </div>
                     <button
                       onClick={(e) => {
@@ -462,14 +462,14 @@ const Workspace: React.FC = () => {
 
                 {/* 转人工原因 */}
                 {currentSession.escalation && (
-                  <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 shadow-sm">
+                  <div className="bg-fiido-light border border-fiido/20 rounded-xl p-4 shadow-sm">
                     <div className="flex items-center gap-2 mb-2">
-                      <AlertCircle size={14} className="text-amber-500" />
-                      <span className="text-[11px] font-bold text-amber-600">转人工原因</span>
+                      <AlertCircle size={14} className="text-fiido" />
+                      <span className="text-[11px] font-bold text-fiido">转人工原因</span>
                     </div>
-                    <p className="text-[11px] text-amber-700">{currentSession.escalation.reason}</p>
+                    <p className="text-[11px] text-fiido-dark">{currentSession.escalation.reason}</p>
                     {currentSession.escalation.details && (
-                      <p className="text-[10px] text-amber-600 mt-1">{currentSession.escalation.details}</p>
+                      <p className="text-[10px] text-fiido mt-1">{currentSession.escalation.details}</p>
                     )}
                   </div>
                 )}

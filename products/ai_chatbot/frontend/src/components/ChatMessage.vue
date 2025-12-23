@@ -282,13 +282,22 @@ const senderName = computed(() => {
 
 <style scoped>
 /* =====================================================
-   Fiido Premium Message Component - Nano Banana Style
-   - Clean, minimal design
-   - Subtle shadows and smooth animations
-   - Premium feel with elegant spacing
+   Fiido Premium Message Component - 统一坐席工作台风格
+   - 品牌色: #00a6a0 (fiido)
+   - 配色系统: slate 灰色系 + fiido 青绿色
+   - 与坐席工作台 UI 保持一致
    ===================================================== */
 
-/* System Message - Minimal Divider */
+/* CSS 变量定义 - 与坐席工作台保持一致 */
+:root {
+  --fiido: #00a6a0;
+  --fiido-dark: #008b86;
+  --fiido-light: #f0f9f9;
+  --fiido-black: #0f172a;
+  --fiido-slate: #1e293b;
+}
+
+/* System Message - 统一风格 */
 .system-message {
   width: 100%;
   display: flex;
@@ -305,15 +314,15 @@ const senderName = computed(() => {
 }
 
 .system-text {
-  color: #737373;
+  color: #64748b;
   font-size: 12px;
   white-space: nowrap;
   font-weight: 500;
   padding: 8px 16px;
-  background: #ffffff;
+  background: #f8fafc;
   border-radius: 20px;
   letter-spacing: 0.01em;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  border: 1px solid #e2e8f0;
 }
 
 /* Message Base Styles */
@@ -322,6 +331,22 @@ const senderName = computed(() => {
   display: flex;
   gap: 14px;
   animation: messageIn 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* Agent Message - Special Entrance Animation */
+.message.agent {
+  animation: agentMessageIn 0.5s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@keyframes agentMessageIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 @keyframes messageIn {
@@ -339,30 +364,29 @@ const senderName = computed(() => {
   flex-direction: row-reverse;
 }
 
-/* Avatar Styles */
+/* Avatar Styles - 统一风格 */
 .message-avatar {
   width: 40px;
   height: 40px;
-  border-radius: 50%;
+  border-radius: 12px;
   background: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #525252;
+  color: #64748b;
   font-weight: 600;
   font-size: 13px;
   flex-shrink: 0;
   overflow: hidden;
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.06),
-    0 1px 3px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   transition: all 0.35s cubic-bezier(0.23, 1, 0.32, 1);
   padding: 6px;
+  border: 1px solid #e2e8f0;
 }
 
 .message-avatar:hover {
-  transform: scale(1.1);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .message-avatar img {
@@ -371,19 +395,49 @@ const senderName = computed(() => {
   object-fit: contain;
 }
 
-/* User Avatar - Dark */
+/* User Avatar - 深色主题 */
 .message.user .message-avatar {
-  background: #1a1a1a;
+  background: var(--fiido-black, #0f172a);
   color: #ffffff;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  border-color: transparent;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.2);
 }
 
-/* Agent Avatar - Teal Gradient */
+/* Agent Avatar - Premium Dark Style */
 .message-avatar.agent-avatar {
-  background: linear-gradient(145deg, #00c4bd 0%, #00a6a0 100%);
+  background: linear-gradient(135deg, var(--fiido-black, #0f172a) 0%, #1e293b 100%);
   color: #ffffff;
-  font-size: 16px;
-  box-shadow: 0 4px 16px rgba(0, 166, 160, 0.3);
+  font-size: 15px;
+  border-color: transparent;
+  box-shadow:
+    0 4px 12px rgba(15, 23, 42, 0.25),
+    0 2px 4px rgba(0, 0, 0, 0.1);
+  position: relative;
+  overflow: visible;
+}
+
+/* Agent Avatar Ring Effect */
+.message-avatar.agent-avatar::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--fiido, #00a6a0) 0%, #00c4bd 100%);
+  z-index: -1;
+  opacity: 0.6;
+}
+
+.message-avatar.agent-avatar::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 10px;
+  height: 10px;
+  background: #10b981;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 4px rgba(16, 185, 129, 0.4);
 }
 
 /* Message Body */
@@ -395,7 +449,7 @@ const senderName = computed(() => {
   min-width: 0;
 }
 
-/* Message Header */
+/* Message Header - 统一风格 */
 .message-header {
   display: flex;
   align-items: center;
@@ -412,66 +466,141 @@ const senderName = computed(() => {
 
 .message-sender {
   font-weight: 500;
-  color: #737373;
+  color: #64748b;
   letter-spacing: 0.01em;
 }
 
 .message-sender.agent-name {
-  font-weight: 600;
-  color: #00a6a0;
+  font-weight: 700;
+  color: var(--fiido-slate, #1e293b);
+  background: linear-gradient(135deg, var(--fiido, #00a6a0) 0%, #00c4bd 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
-/* Agent Badge */
+/* Agent Badge - Premium Glassmorphism Style */
 .agent-badge {
-  background: linear-gradient(145deg, #00c4bd 0%, #00a6a0 100%);
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
   color: #ffffff;
-  padding: 3px 12px;
-  border-radius: 12px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  box-shadow: 0 2px 8px rgba(0, 166, 160, 0.25);
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  box-shadow:
+    0 2px 8px rgba(16, 185, 129, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  position: relative;
+  overflow: hidden;
+  animation: badgePulse 2s ease-in-out infinite;
+}
+
+/* Live Badge Dot Animation */
+.agent-badge::before {
+  content: '';
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  background: #ffffff;
+  border-radius: 50%;
+  margin-right: 5px;
+  animation: liveDot 1.5s ease-in-out infinite;
+}
+
+@keyframes badgePulse {
+  0%, 100% {
+    box-shadow:
+      0 2px 8px rgba(16, 185, 129, 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+  50% {
+    box-shadow:
+      0 2px 12px rgba(16, 185, 129, 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+}
+
+@keyframes liveDot {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.8);
+  }
 }
 
 .message-time {
-  color: #a3a3a3;
+  color: #94a3b8;
   font-size: 11px;
   font-weight: 400;
 }
 
-/* Message Content Bubble */
+/* Message Content Bubble - 统一风格 */
 .message-content {
   padding: 14px 18px;
-  border-radius: 20px;
+  border-radius: 16px;
   word-wrap: break-word;
   line-height: 1.6;
-  font-size: 15px;
+  font-size: 14px;
   position: relative;
 }
 
-/* User Message - Dark */
+/* User Message - 深色主题 */
 .message.user .message-content {
-  background: #1a1a1a;
+  background: var(--fiido-black, #0f172a);
   color: #ffffff;
-  border-bottom-right-radius: 6px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  border-bottom-right-radius: 4px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.15);
 }
 
-/* Bot Message - Clean White */
+/* Bot Message - 白色卡片 */
 .message.bot .message-content {
   background: #ffffff;
-  color: #1a1a1a;
-  border-bottom-left-radius: 6px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  color: var(--fiido-slate, #1e293b);
+  border-bottom-left-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  border: 1px solid #e2e8f0;
 }
 
-/* Agent Message - Teal Accent */
+/* Agent Message - Premium Dark Theme (与坐席工作台一致) */
 .message.agent .message-content {
-  background: linear-gradient(145deg, rgba(0, 166, 160, 0.06) 0%, rgba(0, 196, 189, 0.02) 100%);
-  color: #1a1a1a;
-  border-bottom-left-radius: 6px;
-  box-shadow: 0 2px 12px rgba(0, 166, 160, 0.08);
-  border: 1px solid rgba(0, 166, 160, 0.12);
+  background: linear-gradient(135deg, var(--fiido-black, #0f172a) 0%, #1e293b 100%);
+  color: #ffffff;
+  border-bottom-left-radius: 4px;
+  box-shadow:
+    0 4px 16px rgba(15, 23, 42, 0.2),
+    0 2px 6px rgba(0, 0, 0, 0.1);
+  border: none;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Agent Message Accent Line */
+.message.agent .message-content::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: linear-gradient(180deg, var(--fiido, #00a6a0) 0%, #00c4bd 100%);
+  border-radius: 3px 0 0 3px;
+}
+
+/* Agent Message Subtle Glow */
+.message.agent .message-content::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -50%;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle, rgba(0, 166, 160, 0.08) 0%, transparent 70%);
+  pointer-events: none;
 }
 
 /* Markdown Styles */
@@ -533,6 +662,23 @@ const senderName = computed(() => {
   border-bottom-color: #ffffff;
 }
 
+/* Agent Message Links - Teal on Dark */
+.message.agent .message-content :deep(a) {
+  color: #5eead4;
+  border-bottom-color: rgba(94, 234, 212, 0.3);
+}
+
+.message.agent .message-content :deep(a:hover) {
+  color: #99f6e4;
+  border-bottom-color: #99f6e4;
+}
+
+/* Agent Message Strong Text */
+.message.agent .message-content :deep(strong) {
+  color: #ffffff;
+  font-weight: 600;
+}
+
 /* Code Blocks */
 .message-content :deep(code) {
   background: rgba(0, 0, 0, 0.04);
@@ -544,6 +690,12 @@ const senderName = computed(() => {
 
 .message.user .message-content :deep(code) {
   background: rgba(255, 255, 255, 0.12);
+}
+
+/* Agent Message Code Blocks */
+.message.agent .message-content :deep(code) {
+  background: rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
 }
 
 /* Product Images - Premium Style */
@@ -1121,8 +1273,10 @@ const senderName = computed(() => {
 /* Reduced Motion */
 @media (prefers-reduced-motion: reduce) {
   .message,
+  .message.agent,
   .message-avatar,
-  .message-content :deep(img) {
+  .message-content :deep(img),
+  .agent-badge {
     animation: none;
     transition: none;
   }

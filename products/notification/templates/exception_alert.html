@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shipping Update - Action May Be Required</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #f59e0b; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+        .header.critical { background: #dc2626; }
+        .content { background: #f9fafb; padding: 20px; border: 1px solid #e5e7eb; }
+        .footer { background: #1f2937; color: #9ca3af; padding: 15px; text-align: center; font-size: 12px; border-radius: 0 0 8px 8px; }
+        .alert-box { background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 15px; margin: 15px 0; }
+        .alert-box.critical { background: #fee2e2; border-color: #dc2626; }
+        .btn { display: inline-block; background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 10px 5px 10px 0; }
+        .btn-secondary { background: #6b7280; }
+        .steps { background: white; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .steps ol { margin: 0; padding-left: 20px; }
+        .steps li { margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <div class="header {% if exception_type in ['lost', 'damaged'] %}critical{% endif %}">
+        <h1>Shipping Update</h1>
+        <p>Your package requires attention</p>
+    </div>
+
+    <div class="content">
+        <p>Dear Customer,</p>
+
+        <div class="alert-box {% if exception_type in ['lost', 'damaged'] %}critical{% endif %}">
+            <strong>Order:</strong> {{ order_number }}<br>
+            <strong>Tracking:</strong> {{ tracking_number }}<br>
+            <strong>Issue:</strong> {{ exception_message }}
+        </div>
+
+        {% if exception_type == 'address_issue' %}
+        <h3>Address Issue Detected</h3>
+        <p>The carrier has reported a problem with the delivery address. This could be due to:</p>
+        <ul>
+            <li>Incomplete or incorrect address</li>
+            <li>Address not found by carrier</li>
+            <li>Access restrictions at delivery location</li>
+        </ul>
+        <div class="steps">
+            <h4>What you can do:</h4>
+            <ol>
+                <li>Verify your shipping address is correct</li>
+                <li>Contact us to update the address if needed</li>
+                <li>Ensure someone is available to receive the package</li>
+            </ol>
+        </div>
+
+        {% elif exception_type == 'customs_issue' %}
+        <h3>Customs Clearance Issue</h3>
+        <p>Your package is being held at customs. This may require additional documentation or duties payment.</p>
+        <div class="steps">
+            <h4>What you can do:</h4>
+            <ol>
+                <li>Check your email for any customs notification</li>
+                <li>Contact your local customs office for more information</li>
+                <li>Reach out to us if you need assistance</li>
+            </ol>
+        </div>
+
+        {% elif exception_type == 'no_one_home' %}
+        <h3>Delivery Attempted - No One Home</h3>
+        <p>The carrier attempted delivery but no one was available to receive the package.</p>
+        <div class="steps">
+            <h4>What you can do:</h4>
+            <ol>
+                <li>Check for a delivery notice at your door</li>
+                <li>The carrier will typically retry delivery</li>
+                <li>Contact the carrier to arrange redelivery or pickup</li>
+            </ol>
+        </div>
+
+        {% elif exception_type == 'refused' %}
+        <h3>Delivery Refused</h3>
+        <p>The package was refused at the delivery address.</p>
+        <p>If this was not intentional, please contact us immediately to resolve this issue.</p>
+
+        {% elif exception_type == 'lost' %}
+        <h3>Package May Be Lost</h3>
+        <p>We're sorry, but it appears your package may be lost in transit. Our team is investigating.</p>
+        <p><strong>Don't worry - we will resolve this for you.</strong> Please contact our support team and we will arrange a replacement or refund.</p>
+
+        {% elif exception_type == 'damaged' %}
+        <h3>Package Damaged</h3>
+        <p>Unfortunately, the carrier has reported that your package was damaged during transit.</p>
+        <p>Please contact us immediately so we can arrange a replacement.</p>
+
+        {% elif exception_type == 'returned' %}
+        <h3>Package Being Returned</h3>
+        <p>Your package is being returned to sender. This may be due to:</p>
+        <ul>
+            <li>Multiple failed delivery attempts</li>
+            <li>Address issues</li>
+            <li>Package refused</li>
+        </ul>
+        <p>Please contact us to discuss options for reshipment.</p>
+
+        {% else %}
+        <h3>Delivery Issue</h3>
+        <p>There is an issue with your delivery. Please contact our support team for assistance.</p>
+        {% endif %}
+
+        <p>
+            <a href="{{ support_url | default('https://fiido.com/pages/contact') }}" class="btn">Contact Support</a>
+            {% if tracking_url %}
+            <a href="{{ tracking_url }}" class="btn btn-secondary">Track Package</a>
+            {% endif %}
+        </p>
+
+        <p>We apologize for any inconvenience and are here to help resolve this issue.</p>
+
+        <p>Best regards,<br>Fiido Customer Service</p>
+    </div>
+
+    <div class="footer">
+        <p>&copy; {{ year }} Fiido. All rights reserved.</p>
+        <p>This is an automated message. Please do not reply directly to this email.</p>
+    </div>
+</body>
+</html>

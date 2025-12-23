@@ -220,6 +220,11 @@ from products.ai_chatbot import get_router as get_ai_chatbot_router
 app.include_router(get_ai_chatbot_router(), prefix="/api", tags=["AI智能客服"])
 print("✅ AI 客服模块路由已注册: /api/*")
 
+# 注册 Shopify 路由（供 Coze 插件调用）
+from products.agent_workbench.handlers.shopify import router as shopify_router
+app.include_router(shopify_router, prefix="/api", tags=["Shopify Orders"])
+print("✅ Shopify 订单模块路由已注册: /api/shopify/*")
+
 
 # ====================
 # 根路由与静态文件端点

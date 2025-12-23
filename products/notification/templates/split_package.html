@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Order Update - Split Shipment</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #2563eb; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { background: #f9fafb; padding: 20px; border: 1px solid #e5e7eb; }
+        .footer { background: #1f2937; color: #9ca3af; padding: 15px; text-align: center; font-size: 12px; border-radius: 0 0 8px 8px; }
+        .tracking-box { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; margin: 15px 0; }
+        .btn { display: inline-block; background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 10px 0; }
+        .package-list { list-style: none; padding: 0; }
+        .package-list li { padding: 10px; background: white; margin: 5px 0; border-radius: 4px; border-left: 4px solid #2563eb; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Order Update</h1>
+        <p>Your order is being shipped in multiple packages</p>
+    </div>
+
+    <div class="content">
+        <p>Dear Customer,</p>
+
+        <p>Good news! Your order <strong>{{ order_number }}</strong> is on its way. To ensure faster delivery, we've split your order into multiple packages.</p>
+
+        <div class="tracking-box">
+            <h3>Package {{ package_number }} of {{ total_packages }}</h3>
+            <p><strong>Tracking Number:</strong> {{ tracking_number }}</p>
+            <p><strong>Carrier:</strong> {{ carrier }}</p>
+
+            {% if tracking_url %}
+            <a href="{{ tracking_url }}" class="btn">Track This Package</a>
+            {% endif %}
+        </div>
+
+        {% if items %}
+        <h3>Items in this package:</h3>
+        <ul class="package-list">
+            {% for item in items %}
+            <li>{{ item.name }} x {{ item.quantity }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
+        <p>You will receive separate tracking information for each package. Please note that packages may arrive on different days.</p>
+
+        <p>If you have any questions, please don't hesitate to contact our support team.</p>
+
+        <p>Best regards,<br>Fiido Customer Service</p>
+    </div>
+
+    <div class="footer">
+        <p>&copy; {{ year }} Fiido. All rights reserved.</p>
+        <p>This is an automated message. Please do not reply directly to this email.</p>
+    </div>
+</body>
+</html>

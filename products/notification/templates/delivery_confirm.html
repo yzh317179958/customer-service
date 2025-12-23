@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Order Has Been Delivered!</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+        .header h1 { margin: 0; font-size: 28px; }
+        .checkmark { font-size: 48px; margin-bottom: 10px; }
+        .content { background: #f9fafb; padding: 20px; border: 1px solid #e5e7eb; }
+        .footer { background: #1f2937; color: #9ca3af; padding: 15px; text-align: center; font-size: 12px; border-radius: 0 0 8px 8px; }
+        .delivery-box { background: white; border: 2px solid #10b981; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center; }
+        .btn { display: inline-block; background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 10px 5px; }
+        .btn-review { background: #f59e0b; }
+        .social { margin: 20px 0; }
+        .social a { margin: 0 10px; color: #6b7280; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="checkmark">✓</div>
+        <h1>Delivered!</h1>
+        <p>Your order has arrived</p>
+    </div>
+
+    <div class="content">
+        <p>Dear Customer,</p>
+
+        <div class="delivery-box">
+            <h2>Order {{ order_number }}</h2>
+            <p><strong>Delivered on:</strong> {{ delivery_date }}</p>
+            <p><strong>Tracking:</strong> {{ tracking_number }}</p>
+            {% if delivery_location %}
+            <p><strong>Left at:</strong> {{ delivery_location }}</p>
+            {% endif %}
+        </div>
+
+        <p>We hope you're excited about your new Fiido product! If you have a moment, we'd love to hear about your experience.</p>
+
+        <p style="text-align: center;">
+            <a href="{{ review_url | default('https://fiido.com/pages/reviews') }}" class="btn btn-review">Leave a Review</a>
+        </p>
+
+        <h3>Need Help Getting Started?</h3>
+        <p>Check out our resources to get the most out of your new product:</p>
+        <ul>
+            <li><a href="https://fiido.com/pages/support">User Manuals & Guides</a></li>
+            <li><a href="https://fiido.com/pages/faq">Frequently Asked Questions</a></li>
+            <li><a href="https://www.youtube.com/@FiidoOfficial">Video Tutorials</a></li>
+        </ul>
+
+        <h3>Something Wrong?</h3>
+        <p>If your package arrived damaged or you have any concerns, please contact us within 48 hours:</p>
+        <p style="text-align: center;">
+            <a href="{{ support_url | default('https://fiido.com/pages/contact') }}" class="btn">Contact Support</a>
+        </p>
+
+        <p>Thank you for choosing Fiido. We hope you enjoy your new ride!</p>
+
+        <p>Best regards,<br>Fiido Customer Service</p>
+
+        <div class="social">
+            <p>Follow us for updates and tips:</p>
+            <a href="https://www.facebook.com/fiidoebike">Facebook</a> |
+            <a href="https://www.instagram.com/fiido_official">Instagram</a> |
+            <a href="https://www.youtube.com/@FiidoOfficial">YouTube</a>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>&copy; {{ year }} Fiido. All rights reserved.</p>
+        <p>This is an automated message. Please do not reply directly to this email.</p>
+    </div>
+</body>
+</html>
