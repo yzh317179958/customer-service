@@ -130,6 +130,11 @@ class BootstrapFactory:
 
         elif component == Component.SSE:
             from .sse import get_sse_queues
+            # 初始化 Redis SSE 管理器（跨进程通信）
+            import os
+            if os.getenv("USE_REDIS_SSE", "true").lower() == "true":
+                from .redis_sse import init_redis_sse
+                init_redis_sse()
             self._instances[component] = get_sse_queues()
 
         elif component == Component.SCHEDULER:
