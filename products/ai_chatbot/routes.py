@@ -19,6 +19,7 @@ AI 智能客服 - API 路由
 - POST /manual/messages - 人工消息写入
 - GET /sessions/{session_name} - 获取会话状态
 - GET /sessions/{session_name}/events - 会话 SSE 事件流
+- GET /shopify/* - Shopify 订单查询（供 Coze 插件调用）
 """
 
 from fastapi import APIRouter
@@ -33,9 +34,13 @@ from products.ai_chatbot.handlers.config import router as config_router
 from products.ai_chatbot.handlers.manual import router as manual_router
 from products.ai_chatbot.handlers.sessions import router as sessions_router
 
+# 导入共享服务路由（供 Coze 插件调用）
+from products.agent_workbench.handlers.shopify import router as shopify_router
+
 # 注册所有子路由
 router.include_router(chat_router)
 router.include_router(conversation_router)
 router.include_router(config_router)
 router.include_router(manual_router)
 router.include_router(sessions_router)
+router.include_router(shopify_router)  # Shopify 订单查询
