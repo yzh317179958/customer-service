@@ -31,37 +31,38 @@ _sse_queues: Dict[str, asyncio.Queue] = {}
 # ============================================================================
 
 _redis_sse_manager: Optional[Any] = None
-_redis_sse_checked = False
+_redis_sse_logged = False  # 只记录一次日志
 
 
 def _get_redis_sse_manager():
     """
     获取 Redis SSE 管理器（延迟加载）
 
-    只在首次调用时尝试获取，避免重复检查
+    每次调用都检查管理器是否可用，确保在初始化后能正确获取
     """
-    global _redis_sse_manager, _redis_sse_checked
+    global _redis_sse_manager, _redis_sse_logged
 
     if not USE_REDIS_SSE:
         return None
 
-    if _redis_sse_checked:
-        return _redis_sse_manager
-
-    _redis_sse_checked = True
-
+    # 每次都尝试获取最新的管理器（可能在后续被初始化）
     try:
         from infrastructure.bootstrap.redis_sse import get_redis_sse_manager
-        _redis_sse_manager = get_redis_sse_manager()
-        if _redis_sse_manager:
-            print("[SSE] ✅ 使用 Redis Pub/Sub 模式")
+        manager = get_redis_sse_manager()
+        if manager:
+            if not _redis_sse_logged:
+                print("[SSE] ✅ 使用 Redis Pub/Sub 模式")
+                _redis_sse_logged = True
+            _redis_sse_manager = manager
+            return manager
         else:
-            print("[SSE] ⚠️ Redis SSE 管理器未初始化，使用内存队列")
+            if not _redis_sse_logged:
+                print("[SSE] ⚠️ Redis SSE 管理器未初始化，使用内存队列")
+            return None
     except Exception as e:
-        print(f"[SSE] ⚠️ Redis SSE 不可用: {e}，使用内存队列")
-        _redis_sse_manager = None
-
-    return _redis_sse_manager
+        if not _redis_sse_logged:
+            print(f"[SSE] ⚠️ Redis SSE 不可用: {e}，使用内存队列")
+        return None
 
 
 def get_sse_queues() -> Dict[str, asyncio.Queue]:
