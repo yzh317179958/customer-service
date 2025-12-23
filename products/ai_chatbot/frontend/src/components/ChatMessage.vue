@@ -27,6 +27,7 @@ interface TrackingData {
   current_status_zh: string
   is_delivered: boolean
   is_exception: boolean
+  is_pending: boolean
   events: TrackingEvent[]
   loading: boolean
   error: string | null
@@ -50,6 +51,7 @@ async function fetchTrackingData(trackingNumber: string): Promise<void> {
     current_status_zh: '',
     is_delivered: false,
     is_exception: false,
+    is_pending: false,
     events: [],
     loading: true,
     error: null
@@ -70,6 +72,7 @@ async function fetchTrackingData(trackingNumber: string): Promise<void> {
       current_status_zh: data.current_status_zh || '',
       is_delivered: data.is_delivered || false,
       is_exception: data.is_exception || false,
+      is_pending: data.is_pending || false,
       events: data.events || [],
       loading: false,
       error: null
@@ -81,6 +84,7 @@ async function fetchTrackingData(trackingNumber: string): Promise<void> {
       current_status_zh: '',
       is_delivered: false,
       is_exception: false,
+      is_pending: false,
       events: [],
       loading: false,
       error: error instanceof Error ? error.message : '加载失败'
@@ -153,6 +157,16 @@ function updateTimelineDOM(trackingNumber: string, expanded: boolean): void {
             <div class="timeline-error">
               <span class="error-icon">⚠️</span>
               <span>暂无物流信息</span>
+            </div>
+          </div>
+        `
+      } else if (data.is_pending || (data.events.length === 0 && data.current_status === 'NotFound')) {
+        // 运单正在追踪中（后台注册中），显示友好提示
+        container.innerHTML = `
+          <div class="tracking-timeline pending">
+            <div class="timeline-pending">
+              <span class="pending-icon">⏳</span>
+              <span>物流信息更新中，请稍后刷新</span>
             </div>
           </div>
         `
@@ -1677,9 +1691,10 @@ const senderName = computed(() => {
   }
 }
 
-/* 错误/空状态 */
+/* 错误/空状态/追踪中状态 */
 .message-content :deep(.timeline-error),
-.message-content :deep(.timeline-empty) {
+.message-content :deep(.timeline-empty),
+.message-content :deep(.timeline-pending) {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1689,8 +1704,15 @@ const senderName = computed(() => {
   font-size: 12px;
 }
 
+.message-content :deep(.timeline-pending) {
+  color: #60a5fa;
+  background: rgba(59, 130, 246, 0.05);
+  border-radius: 8px;
+}
+
 .message-content :deep(.error-icon),
-.message-content :deep(.empty-icon) {
+.message-content :deep(.empty-icon),
+.message-content :deep(.pending-icon) {
   font-size: 16px;
 }
 

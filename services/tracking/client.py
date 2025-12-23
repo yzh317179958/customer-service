@@ -58,21 +58,128 @@ class Track17Client:
         "dpd": 100143,
         "dpd uk": 100143,
         "hermes": 21067,
-        "evri": 21067,
+        "evri": 21067,  # Hermes 改名为 Evri
         "yodel": 21068,
         "parcelforce": 21052,
-        # 国际承运商
+        "uk mail": 21053,
+        "collect+": 21066,
+        # 欧洲承运商
         "dhl": 100001,
+        "dhl express": 100001,
+        "gls": 100063,
+        "dpd germany": 100047,
+        "deutsche post": 100049,
+        "chronopost": 100037,
+        "colissimo": 100038,
+        "correos": 100053,
+        "poste italiane": 100091,
+        "postnl": 100089,
+        "bpost": 100015,
+        # 国际承运商
         "ups": 100002,
         "fedex": 100003,
         "tnt": 100004,
+        "usps": 21041,
         # 中国承运商
         "yunexpress": 190012,
         "yanwen": 190001,
         "4px": 190004,
         "sf express": 3011,
         "cne express": 190122,
+        "cainiao": 190011,
+        "china post": 3001,
     }
+
+    # 承运商名称标准化映射（Shopify 名称 -> 标准名称）
+    CARRIER_NAME_MAP = {
+        # UK
+        "Royal Mail": "royal mail",
+        "DPD": "dpd",
+        "DPD UK": "dpd uk",
+        "Evri": "evri",
+        "Hermes": "evri",
+        "Hermes UK": "evri",
+        "Yodel": "yodel",
+        "Parcelforce": "parcelforce",
+        "Parcelforce Worldwide": "parcelforce",
+        # 欧洲
+        "DHL": "dhl",
+        "DHL Express": "dhl express",
+        "GLS": "gls",
+        "Deutsche Post": "deutsche post",
+        "Chronopost": "chronopost",
+        "Colissimo": "colissimo",
+        "Correos": "correos",
+        "PostNL": "postnl",
+        "Bpost": "bpost",
+        # 国际
+        "UPS": "ups",
+        "FedEx": "fedex",
+        "TNT": "tnt",
+        "USPS": "usps",
+        # 中国
+        "Yun Express": "yunexpress",
+        "YunExpress": "yunexpress",
+        "Yanwen": "yanwen",
+        "4PX": "4px",
+        "SF Express": "sf express",
+        "CNE Express": "cne express",
+        "Cainiao": "cainiao",
+        "China Post": "china post",
+    }
+
+    @classmethod
+    def normalize_carrier(cls, carrier_name: str) -> Optional[str]:
+        """
+        标准化承运商名称
+
+        从 Shopify fulfillment 的承运商名称转换为 17track 可识别的标准名称。
+
+        Args:
+            carrier_name: 原始承运商名称（来自 Shopify）
+
+        Returns:
+            标准化后的承运商名称，未找到返回 None
+        """
+        if not carrier_name:
+            return None
+
+        # 先尝试精确匹配
+        if carrier_name in cls.CARRIER_NAME_MAP:
+            return cls.CARRIER_NAME_MAP[carrier_name]
+
+        # 尝试小写匹配
+        lower_name = carrier_name.lower().strip()
+        if lower_name in cls.CARRIER_CODES:
+            return lower_name
+
+        # 尝试模糊匹配
+        for key in cls.CARRIER_NAME_MAP:
+            if key.lower() in lower_name or lower_name in key.lower():
+                return cls.CARRIER_NAME_MAP[key]
+
+        logger.debug(f"未知承运商: {carrier_name}")
+        return None
+
+    @classmethod
+    def get_carrier_code(cls, carrier_name: str) -> Optional[int]:
+        """
+        获取承运商代码
+
+        Args:
+            carrier_name: 承运商名称（原始或标准化后的）
+
+        Returns:
+            17track 承运商代码，未找到返回 None
+        """
+        # 先标准化
+        normalized = cls.normalize_carrier(carrier_name)
+        if normalized and normalized in cls.CARRIER_CODES:
+            return cls.CARRIER_CODES[normalized]
+
+        # 直接尝试
+        lower_name = carrier_name.lower().strip() if carrier_name else ""
+        return cls.CARRIER_CODES.get(lower_name)
 
     def __init__(
         self,

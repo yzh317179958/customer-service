@@ -264,6 +264,9 @@ class TrackingInfo(BaseModel):
     order_id: Optional[str] = Field(None, description="关联订单 ID")
     order_number: Optional[str] = Field(None, description="关联订单号")
 
+    # 状态标记
+    is_pending: bool = Field(False, description="是否正在追踪中（后台注册中）")
+
     # 原始数据
     raw_data: Optional[Dict[str, Any]] = Field(None, description="原始 API 响应")
 

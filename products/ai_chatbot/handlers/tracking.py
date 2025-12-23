@@ -47,6 +47,7 @@ class TrackingResponse(BaseModel):
     current_status_zh: Optional[str] = Field(None, description="当前状态（中文）")
     is_delivered: bool = Field(False, description="是否已签收")
     is_exception: bool = Field(False, description="是否有异常")
+    is_pending: bool = Field(False, description="是否正在追踪中（后台注册中）")
     event_count: int = Field(0, description="事件数量")
     events: List[TrackingEventResponse] = Field(
         default_factory=list, description="物流事件列表"
@@ -61,11 +62,12 @@ class TrackingResponse(BaseModel):
     "/{tracking_number}",
     response_model=TrackingResponse,
     summary="查询物流轨迹",
-    description="根据运单号查询物流轨迹信息",
+    description="根据运单号查询物流轨迹信息，支持自动注册未注册的运单",
 )
 async def get_tracking(
     tracking_number: str,
     carrier: Optional[str] = None,
+    order_id: Optional[str] = None,
     refresh: bool = False,
 ):
     """
@@ -74,55 +76,36 @@ async def get_tracking(
     Args:
         tracking_number: 运单号
         carrier: 承运商代码（可选）
+        order_id: 订单 ID（可选，用于自动注册）
         refresh: 是否强制刷新缓存
 
     Returns:
-        物流轨迹信息
+        物流轨迹信息，如果正在追踪中则 is_pending=True
     """
-    logger.info(f"查询物流轨迹: {tracking_number}")
+    logger.info(f"查询物流轨迹: {tracking_number}, order_id={order_id}")
 
     try:
         service = get_tracking_service()
 
-        # 获取物流信息
-        info = await service.get_tracking_info(
+        # 使用自动注册方法获取物流信息
+        info = await service.get_tracking_info_with_auto_register(
             tracking_number=tracking_number,
             carrier=carrier,
-            use_cache=not refresh,
+            order_id=order_id,
         )
 
-        if not info:
-            # 尝试直接查询（可能未在系统注册）
-            events = await service.get_tracking_events(
-                tracking_number=tracking_number,
-                carrier=carrier,
-                use_cache=not refresh,
-            )
-
-            if not events:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"未找到运单 {tracking_number} 的物流信息",
-                )
-
-            # 构建基础响应
+        # 如果是 pending 状态，直接返回
+        if info.is_pending:
             return TrackingResponse(
-                tracking_number=tracking_number,
-                current_status="unknown",
-                current_status_zh="未知",
+                tracking_number=info.tracking_number,
+                current_status="NotFound",
+                current_status_zh=info.status_zh or "追踪中",
                 is_delivered=False,
                 is_exception=False,
-                event_count=len(events),
-                events=[
-                    TrackingEventResponse(
-                        timestamp=e.timestamp.isoformat() if e.timestamp else e.timestamp_str,
-                        status=e.status,
-                        status_zh=e.status_zh,
-                        location=e.location,
-                        description=e.description or e.status,
-                    )
-                    for e in events
-                ],
+                is_pending=True,
+                event_count=0,
+                events=[],
+                order_id=info.order_id,
             )
 
         # 构建完整响应
@@ -159,6 +142,7 @@ async def get_tracking(
             current_status_zh=info.status_zh or "未知",
             is_delivered=info.is_delivered,
             is_exception=info.is_exception,
+            is_pending=False,
             event_count=len(info.events),
             events=events_resp,
             last_updated=last_updated,

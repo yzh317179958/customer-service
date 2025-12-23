@@ -28,6 +28,7 @@
 import os
 import json
 import logging
+import asyncio
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
 
@@ -488,6 +489,83 @@ class TrackingService:
         # 清除内存缓存
         self._cache.pop(f"events:{tracking_number}", None)
         self._cache.pop(f"info:{tracking_number}", None)
+
+    async def get_tracking_info_with_auto_register(
+        self,
+        tracking_number: str,
+        carrier: Optional[str] = None,
+        order_id: Optional[str] = None,
+        order_number: Optional[str] = None,
+    ) -> TrackingInfo:
+        """
+        获取物流信息，自动注册未注册的运单
+
+        如果运单未注册或查询失败：
+        1. 后台异步注册运单（不阻塞）
+        2. 立即返回 is_pending=True 的状态
+
+        用户刷新后可获取实际数据。
+
+        Args:
+            tracking_number: 运单号
+            carrier: 承运商（可选）
+            order_id: 订单 ID（用于注册）
+            order_number: 订单显示号（如 #1234）
+
+        Returns:
+            TrackingInfo 对象，如果正在追踪中则 is_pending=True
+        """
+        # 1. 先尝试直接查询
+        info = await self.get_tracking_info(tracking_number, carrier)
+
+        if info and (info.events or info.status != TrackingStatus.NOT_FOUND):
+            # 有数据，直接返回
+            return info
+
+        # 2. 查询失败或无数据，后台异步注册（不等待）
+        if order_id:
+            logger.info(f"运单未注册，后台异步注册: {tracking_number}")
+            asyncio.create_task(
+                self._async_register(tracking_number, carrier, order_id, order_number)
+            )
+
+        # 3. 返回"追踪中"状态，让用户稍后刷新
+        return TrackingInfo(
+            tracking_number=tracking_number,
+            status=TrackingStatus.NOT_FOUND,
+            status_zh="追踪中",
+            is_pending=True,
+            order_id=order_id,
+            order_number=order_number,
+        )
+
+    async def _async_register(
+        self,
+        tracking_number: str,
+        carrier: Optional[str],
+        order_id: str,
+        order_number: Optional[str] = None,
+    ):
+        """
+        异步注册运单（后台任务）
+
+        注册完成后清除缓存，下次查询可获取最新数据。
+        """
+        try:
+            result = await self.register_order_tracking(
+                order_id=order_id,
+                tracking_number=tracking_number,
+                carrier=carrier,
+                order_number=order_number,
+            )
+            if result.get("success"):
+                # 注册成功，清除缓存
+                await self.clear_cache(tracking_number)
+                logger.info(f"异步注册成功: {tracking_number}")
+            else:
+                logger.warning(f"异步注册失败: {tracking_number}, {result}")
+        except Exception as e:
+            logger.error(f"异步注册异常: {tracking_number}, {e}")
 
 
 # 全局服务实例
