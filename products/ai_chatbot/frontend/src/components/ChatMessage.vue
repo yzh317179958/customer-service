@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { marked } from 'marked'
 import type { Message } from '@/types'
 import { useChatStore } from '@/stores/chatStore'
@@ -10,6 +10,225 @@ interface Props {
 
 const props = defineProps<Props>()
 const chatStore = useChatStore()
+
+// ============ 物流时间线状态管理 ============
+
+interface TrackingEvent {
+  timestamp: string | null
+  status: string | null
+  status_zh: string | null
+  location: string | null
+  description: string | null
+}
+
+interface TrackingData {
+  tracking_number: string
+  current_status: string
+  current_status_zh: string
+  is_delivered: boolean
+  is_exception: boolean
+  events: TrackingEvent[]
+  loading: boolean
+  error: string | null
+}
+
+// 存储每个运单的时间线数据和展开状态
+const trackingDataMap = ref<Map<string, TrackingData>>(new Map())
+const expandedTrackings = ref<Set<string>>(new Set())
+
+// 获取物流轨迹 API
+async function fetchTrackingData(trackingNumber: string): Promise<void> {
+  if (trackingDataMap.value.has(trackingNumber)) {
+    // 已有数据，直接返回
+    return
+  }
+
+  // 设置加载状态
+  trackingDataMap.value.set(trackingNumber, {
+    tracking_number: trackingNumber,
+    current_status: '',
+    current_status_zh: '',
+    is_delivered: false,
+    is_exception: false,
+    events: [],
+    loading: true,
+    error: null
+  })
+
+  try {
+    const response = await fetch(`/api/tracking/${encodeURIComponent(trackingNumber)}`)
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`)
+    }
+
+    const data = await response.json()
+
+    trackingDataMap.value.set(trackingNumber, {
+      tracking_number: data.tracking_number,
+      current_status: data.current_status || '',
+      current_status_zh: data.current_status_zh || '',
+      is_delivered: data.is_delivered || false,
+      is_exception: data.is_exception || false,
+      events: data.events || [],
+      loading: false,
+      error: null
+    })
+  } catch (error) {
+    trackingDataMap.value.set(trackingNumber, {
+      tracking_number: trackingNumber,
+      current_status: '',
+      current_status_zh: '',
+      is_delivered: false,
+      is_exception: false,
+      events: [],
+      loading: false,
+      error: error instanceof Error ? error.message : '加载失败'
+    })
+  }
+}
+
+// 切换时间线展开/收起
+function toggleTracking(trackingNumber: string): void {
+  if (expandedTrackings.value.has(trackingNumber)) {
+    expandedTrackings.value.delete(trackingNumber)
+    updateTimelineDOM(trackingNumber, false)
+  } else {
+    expandedTrackings.value.add(trackingNumber)
+    fetchTrackingData(trackingNumber).then(() => {
+      updateTimelineDOM(trackingNumber, true)
+    })
+    // 先显示加载状态
+    updateTimelineDOM(trackingNumber, true)
+  }
+  // 触发响应式更新
+  expandedTrackings.value = new Set(expandedTrackings.value)
+}
+
+// 格式化时间戳
+function formatTimestamp(timestamp: string | null): string {
+  if (!timestamp) return ''
+  try {
+    const date = new Date(timestamp)
+    return date.toLocaleString('zh-CN', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  } catch {
+    return timestamp
+  }
+}
+
+// 更新时间线 DOM
+function updateTimelineDOM(trackingNumber: string, expanded: boolean): void {
+  const containers = document.querySelectorAll(
+    `.tracking-timeline-container[data-tracking="${trackingNumber}"]`
+  )
+  const buttons = document.querySelectorAll(
+    `.tracking-expand-btn[data-tracking="${trackingNumber}"]`
+  )
+
+  containers.forEach(container => {
+    if (!expanded) {
+      container.innerHTML = ''
+      container.classList.remove('expanded')
+    } else {
+      container.classList.add('expanded')
+      const data = trackingDataMap.value.get(trackingNumber)
+
+      if (!data || data.loading) {
+        container.innerHTML = `
+          <div class="tracking-timeline loading">
+            <div class="timeline-loading">
+              <span class="loading-spinner"></span>
+              <span>加载中...</span>
+            </div>
+          </div>
+        `
+      } else if (data.error) {
+        container.innerHTML = `
+          <div class="tracking-timeline error">
+            <div class="timeline-error">
+              <span class="error-icon">⚠️</span>
+              <span>暂无物流信息</span>
+            </div>
+          </div>
+        `
+      } else if (data.events.length === 0) {
+        container.innerHTML = `
+          <div class="tracking-timeline empty">
+            <div class="timeline-empty">
+              <span class="empty-icon">📦</span>
+              <span>暂无物流轨迹</span>
+            </div>
+          </div>
+        `
+      } else {
+        const eventsHtml = data.events.map((event, index) => `
+          <div class="timeline-item ${index === 0 ? 'latest' : ''}">
+            <div class="timeline-dot ${index === 0 ? 'active' : ''}"></div>
+            <div class="timeline-content">
+              <div class="timeline-time">${formatTimestamp(event.timestamp)}</div>
+              <div class="timeline-status">${event.status_zh || event.status || event.description || ''}</div>
+              ${event.location ? `<div class="timeline-location">📍 ${event.location}</div>` : ''}
+            </div>
+          </div>
+        `).join('')
+
+        container.innerHTML = `
+          <div class="tracking-timeline">
+            <div class="timeline-header">
+              <span class="timeline-status-badge ${data.is_delivered ? 'delivered' : data.is_exception ? 'exception' : 'in-transit'}">
+                ${data.current_status_zh || data.current_status || '运输中'}
+              </span>
+              <span class="timeline-count">${data.events.length} 条轨迹</span>
+            </div>
+            <div class="timeline-events">
+              ${eventsHtml}
+            </div>
+          </div>
+        `
+      }
+    }
+  })
+
+  // 更新按钮状态
+  buttons.forEach(btn => {
+    const button = btn as HTMLElement
+    const expandText = button.dataset.expand || '查看物流'
+    const collapseText = button.dataset.collapse || '收起'
+    const icon = button.querySelector('.expand-icon')
+    const text = button.querySelector('.expand-text')
+
+    if (icon) icon.textContent = expanded ? '▲' : '▼'
+    if (text) text.textContent = expanded ? collapseText : expandText
+    button.classList.toggle('expanded', expanded)
+  })
+}
+
+// 事件委托处理点击
+function handleTrackingClick(event: Event): void {
+  const target = event.target as HTMLElement
+  const button = target.closest('.tracking-expand-btn') as HTMLElement
+
+  if (button) {
+    const trackingNumber = button.dataset.tracking
+    if (trackingNumber) {
+      toggleTracking(trackingNumber)
+    }
+  }
+}
+
+// 挂载/卸载事件监听
+onMounted(() => {
+  document.addEventListener('click', handleTrackingClick)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleTrackingClick)
+})
 
 // Configure marked for rendering markdown
 marked.setOptions({
@@ -151,6 +370,11 @@ function transformProductCards(content: string): string {
     // 服务类商品使用盾牌图标
     const serviceIcon = '🛡️'
 
+    // 物流展开按钮文字
+    const expandText = isChinese ? '查看物流' : 'Track Details'
+    const collapseText = isChinese ? '收起' : 'Collapse'
+    const loadingText = isChinese ? '加载中...' : 'Loading...'
+
     // 构建卡片 HTML - 物流区块单行紧凑布局
     return `
       <div class="product-card">
@@ -184,8 +408,12 @@ function transformProductCards(content: string): string {
               ${carrier && trackingNumber ? `<span class="tracking-sep">·</span>` : ''}
               ${trackingNumber ? `<span class="tracking-number">${trackingNumber}</span>` : ''}
             </div>
-            ${trackingUrl ? `<a href="${trackingUrl}" target="_blank" class="tracking-link"><span class="link-icon">↗</span>${trackText}</a>` : ''}
+            <div class="tracking-actions">
+              ${trackingUrl ? `<a href="${trackingUrl}" target="_blank" class="tracking-link"><span class="link-icon">↗</span>${trackText}</a>` : ''}
+              ${trackingNumber ? `<button class="tracking-expand-btn" data-tracking="${trackingNumber}" data-expand="${expandText}" data-collapse="${collapseText}" data-loading="${loadingText}"><span class="expand-icon">▼</span><span class="expand-text">${expandText}</span></button>` : ''}
+            </div>
           </div>
+          ${trackingNumber ? `<div class="tracking-timeline-container" data-tracking="${trackingNumber}"></div>` : ''}
         ` : ''}
       </div>
     `
@@ -1280,5 +1508,250 @@ const senderName = computed(() => {
     animation: none;
     transition: none;
   }
+}
+
+/* =====================================================
+   物流时间线 - 可折叠展示
+   ===================================================== */
+
+/* 物流操作区 - 按钮组 */
+.message-content :deep(.tracking-actions) {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* 展开按钮 */
+.message-content :deep(.tracking-expand-btn) {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9px;
+  font-weight: 500;
+  color: #0891b2;
+  padding: 3px 8px;
+  background: linear-gradient(135deg, #f0fdfa 0%, #e0f7f6 100%);
+  border-radius: 4px;
+  border: 1px solid #99f6e4;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space: nowrap;
+}
+
+.message-content :deep(.tracking-expand-btn:hover) {
+  background: linear-gradient(135deg, #ccfbf1 0%, #a7f3d0 100%);
+  color: #0e7490;
+  border-color: #5eead4;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(20, 184, 166, 0.2);
+}
+
+.message-content :deep(.tracking-expand-btn.expanded) {
+  background: linear-gradient(135deg, #0891b2 0%, #0e7490 100%);
+  color: #ffffff;
+  border-color: #0891b2;
+}
+
+.message-content :deep(.tracking-expand-btn .expand-icon) {
+  font-size: 8px;
+  transition: transform 0.3s ease;
+}
+
+.message-content :deep(.tracking-expand-btn.expanded .expand-icon) {
+  transform: rotate(180deg);
+}
+
+/* 时间线容器 */
+.message-content :deep(.tracking-timeline-container) {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.message-content :deep(.tracking-timeline-container.expanded) {
+  max-height: 500px;
+}
+
+/* 时间线主体 */
+.message-content :deep(.tracking-timeline) {
+  background: #f8fafc;
+  border-top: 1px solid rgba(0, 0, 0, 0.04);
+  padding: 12px;
+}
+
+/* 时间线头部 */
+.message-content :deep(.timeline-header) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed #e2e8f0;
+}
+
+.message-content :deep(.timeline-status-badge) {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.message-content :deep(.timeline-status-badge.in-transit) {
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  color: #2563eb;
+}
+
+.message-content :deep(.timeline-status-badge.delivered) {
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  color: #059669;
+}
+
+.message-content :deep(.timeline-status-badge.exception) {
+  background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%);
+  color: #dc2626;
+}
+
+.message-content :deep(.timeline-count) {
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+/* 时间线事件列表 */
+.message-content :deep(.timeline-events) {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* 时间线项目 */
+.message-content :deep(.timeline-item) {
+  display: flex;
+  gap: 12px;
+  padding: 8px 0;
+  position: relative;
+}
+
+.message-content :deep(.timeline-item:not(:last-child)::before) {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 20px;
+  bottom: -8px;
+  width: 2px;
+  background: #e2e8f0;
+}
+
+/* 时间线圆点 */
+.message-content :deep(.timeline-dot) {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  flex-shrink: 0;
+  margin-top: 2px;
+  position: relative;
+  z-index: 1;
+}
+
+.message-content :deep(.timeline-dot.active) {
+  background: linear-gradient(135deg, #00a6a0 0%, #00c4bd 100%);
+  box-shadow: 0 0 0 3px rgba(0, 166, 160, 0.2);
+}
+
+/* 时间线内容 */
+.message-content :deep(.timeline-content) {
+  flex: 1;
+  min-width: 0;
+}
+
+.message-content :deep(.timeline-time) {
+  font-size: 10px;
+  color: #94a3b8;
+  margin-bottom: 2px;
+}
+
+.message-content :deep(.timeline-status) {
+  font-size: 12px;
+  color: #334155;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.message-content :deep(.timeline-item.latest .timeline-status) {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.message-content :deep(.timeline-location) {
+  font-size: 10px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+/* 加载状态 */
+.message-content :deep(.timeline-loading) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.message-content :deep(.loading-spinner) {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #e2e8f0;
+  border-top-color: #00a6a0;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 错误/空状态 */
+.message-content :deep(.timeline-error),
+.message-content :deep(.timeline-empty) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.message-content :deep(.error-icon),
+.message-content :deep(.empty-icon) {
+  font-size: 16px;
+}
+
+/* 时间线滚动条美化 */
+.message-content :deep(.timeline-events::-webkit-scrollbar) {
+  width: 4px;
+}
+
+.message-content :deep(.timeline-events::-webkit-scrollbar-track) {
+  background: #f1f5f9;
+  border-radius: 2px;
+}
+
+.message-content :deep(.timeline-events::-webkit-scrollbar-thumb) {
+  background: #cbd5e1;
+  border-radius: 2px;
+}
+
+.message-content :deep(.timeline-events::-webkit-scrollbar-thumb:hover) {
+  background: #94a3b8;
 }
 </style>

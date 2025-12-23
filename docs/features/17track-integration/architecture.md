@@ -280,5 +280,7 @@ services/tracking/client.py
 | 文件 | 修改内容 |
 |------|----------|
 | `products/ai_chatbot/frontend/src/components/ChatMessage.vue` | 添加物流轨迹展示 |
+| `products/ai_chatbot/handlers/tracking.py` | 物流轨迹查询 API |
+| `products/ai_chatbot/routes.py` | 注册 tracking 路由 |
 | `backend.py` | 注册 notification 路由 |
 | `.env` | 添加 17track 配置 |

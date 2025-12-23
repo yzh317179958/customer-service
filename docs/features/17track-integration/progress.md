@@ -11,7 +11,7 @@
 |------|------|----------|
 | Phase 1: services/tracking | ✅ 完成 | 4/4 |
 | Phase 2: products/notification | ✅ 完成 | 6/6 |
-| Phase 3: ai_chatbot 扩展 | 待开始 | 0/3 |
+| Phase 3: ai_chatbot 扩展 | ⏳ 开发中 | 2/3 |
 | Phase 4: 集成与部署 | 待开始 | 0/2 |
 
 ---
@@ -309,3 +309,45 @@ products/notification/
 - 异常警报邮件（7 种类型）
 
 **下一步:** Phase 3 扩展 ai_chatbot 物流轨迹展示
+
+---
+
+## Phase 3: ai_chatbot 物流轨迹展示
+
+### Step 3.1: 新增物流轨迹查询 API
+
+**完成时间:** 2025-12-23
+**所属模块:** products/ai_chatbot
+
+**完成内容:**
+- 创建 `products/ai_chatbot/handlers/tracking.py` - 物流轨迹查询 handler
+- 实现 `GET /api/tracking/{tracking_number}` - 查询完整物流轨迹
+- 实现 `GET /api/tracking/{tracking_number}/status` - 查询物流状态（轻量接口）
+- 更新 `routes.py` 注册新路由
+- 定义响应模型：TrackingResponse、TrackingEventResponse、CarrierResponse
+
+**API 响应格式:**
+```json
+{
+  "tracking_number": "AB123456789GB",
+  "carrier": {"code": 21051, "name": "Royal Mail"},
+  "current_status": "InTransit",
+  "current_status_zh": "运输中",
+  "is_delivered": false,
+  "is_exception": false,
+  "event_count": 5,
+  "events": [
+    {"timestamp": "...", "status": "...", "location": "...", "description": "..."}
+  ]
+}
+```
+
+**测试结果:**
+- ✅ tracking handler 导入成功
+- ✅ routes 导入成功
+- ✅ 路由注册正常（/tracking/{tracking_number}、/tracking/{tracking_number}/status）
+- ✅ tracking 服务获取成功
+
+---
+
+*下一步: Step 3.2 前端添加可折叠物流时间线*
