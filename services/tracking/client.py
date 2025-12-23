@@ -446,21 +446,34 @@ class Track17Client:
             }
 
         tracking_info = accepted[0]
+        track_info = tracking_info.get("track_info", {})
+
+        # V2.4 API: 状态在 latest_status
+        latest_status = track_info.get("latest_status", {})
+        status = latest_status.get("status")  # e.g. "InTransit", "Delivered"
+        sub_status = latest_status.get("sub_status")
+
+        # V2.4 API: 事件在 tracking.providers[0].events
+        events = self._parse_events_v2(track_info)
+
+        # V2.4 API: 最新事件在 latest_event
+        last_event = track_info.get("latest_event", {})
+
         return {
             "success": True,
             "tracking_number": tracking_number,
             "number": tracking_info.get("number"),
             "carrier": tracking_info.get("carrier"),
-            "status": tracking_info.get("track", {}).get("e"),  # 主状态
-            "sub_status": tracking_info.get("track", {}).get("f"),  # 子状态
-            "track_info": tracking_info.get("track", {}),
-            "events": self._parse_events(tracking_info),
-            "last_event": tracking_info.get("track", {}).get("z0", {}),
+            "status": status,
+            "sub_status": sub_status,
+            "track_info": track_info,
+            "events": events,
+            "last_event": last_event,
         }
 
     def _parse_events(self, tracking_info: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
-        解析物流事件列表
+        解析物流事件列表 (旧版 V2.2 格式，保留兼容)
 
         Args:
             tracking_info: 17track 返回的物流信息
@@ -471,7 +484,7 @@ class Track17Client:
         events = []
         track = tracking_info.get("track", {})
 
-        # z1 是事件列表
+        # z1 是事件列表 (旧格式)
         raw_events = track.get("z1", [])
 
         for event in raw_events:
@@ -480,6 +493,59 @@ class Track17Client:
                 "status": event.get("c"),  # 状态描述
                 "location": event.get("d"),  # 地点
                 "status_code": event.get("b"),  # 状态码
+            })
+
+        return events
+
+    def _parse_events_v2(self, track_info: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        解析物流事件列表 (V2.4 新格式)
+
+        V2.4 API 的事件结构:
+        track_info.tracking.providers[0].events[]
+
+        每个事件包含:
+        - time_iso: ISO 格式时间
+        - description: 事件描述
+        - location: 地点
+        - sub_status: 子状态
+
+        Args:
+            track_info: 17track 返回的 track_info 字段
+
+        Returns:
+            格式化的事件列表
+        """
+        events = []
+
+        # 获取 providers
+        tracking = track_info.get("tracking", {})
+        providers = tracking.get("providers", [])
+
+        if not providers:
+            return events
+
+        # 取第一个 provider 的事件
+        provider = providers[0]
+        raw_events = provider.get("events", [])
+
+        for event in raw_events:
+            # 地点可能在 location 或 address 中
+            location = event.get("location")
+            if not location:
+                address = event.get("address", {})
+                parts = []
+                if address.get("city"):
+                    parts.append(address["city"])
+                if address.get("country"):
+                    parts.append(address["country"])
+                location = ", ".join(parts) if parts else None
+
+            events.append({
+                "timestamp": event.get("time_iso"),  # ISO 格式时间
+                "status": event.get("description"),  # 事件描述
+                "location": location,
+                "status_code": event.get("sub_status"),  # 子状态作为状态码
             })
 
         return events

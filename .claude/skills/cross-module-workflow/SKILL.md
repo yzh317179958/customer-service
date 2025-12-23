@@ -13,30 +13,12 @@ description: 执行跨模块功能的 Vibe Coding 开发工作流，按步骤开
 - 用户说"跨模块继续开发"
 - 用户说"执行跨模块下一步"
 - 用户说"按跨模块计划开发"
-- 当前功能涉及多个 products 或需要多模块协作
 
----
-
-## 前提条件
-
-使用此工作流前，必须确保：
-
-1. **已创建跨模块文档**（通过 `cross-module-docs-guide` 技能）
-   - `docs/features/[功能名]/prd.md`
-   - `docs/features/[功能名]/implementation-plan.md`
-   - `docs/features/[功能名]/progress.md`
-   - `docs/features/[功能名]/architecture.md`
-
-2. **已更新模块引用**
-   - 各模块 `memory-bank/cross-module-refs.md` 已添加该功能引用
-
-如果文档不存在，先使用 `cross-module-docs-guide` 创建。
-
----
+**前提条件**：使用此工作流前，必须已通过 `cross-module-docs-guide` 创建 `docs/features/[功能名]/` 文档。
 
 ## 开始前必做（铁律）
 
-**在开始编码前，必须按顺序阅读以下文档：**
+**在开始编码前，必须先阅读以下文档：**
 
 ### 1. 顶层规范文档（每次开发都要阅读）
 
@@ -45,60 +27,34 @@ description: 执行跨模块功能的 Vibe Coding 开发工作流，按步骤开
 
 ### 2. 跨模块主文档
 
-```
-docs/features/[功能名]/
-├── prd.md                  # 跨模块完整需求
-├── implementation-plan.md  # 分步实现计划（按模块拆分）
-├── progress.md             # 开发进度（了解之前完成的工作）
-└── architecture.md         # 整体架构（了解当前状态）
-```
+- `docs/features/[功能名]/prd.md`（跨模块完整需求）
+- `docs/features/[功能名]/implementation-plan.md`（分步实现计划）
+- `docs/features/[功能名]/progress.md`（了解之前完成的工作）
+- `docs/features/[功能名]/architecture.md`（了解当前架构）
 
 ### 3. 涉及模块的 memory-bank
 
-```
 根据 prd.md 中列出的模块，阅读每个模块的：
-products/xxx/memory-bank/
-├── prd.md                  # 模块自身需求
-├── architecture.md         # 模块架构
-└── cross-module-refs.md    # 本功能在该模块的职责
-```
+- `products/xxx/memory-bank/prd.md`（模块自身需求）
+- `products/xxx/memory-bank/architecture.md`（模块架构）
+- `products/xxx/memory-bank/cross-module-refs.md`（本功能在该模块的职责）
 
-### 4. 确认计划清晰
-
-如果 `implementation-plan.md` 不够清晰，**必须向用户提问澄清**，不要猜测。
-
----
+如果 implementation-plan.md 不够清晰，**必须向用户提问澄清**。
 
 ## 执行单个 Step 的标准流程
 
 ```
-1️⃣ 阅读跨模块主文档 + 相关模块 memory-bank
-2️⃣ 查看 progress.md 了解之前完成的工作
-3️⃣ 确认当前 Step 属于哪个 Phase（infrastructure/services/products）
-4️⃣ 执行 implementation-plan.md 的 Step [N]
-5️⃣ 只做当前步骤要求的内容，不要超前
-6️⃣ 如果有疑问，先问用户
-7️⃣ 告知用户如何测试
-8️⃣ 等待测试结果，测试通过前不开始下一步
+1. 阅读跨模块主文档 + 相关模块 memory-bank
+2. 查看 progress.md 了解之前完成的工作
+3. 确认当前 Step 属于哪个 Phase（infrastructure → services → products）
+4. 执行 implementation-plan.md 的 Step [N]
+5. 只做当前步骤要求的内容，不要超前
+6. 如果有疑问，先问用户
+7. 告知用户如何测试
+8. 等待测试结果，测试通过前不开始下一步
 ```
 
-### 开发顺序（自底向上，铁律）
-
-```
-Phase 1: infrastructure/（基础设施层）
-    ↓
-Phase 2: services/（服务层）
-    ↓
-Phase 3: products/[模块A]（产品层）
-    ↓
-Phase 4: products/[模块B]（产品层）
-    ↓
-Phase 5: 集成测试
-```
-
-**禁止跳过下层直接开发上层！**
-
----
+**开发顺序（铁律）**：infrastructure → services → products，禁止跳过下层直接开发上层。
 
 ## 测试验证
 
@@ -107,21 +63,11 @@ Phase 5: 集成测试
 | 测试通过 | 更新主文档 + 模块引用，告知可继续下一步 |
 | 测试失败 | 分析错误原因并修复，不继续下一步 |
 
-### 集成测试要点
-
-跨模块开发需要额外验证：
-
-- [ ] 模块间数据正确传递
-- [ ] API 接口调用正常
-- [ ] 事件发布/订阅正常
-- [ ] 共享服务状态一致
-- [ ] 异常情况处理得当
-
----
+**跨模块额外验证**：模块间数据传递、API 调用、事件发布/订阅、共享服务状态。
 
 ## 文档更新模板
 
-### 1. 主文档 progress.md 每步完成后追加：
+### 主文档 progress.md 每步完成后追加：
 
 ```markdown
 ---
@@ -142,13 +88,12 @@ Phase 5: 集成测试
 
 **模块间交互验证:**
 - ✅ [模块A] → [模块B] 数据传递正常
-- ✅ 事件发布/订阅正常
 
 **备注:**
 - [遇到的问题及解决方案]
 ```
 
-### 2. 主文档 architecture.md 每新增文件后追加：
+### 主文档 architecture.md 每新增文件后追加：
 
 ```markdown
 ---
@@ -163,10 +108,9 @@ Phase 5: 集成测试
 **跨模块交互:**
 - 调用: [调用哪些其他模块的接口]
 - 被调用: [被哪些其他模块调用]
-- 事件: [发布/订阅的事件]
 ```
 
-### 3. 模块 cross-module-refs.md 涉及文件更新：
+### 模块 cross-module-refs.md 涉及文件更新：
 
 ```markdown
 **涉及文件:**
@@ -174,83 +118,59 @@ Phase 5: 集成测试
 |------|----------|------|
 | `handlers/xxx.py` | 新增 | [功能说明] |
 | `routes.py` | 修改 | 添加 [XXX] 端点 |
-| `frontend/components/Xxx.tsx` | 新增 | [组件说明] |
 ```
 
-### 4. 顶层文档更新时机：
+### PROJECT_OVERVIEW.md 更新时机：
 
-| 触发条件 | 更新文档 | 更新内容 |
-|----------|----------|----------|
-| 创建新 service/infrastructure | PROJECT_OVERVIEW.md | 更新对应清单 |
-| 模块状态变更 | PROJECT_OVERVIEW.md | 更新状态列 |
-| 架构规则变更 | CLAUDE.md | 更新相关章节 |
+| 触发条件 | 更新内容 |
+|----------|----------|
+| 创建新 product/service/infrastructure | 更新对应清单 |
+| 模块状态变更（开发中→已完成） | 更新状态列 |
+| 目录结构变更 | 更新目录树 |
 
----
+### CLAUDE.md 更新时机：
+
+| 触发条件 | 更新内容 |
+|----------|----------|
+| 架构规则变更 | 更新依赖规则、开发原则 |
+| 新增全局约束 | 更新禁止事项 |
+| 部署配置变更 | 更新服务器信息 |
 
 ## 完整工作流循环
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  1. 阅读主文档 + 模块 memory-bank → 执行 Step N                  │
+│  1. 阅读主文档 + 模块 memory-bank → 执行 Step N                   │
 │         ↓                                                       │
-│  2. 测试验证（含模块间交互）                                      │
+│  2. 测试验证（含模块间交互）                                       │
 │         ↓                                                       │
-│  3. 通过? ─── 否 ──→ 修复 ──→ 返回步骤 2                         │
+│  3. 通过? ─── 否 ──→ 修复 ──→ 返回步骤 2                          │
 │         │                                                       │
 │        是                                                       │
 │         ↓                                                       │
 │  4. 更新文档：                                                   │
-│     - 主文档 progress.md                                        │
-│     - 主文档 architecture.md                                    │
-│     - 模块 cross-module-refs.md（涉及文件）                      │
+│     - 主文档 progress.md + architecture.md                       │
+│     - 模块 cross-module-refs.md                                  │
 │         ↓                                                       │
 │  5. Git commit + tag                                            │
 │         ↓                                                       │
-│  6. 还有步骤? ─── 是 ──→ 返回步骤 1                              │
+│  6. 还有步骤? ─── 是 ──→ 返回步骤 1                               │
 │         │                                                       │
 │        否                                                       │
 │         ↓                                                       │
-│  7. 更新模块引用状态: ⏳ 开发中 → ✅ 已完成                       │
-│         ↓                                                       │
-│  8. 功能完成！                                                  │
+│  7. 功能完成！                                                   │
 └─────────────────────────────────────────────────────────────────┘
 ```
-
----
 
 ## 每个步骤完成后的检查清单
 
 - [ ] 测试验证通过（含模块间交互）
 - [ ] 更新主文档 `docs/features/[功能名]/progress.md`
 - [ ] 更新主文档 `docs/features/[功能名]/architecture.md`
-- [ ] 更新模块 `memory-bank/cross-module-refs.md`（涉及文件列表）
-- [ ] Git commit（消息包含功能名和步骤号）
+- [ ] 更新模块 `memory-bank/cross-module-refs.md`
+- [ ] Git commit
 - [ ] Git tag
 - [ ] 告知用户可继续下一步
-
----
-
-## Git 提交规范
-
-### 提交消息格式
-
-```
-[类型]: [功能名] - Step N [步骤标题] vX.X.X
-```
-
-**示例：**
-```bash
-git commit -m "feat: human-handoff - Step 3 实现坐席接管接口 v5.5.0"
-git commit -m "fix: human-handoff - Step 3 修复会话状态更新问题 v5.5.1"
-```
-
-### 跨模块提交要点
-
-- 一个 Step 可能涉及多个模块的文件改动
-- 按逻辑单元提交，而非按模块拆分
-- 提交消息明确标注功能名和步骤号
-
----
 
 ## 问题处理
 
@@ -262,8 +182,6 @@ git commit -m "fix: human-handoff - Step 3 修复会话状态更新问题 v5.5.1
 | 卡住时 | 向用户说明尝试过的方法、当前状态，请求帮助分析 |
 | 缺失信息 | 暂停开发，向用户询问后再继续 |
 
----
-
 ## 缺失信息处理（铁律）
 
 开发过程中遇到缺失信息时，**必须暂停并向用户询问**，不要猜测或使用占位符：
@@ -273,6 +191,7 @@ git commit -m "fix: human-handoff - Step 3 修复会话状态更新问题 v5.5.1
 | 模块间接口 | API 路径、事件名称、数据格式 | 询问用户确认或查阅其他模块文档 |
 | API 密钥 | Shopify API Key、Coze Token | 询问用户提供或指明配置位置 |
 | 服务 URL | 后端 API 地址、第三方服务地址 | 询问用户确认正确的 URL |
+| 环境配置 | 端口号、域名、环境变量 | 询问用户确认配置 |
 | 业务规则 | 超时时间、重试次数、阈值 | 询问用户确认业务要求 |
 
 **询问模板：**
@@ -286,8 +205,6 @@ git commit -m "fix: human-handoff - Step 3 修复会话状态更新问题 v5.5.1
 获得信息后我会继续开发。
 ```
 
----
-
 ## 生产环境与企业级开发要求
 
 开发始终保证符合生产环境和企业级实际使用标准：
@@ -299,29 +216,14 @@ git commit -m "fix: human-handoff - Step 3 修复会话状态更新问题 v5.5.1
 - **容错性**：优雅处理外部服务失败，提供降级方案
 - **模块解耦**：通过 services 层通信，禁止产品层直接依赖
 
----
-
 ## 禁止事项（铁律）
 
 - ❌ 禁止跳过下层直接开发上层（必须 infrastructure → services → products）
+- ❌ 禁止产品层直接 import 另一个产品
 - ❌ 禁止跳过测试就提交代码
 - ❌ 禁止一次改动太多文件（>10 个）
 - ❌ 禁止一次改动太多代码（>500 行）
 - ❌ 禁止忘记更新主文档和模块引用
-- ❌ 禁止产品层直接 import 另一个产品
 - ❌ 禁止未经用户确认就提交代码
 - ❌ 禁止未经用户确认就部署到服务器
 - ❌ 禁止使用临时方案替代生产级实现
-
----
-
-## 相关资源
-
-| 资源 | 路径 |
-|------|------|
-| 跨模块文档生成 | `.claude/skills/cross-module-docs-guide/SKILL.md` |
-| 单模块文档生成 | `.claude/skills/memory-bank-guide/SKILL.md` |
-| 单模块开发工作流 | `.claude/skills/vibe-coding-workflow/SKILL.md` |
-| Vibe Coding 规范 | `docs/参考资料/Vibe_Coding开发规范流程说明.md` |
-| 架构规范 | `CLAUDE.md` |
-| 模块清单 | `PROJECT_OVERVIEW.md` |

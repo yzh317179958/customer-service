@@ -37,28 +37,35 @@ interface TrackingData {
 const trackingDataMap = ref<Map<string, TrackingData>>(new Map())
 const expandedTrackings = ref<Set<string>>(new Set())
 
+// 统一 API Base：本地可配置 VITE_API_BASE，生产可留空走同域 /api
+const API_BASE = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '')
+
 // 获取物流轨迹 API
-async function fetchTrackingData(trackingNumber: string): Promise<void> {
-  if (trackingDataMap.value.has(trackingNumber)) {
-    // 已有数据，直接返回
-    return
-  }
+async function fetchTrackingData(
+  trackingNumber: string,
+  carrier?: string,
+  options?: { force?: boolean }
+): Promise<void> {
+  const existing = trackingDataMap.value.get(trackingNumber)
+  if (existing && !options?.force && !existing.error && !existing.is_pending) return
 
   // 设置加载状态
   trackingDataMap.value.set(trackingNumber, {
-    tracking_number: trackingNumber,
-    current_status: '',
-    current_status_zh: '',
-    is_delivered: false,
-    is_exception: false,
-    is_pending: false,
-    events: [],
+    tracking_number: existing?.tracking_number ?? trackingNumber,
+    current_status: existing?.current_status ?? '',
+    current_status_zh: existing?.current_status_zh ?? '',
+    is_delivered: existing?.is_delivered ?? false,
+    is_exception: existing?.is_exception ?? false,
+    is_pending: existing?.is_pending ?? false,
+    events: existing?.events ?? [],
     loading: true,
     error: null
   })
 
   try {
-    const response = await fetch(`/api/tracking/${encodeURIComponent(trackingNumber)}`)
+    const query = carrier ? `?carrier=${encodeURIComponent(carrier)}` : ''
+    const url = `${API_BASE}/api/tracking/${encodeURIComponent(trackingNumber)}${query}`
+    const response = await fetch(url)
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`)
@@ -93,13 +100,15 @@ async function fetchTrackingData(trackingNumber: string): Promise<void> {
 }
 
 // 切换时间线展开/收起
-function toggleTracking(trackingNumber: string): void {
+function toggleTracking(trackingNumber: string, carrier?: string): void {
   if (expandedTrackings.value.has(trackingNumber)) {
     expandedTrackings.value.delete(trackingNumber)
     updateTimelineDOM(trackingNumber, false)
   } else {
     expandedTrackings.value.add(trackingNumber)
-    fetchTrackingData(trackingNumber).then(() => {
+    const existing = trackingDataMap.value.get(trackingNumber)
+    const force = !!existing && (existing.error !== null || existing.is_pending)
+    fetchTrackingData(trackingNumber, carrier, { force }).then(() => {
       updateTimelineDOM(trackingNumber, true)
     })
     // 先显示加载状态
@@ -229,8 +238,9 @@ function handleTrackingClick(event: Event): void {
 
   if (button) {
     const trackingNumber = button.dataset.tracking
+    const carrier = button.dataset.carrier
     if (trackingNumber) {
-      toggleTracking(trackingNumber)
+      toggleTracking(trackingNumber, carrier)
     }
   }
 }
@@ -424,10 +434,10 @@ function transformProductCards(content: string): string {
             </div>
             <div class="tracking-actions">
               ${trackingUrl ? `<a href="${trackingUrl}" target="_blank" class="tracking-link"><span class="link-icon">↗</span>${trackText}</a>` : ''}
-              ${trackingNumber ? `<button class="tracking-expand-btn" data-tracking="${trackingNumber}" data-expand="${expandText}" data-collapse="${collapseText}" data-loading="${loadingText}"><span class="expand-icon">▼</span><span class="expand-text">${expandText}</span></button>` : ''}
+              ${trackingNumber ? `<button class="tracking-expand-btn" data-tracking="${trackingNumber}" data-carrier="${carrier}" data-expand="${expandText}" data-collapse="${collapseText}" data-loading="${loadingText}"><span class="expand-icon">▼</span><span class="expand-text">${expandText}</span></button>` : ''}
             </div>
           </div>
-          ${trackingNumber ? `<div class="tracking-timeline-container" data-tracking="${trackingNumber}"></div>` : ''}
+          ${trackingNumber ? `<div class="tracking-timeline-container" data-tracking="${trackingNumber}" data-carrier="${carrier}"></div>` : ''}
         ` : ''}
       </div>
     `

@@ -87,11 +87,15 @@ async def get_tracking(
     try:
         service = get_tracking_service()
 
+        if refresh:
+            await service.clear_cache(tracking_number)
+
         # 使用自动注册方法获取物流信息
         info = await service.get_tracking_info_with_auto_register(
             tracking_number=tracking_number,
             carrier=carrier,
             order_id=order_id,
+            refresh=refresh,
         )
 
         # 如果是 pending 状态，直接返回

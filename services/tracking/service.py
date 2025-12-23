@@ -45,6 +45,7 @@ logger = logging.getLogger(__name__)
 # 缓存配置
 CACHE_TTL_TRACKING = int(os.getenv("SHOPIFY_CACHE_TRACKING", 21600))  # 6 小时
 CACHE_TTL_MAPPING = 86400 * 7  # 7 天
+REDIS_IO_TIMEOUT_SECONDS = float(os.getenv("TRACKING_REDIS_IO_TIMEOUT", "0.5"))
 
 
 class TrackingService:
@@ -73,6 +74,7 @@ class TrackingService:
         # 内存缓存（Redis 不可用时使用）
         self._cache: Dict[str, Dict[str, Any]] = {}
         self._mapping: Dict[str, str] = {}  # tracking_number -> order_id
+        self._register_attempts: Dict[str, float] = {}  # tracking_number -> timestamp
 
     def _get_redis(self):
         """获取 Redis 客户端"""
@@ -91,7 +93,10 @@ class TrackingService:
         redis = self._get_redis()
         if redis:
             try:
-                data = await redis.get(f"tracking:{key}")
+                data = await asyncio.wait_for(
+                    redis.get(f"tracking:{key}"),
+                    timeout=REDIS_IO_TIMEOUT_SECONDS,
+                )
                 if data:
                     return json.loads(data)
             except Exception as e:
@@ -116,10 +121,13 @@ class TrackingService:
         redis = self._get_redis()
         if redis:
             try:
-                await redis.setex(
-                    f"tracking:{key}",
-                    ttl,
-                    json.dumps(data, default=str),
+                await asyncio.wait_for(
+                    redis.setex(
+                        f"tracking:{key}",
+                        ttl,
+                        json.dumps(data, default=str),
+                    ),
+                    timeout=REDIS_IO_TIMEOUT_SECONDS,
                 )
                 return
             except Exception as e:
@@ -136,7 +144,10 @@ class TrackingService:
         redis = self._get_redis()
         if redis:
             try:
-                order_id = await redis.get(f"tracking_map:{tracking_number}")
+                order_id = await asyncio.wait_for(
+                    redis.get(f"tracking_map:{tracking_number}"),
+                    timeout=REDIS_IO_TIMEOUT_SECONDS,
+                )
                 if order_id:
                     return order_id.decode() if isinstance(order_id, bytes) else order_id
             except Exception as e:
@@ -149,10 +160,13 @@ class TrackingService:
         redis = self._get_redis()
         if redis:
             try:
-                await redis.setex(
-                    f"tracking_map:{tracking_number}",
-                    CACHE_TTL_MAPPING,
-                    order_id,
+                await asyncio.wait_for(
+                    redis.setex(
+                        f"tracking_map:{tracking_number}",
+                        CACHE_TTL_MAPPING,
+                        order_id,
+                    ),
+                    timeout=REDIS_IO_TIMEOUT_SECONDS,
                 )
                 return
             except Exception as e:
@@ -264,51 +278,8 @@ class TrackingService:
                 logger.debug(f"从缓存获取物流事件: {tracking_number}")
                 return [TrackingEvent(**e) for e in cached]
 
-        try:
-            # 调用 API 查询
-            result = await self.client.get_tracking_info(
-                tracking_number=tracking_number,
-                carrier_code=carrier,
-            )
-
-            if not result.get("success"):
-                logger.warning(f"查询物流失败: {tracking_number}")
-                return []
-
-            # 转换事件格式
-            events = []
-            raw_events = result.get("events", [])
-
-            for raw in raw_events:
-                event = TrackingEvent(
-                    timestamp_str=raw.get("timestamp"),
-                    status=raw.get("status"),
-                    location=raw.get("location"),
-                    description=raw.get("status"),
-                    status_code=raw.get("status_code"),
-                )
-
-                # 尝试解析时间戳
-                if event.timestamp_str:
-                    try:
-                        event.timestamp = datetime.fromisoformat(
-                            event.timestamp_str.replace(" ", "T")
-                        )
-                    except ValueError:
-                        pass
-
-                events.append(event)
-
-            # 写入缓存
-            if events:
-                cache_data = [e.model_dump() for e in events]
-                await self._cache_set(cache_key, cache_data)
-
-            return events
-
-        except Track17Error as e:
-            logger.error(f"查询物流失败: {tracking_number}, 错误: {e}")
-            return []
+        info = await self.get_tracking_info(tracking_number, carrier, use_cache=use_cache)
+        return info.events if info else []
 
     async def get_tracking_info(
         self,
@@ -349,10 +320,9 @@ class TrackingService:
             # 获取订单 ID
             order_id = await self._mapping_get(tracking_number)
 
-            # 构建 TrackingInfo
-            track_info = result.get("track_info", {})
-            status_code = track_info.get("e")
-            status = TrackingStatus.from_code(status_code) if status_code is not None else None
+            # V2.4 API: 状态是字符串格式 (如 "InTransit", "Delivered")
+            status_str = result.get("status")
+            status = TrackingStatus.from_string(status_str) if status_str else None
 
             # 承运商信息
             carrier_data = result.get("carrier")
@@ -368,18 +338,46 @@ class TrackingService:
                     # 只有承运商代码
                     carrier_info = CarrierInfo(code=carrier_data)
 
-            # 事件列表
-            events = await self.get_tracking_events(tracking_number, carrier, use_cache=False)
+            # 事件列表 (已由 client._parse_events_v2 解析)
+            events: List[TrackingEvent] = []
+            raw_events = result.get("events") or []
+            for raw in raw_events:
+                event = TrackingEvent(
+                    timestamp_str=raw.get("timestamp"),
+                    status=raw.get("status"),
+                    location=raw.get("location"),
+                    description=raw.get("status"),
+                    status_code=raw.get("status_code"),
+                )
 
-            # 最新事件
+                if event.timestamp_str:
+                    try:
+                        event.timestamp = datetime.fromisoformat(event.timestamp_str.replace(" ", "T"))
+                    except ValueError:
+                        pass
+                events.append(event)
+
+            # 最新事件 (V2.4 格式)
             last_event_data = result.get("last_event", {})
-            last_event = TrackingEvent.from_17track_event(last_event_data) if last_event_data else None
+            last_event = None
+            if last_event_data:
+                last_event = TrackingEvent(
+                    timestamp_str=last_event_data.get("time_iso"),
+                    status=last_event_data.get("description"),
+                    location=last_event_data.get("location"),
+                    description=last_event_data.get("description"),
+                )
+                if last_event.timestamp_str:
+                    try:
+                        last_event.timestamp = datetime.fromisoformat(last_event.timestamp_str)
+                    except ValueError:
+                        pass
 
             info = TrackingInfo(
                 tracking_number=tracking_number,
                 carrier=carrier_info,
                 status=status,
-                sub_status=track_info.get("f"),
+                sub_status=result.get("sub_status"),
                 status_zh=status.zh if status else None,
                 events=events,
                 last_event=last_event,
@@ -482,7 +480,10 @@ class TrackingService:
         if redis:
             try:
                 for key in keys:
-                    await redis.delete(key)
+                    await asyncio.wait_for(
+                        redis.delete(key),
+                        timeout=REDIS_IO_TIMEOUT_SECONDS,
+                    )
             except Exception as e:
                 logger.debug(f"Redis 缓存清除失败: {e}")
 
@@ -496,6 +497,7 @@ class TrackingService:
         carrier: Optional[str] = None,
         order_id: Optional[str] = None,
         order_number: Optional[str] = None,
+        refresh: bool = False,
     ) -> TrackingInfo:
         """
         获取物流信息，自动注册未注册的运单
@@ -516,18 +518,23 @@ class TrackingService:
             TrackingInfo 对象，如果正在追踪中则 is_pending=True
         """
         # 1. 先尝试直接查询
-        info = await self.get_tracking_info(tracking_number, carrier)
+        info = await self.get_tracking_info(tracking_number, carrier, use_cache=not refresh)
 
-        if info and (info.events or info.status != TrackingStatus.NOT_FOUND):
+        if info and (info.events or (info.status and info.status != TrackingStatus.NOT_FOUND)):
             # 有数据，直接返回
             return info
 
         # 2. 查询失败或无数据，后台异步注册（不等待）
-        if order_id:
-            logger.info(f"运单未注册，后台异步注册: {tracking_number}")
+        # 2.1 有 order_id：注册并建立订单映射（用于 webhook 通知）
+        if order_id and await self._mark_register_attempt(tracking_number):
+            logger.info(f"运单未注册，后台异步注册(含订单映射): {tracking_number} -> {order_id}")
             asyncio.create_task(
                 self._async_register(tracking_number, carrier, order_id, order_number)
             )
+        # 2.2 无 order_id：仍尝试注册到 17track（用于“查看物流”场景，避免一直 pending）
+        elif await self._mark_register_attempt(tracking_number):
+            logger.info(f"运单未注册，后台异步注册(无订单映射): {tracking_number}")
+            asyncio.create_task(self._async_register_tracking_only(tracking_number, carrier))
 
         # 3. 返回"追踪中"状态，让用户稍后刷新
         return TrackingInfo(
@@ -566,6 +573,67 @@ class TrackingService:
                 logger.warning(f"异步注册失败: {tracking_number}, {result}")
         except Exception as e:
             logger.error(f"异步注册异常: {tracking_number}, {e}")
+
+    async def _mark_register_attempt(self, tracking_number: str, ttl_seconds: int = 300) -> bool:
+        """
+        标记一次“尝试注册”以避免短时间重复触发注册。
+
+        Returns:
+            True 表示本次可以触发注册；False 表示近期已触发过。
+        """
+        now = datetime.now().timestamp()
+
+        # 内存去重
+        last = self._register_attempts.get(tracking_number)
+        if last and now - last < ttl_seconds:
+            return False
+
+        redis = self._get_redis()
+        if redis:
+            try:
+                key = f"tracking:register_attempt:{tracking_number}"
+                # 优先使用 setnx / nx 语义（不同 redis 客户端 API 可能不同）
+                if hasattr(redis, "set"):
+                    ok = await asyncio.wait_for(
+                        redis.set(key, "1", ex=ttl_seconds, nx=True),  # type: ignore[arg-type]
+                        timeout=REDIS_IO_TIMEOUT_SECONDS,
+                    )
+                    if ok:
+                        self._register_attempts[tracking_number] = now
+                        return True
+                    return False
+            except Exception as e:
+                logger.debug(f"Redis 注册去重失败，降级到内存: {e}")
+
+        self._register_attempts[tracking_number] = now
+        return True
+
+    async def _async_register_tracking_only(
+        self,
+        tracking_number: str,
+        carrier: Optional[str],
+    ):
+        """
+        异步注册运单（无订单映射）
+
+        适用于仅“查看物流”场景：允许用户没有 order_id 时也能完成 17track 注册并后续查询到轨迹。
+        """
+        try:
+            result = await self.client.register_tracking(
+                tracking_number=tracking_number,
+                carrier_code=carrier,
+                order_id=None,
+                tag=None,
+            )
+            if result.get("success"):
+                await self.clear_cache(tracking_number)
+                logger.info(f"异步注册成功(无订单映射): {tracking_number}")
+            else:
+                logger.warning(f"异步注册失败(无订单映射): {tracking_number}, {result}")
+        except Track17Error as e:
+            logger.warning(f"异步注册失败(无订单映射): {tracking_number}, {e}")
+        except Exception as e:
+            logger.error(f"异步注册异常(无订单映射): {tracking_number}, {e}")
 
 
 # 全局服务实例

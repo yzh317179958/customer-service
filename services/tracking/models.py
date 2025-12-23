@@ -58,6 +58,30 @@ class TrackingStatus(str, Enum):
         }
         return code_map.get(code, cls.NOT_FOUND)
 
+    @classmethod
+    def from_string(cls, status_str: str) -> "TrackingStatus":
+        """
+        从状态字符串转换为状态枚举 (V2.4 API 格式)
+
+        V2.4 返回的状态字符串如: "InTransit", "Delivered" 等
+        """
+        if not status_str:
+            return cls.NOT_FOUND
+
+        # 尝试直接匹配枚举值
+        try:
+            return cls(status_str)
+        except ValueError:
+            pass
+
+        # 尝试模糊匹配
+        status_lower = status_str.lower()
+        for member in cls:
+            if member.value.lower() == status_lower:
+                return member
+
+        return cls.NOT_FOUND
+
     @property
     def code(self) -> int:
         """获取状态码"""
@@ -180,7 +204,7 @@ class TrackingEvent(BaseModel):
     location: Optional[str] = Field(None, description="事件地点")
     description: Optional[str] = Field(None, description="事件详情（英文）")
     description_zh: Optional[str] = Field(None, description="事件详情（中文）")
-    status_code: Optional[int] = Field(None, description="状态码")
+    status_code: Optional[str] = Field(None, description="状态码/子状态（V2.4 为字符串）")
 
     @classmethod
     def from_17track_event(cls, event: Dict[str, Any]) -> "TrackingEvent":
