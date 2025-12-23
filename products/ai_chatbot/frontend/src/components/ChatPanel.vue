@@ -45,11 +45,16 @@ const inputPlaceholder = computed(() => {
   }
 })
 
-// Auto-scroll to bottom
-const scrollToBottom = () => {
+// Auto-scroll to bottom (智能滚动：只有用户在底部附近时才自动滚动)
+const scrollToBottom = (force = false) => {
   nextTick(() => {
-    if (chatMessagesRef.value) {
-      chatMessagesRef.value.scrollTop = chatMessagesRef.value.scrollHeight
+    if (!chatMessagesRef.value) return
+    const el = chatMessagesRef.value
+    // 检测用户是否在底部附近（100px 容差）
+    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100
+    // 强制滚动或用户在底部附近时才滚动
+    if (force || isNearBottom) {
+      el.scrollTop = el.scrollHeight
     }
   })
 }
@@ -212,7 +217,8 @@ const handleQuickQuestion = (data: { text: string, guideReply: string }) => {
       timestamp: new Date(),
       sender: chatStore.botConfig.name
     })
-    scrollToBottom()
+    // 快捷问题回复后强制滚动
+    scrollToBottom(true)
   }, 300) // 短暂延迟模拟回复
 
   // 3. 标记已经不是首条消息（隐藏欢迎界面）
@@ -236,6 +242,9 @@ const sendMessage = async () => {
     timestamp: new Date(),
     sender: 'You'
   })
+
+  // 用户发送消息后强制滚动到底部
+  scrollToBottom(true)
 
   chatStore.setLoading(true)
 
@@ -522,7 +531,8 @@ const loadSessionHistory = async () => {
         })
 
         console.log('✅ 历史消息加载完成')
-        scrollToBottom()
+        // 加载历史后强制滚动到底部
+        scrollToBottom(true)
       }
 
       // 5. 如果是人工模式，启动轮询

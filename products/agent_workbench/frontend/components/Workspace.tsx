@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useSessionStore } from '../src/stores';
 import { sessionsApi } from '../src/api';
+import MessageContent from './MessageContent';
 
 const Workspace: React.FC = () => {
   const [inputText, setInputText] = useState('');
@@ -338,7 +339,7 @@ const Workspace: React.FC = () => {
                             <Bot size={12} /> AI 助手
                           </div>
                         )}
-                        {m.content}
+                        <MessageContent content={m.content} />
                       </div>
                     </div>
                   </div>

@@ -396,10 +396,40 @@ curl "https://ai.fiido.com/api/shopify/orders/global-search?q=UK22080"
 
 ---
 
+## Step 11: Bug 修复（坐席工作台渲染订单商品卡片）
+
+**完成时间:** 2025-12-23 13:10
+**版本号:** v7.6.12
+**所属模块:** products/agent_workbench
+
+**问题现象:**
+- AI 客服转接过来的订单查询结果在坐席工作台显示为原始 Coze 输出（包含 `[PRODUCT]...[/PRODUCT]` 标记），缺少可视化卡片
+
+**最优实现策略:**
+- 前端本地解析 `[PRODUCT]` 标记为结构化数据，并以 React 组件渲染卡片
+- 不使用 `dangerouslySetInnerHTML`，避免引入 XSS 风险与 Markdown/HTML 混排的不确定性
+
+**修复内容:**
+- 在坐席工作台增加 `[PRODUCT]` 解析与渲染：
+  - 支持同一条消息内多张商品卡片
+  - 保留卡片外的普通文本片段
+  - 提供基础物流信息展示（承运商/运单号/追踪链接）
+  - 链接/图片 URL 仅允许 http/https（避免恶意协议注入）
+
+**涉及文件:**
+- `products/agent_workbench/frontend/components/MessageContent.tsx`
+- `products/agent_workbench/frontend/components/Workspace.tsx`
+
+**测试结果:**
+- ✅ 坐席工作台可正确渲染商品卡片，不再显示原始标记文本
+
+---
+
 ## 版本记录
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| v7.6.12 | 2025-12-23 | Step 11 完成：坐席工作台渲染订单商品卡片 |
 | v7.6.11 | 2025-12-23 | Step 10 完成：修复坐席端重复/清空问题，统一气泡显示 |
 | v7.6.10 | 2025-12-23 | Step 9 完成：修复消息重复、持久化、UI 问题 |
 | v7.6.7 | 2025-12-23 | Step 8 完成：部署到生产服务器验证通过 |
