@@ -63,9 +63,9 @@ class Track17Client:
         "parcelforce": 21052,
         "uk mail": 21053,
         "collect+": 21066,
-        "dx freight": 100024,
-        "dxfreight": 100024,
-        "dx": 100024,
+        "dx freight": 100484,
+        "dxfreight": 100484,
+        "dx": 100484,
         # 欧洲承运商
         "dhl": 100001,
         "dhl express": 100001,
