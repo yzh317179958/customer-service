@@ -12,7 +12,7 @@
 | Phase 1: services/tracking | ✅ 完成 | 4/4 |
 | Phase 2: products/notification | ✅ 完成 | 6/6 |
 | Phase 3: ai_chatbot 扩展 | ✅ 完成 | 3/3 |
-| Phase 4: 集成与部署 | 待开始 | 0/2 |
+| Phase 4: 集成与部署 | ⏳ 开发中 | 1/2 |
 
 ---
 
@@ -443,3 +443,50 @@ products/ai_chatbot/
 5. 再次点击收起时间线
 
 **下一步:** Phase 4 集成与部署
+
+---
+
+## Phase 4: 集成与部署
+
+### Step 4.1: 数据库迁移
+
+**完成时间:** 2025-12-23
+**所属模块:** infrastructure/database
+
+**完成内容:**
+- 创建 `infrastructure/database/models/tracking.py` - ORM 模型
+  - `TrackingRegistrationModel` - 运单注册记录表（16 字段）
+  - `NotificationRecordModel` - 通知发送记录表（20 字段）
+- 更新 `infrastructure/database/models/__init__.py` - 导出新模型
+- 创建迁移文件 `2a8f3b4c5d6e_add_tracking_tables.py`
+
+**表结构:**
+```
+tracking_registrations (16 字段, 8 索引)
+├── tracking_number (唯一索引)
+├── carrier_code, carrier_name
+├── order_id, order_number, site
+├── status, current_tracking_status
+├── is_delivered, is_exception
+├── register_response, last_event (JSONB)
+└── created_at, updated_at, delivered_at
+
+notification_records (20 字段, 10 索引)
+├── notification_id (唯一索引)
+├── tracking_number, order_id, site
+├── notification_type, exception_type
+├── to_email, customer_name
+├── subject, template_name, template_data
+├── status, error_message, retry_count
+├── trigger_event, trigger_data
+└── created_at, sent_at
+```
+
+**测试结果:**
+- ✅ ORM 模型导入成功
+- ✅ Alembic 迁移执行成功
+- ✅ 表结构验证通过（字段、索引完整）
+
+---
+
+*下一步: Step 4.2 环境变量配置和部署*

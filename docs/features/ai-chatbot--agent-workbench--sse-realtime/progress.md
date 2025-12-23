@@ -1,9 +1,10 @@
 # 微服务跨进程 SSE 通信 - 开发进度追踪
 
 > **功能名称**：微服务跨进程 SSE 实时通信
-> **版本**：v1.3
+> **涉及模块**：AI 客服 (ai_chatbot) + 坐席工作台 (agent_workbench)
+> **版本**：v1.4
 > **开始日期**：2025-12-22
-> **当前步骤**：✅ 全部完成
+> **当前步骤**：✅ 全部完成（含后续 Bug 修复）
 
 ---
 
@@ -258,3 +259,119 @@
 |------|------|------|
 | Redis 客户端 | `redis.asyncio` | 原生异步，高并发性能好 |
 | 初始化时机 | lifespan 事件 | 启动时检测连接问题，符合现有模式 |
+
+---
+
+## Step 9: Bug 修复（消息重复、持久化、UI）
+
+**完成时间:** 2025-12-23 11:10
+**版本号:** v7.6.10
+**所属模块:** ai_chatbot + agent_workbench
+
+### 问题描述
+
+用户在生产环境发现以下 Bug：
+
+| # | 问题 | 状态 |
+|---|------|------|
+| 1 | 发送消息时自己看到两条重复内容 | ✅ 已修复 |
+| 2 | 再次点击会话时消息记录丢失 | ✅ 已修复 |
+| 3 | 订单查询 UK22080 无法查询 | ⚠️ API正常，Coze配置问题 |
+| 4 | AI 客服人工回复消息 UI 太丑 | ✅ 已修复 |
+
+### Bug 1：消息重复
+
+**根本原因：** 坐席发送消息时，HTTP 响应后本地添加 + SSE 推送再添加 = 两条消息
+
+**修复：** 移除 `sessionStore.ts:322` 的本地添加，只依赖 SSE 推送
+
+```typescript
+// 修改前
+const message = await sessionsApi.sendMessage(...)
+get().addMessageToCurrentSession(message)  // ❌ 删除
+
+// 修改后
+await sessionsApi.sendMessage(...)
+// 依赖 SSE 推送添加消息
+```
+
+### Bug 2：消息不持久化
+
+**根本原因：** SSE 连接时只发送 `connected` 事件，没有发送历史消息
+
+**修复：** 在 `sessions.py` 的 `event_generator` 中添加历史消息发送
+
+```python
+# 发送连接事件
+yield f"data: {json.dumps({'type': 'connected', ...})}\n\n"
+
+# ✅ 新增：发送消息历史
+if session_state and session_state.history:
+    yield f"data: {json.dumps({'type': 'history', 'messages': session_state.history})}\n\n"
+```
+
+### Bug 3：订单查询问题
+
+**排查结果：** API 直接调用正常返回订单数据
+
+```bash
+curl "https://ai.fiido.com/api/shopify/orders/global-search?q=UK22080"
+# 返回完整订单信息 ✅
+```
+
+**结论：** 问题在 Coze Workflow 配置，需在 Coze 平台检查插件绑定
+
+### Bug 4：UI 设计问题
+
+**问题：** AI 客服人工回复消息样式过度装饰（渐变 + 双阴影 + 左边条 + 发光）
+
+**修复：** 简化 `ChatMessage.vue` 样式，与坐席工作台保持一致
+
+```css
+/* 修改后 */
+.message.agent .message-content {
+  background: var(--fiido-black, #0f172a);  /* 纯色，无渐变 */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);  /* 轻微阴影 */
+}
+.message.agent .message-content::before { display: none; }
+.message.agent .message-content::after { display: none; }
+```
+
+### 修改文件
+
+| 文件 | 修改内容 |
+|------|----------|
+| `agent_workbench/frontend/src/stores/sessionStore.ts` | 移除本地消息添加 |
+| `agent_workbench/handlers/sessions.py` | SSE 连接时发送历史 |
+| `ai_chatbot/frontend/src/components/ChatMessage.vue` | 简化人工消息样式 |
+
+### 测试结果
+
+- ✅ 消息不再重复
+- ✅ 再次点击会话能看到历史消息
+- ✅ 人工消息样式简洁统一
+- ⚠️ 订单查询需检查 Coze Workflow
+
+### 部署信息
+
+- 代码版本: v7.6.10
+- 服务器: 8.211.27.199
+- 后端: systemctl restart fiido-ai-chatbot ✅
+- 前端: scp 部署到 /var/www/fiido-frontend/ ✅
+
+---
+
+## 版本记录
+
+| 版本 | 日期 | 说明 |
+|------|------|------|
+| v7.6.10 | 2025-12-23 | Step 9 完成：修复消息重复、持久化、UI 问题 |
+| v7.6.7 | 2025-12-23 | Step 8 完成：部署到生产服务器验证通过 |
+| v7.6.7 | 2025-12-23 | Step 7 完成：跨进程端到端测试通过 |
+| v7.6.6 | 2025-12-22 | Step 6 完成：AI 客服改用统一 SSE 接口 |
+| v7.6.5 | 2025-12-22 | Step 5 完成：SSE 事件流端点改用订阅接口 |
+| v7.6.4 | 2025-12-22 | Step 4 完成：坐席工作台改用统一 SSE 接口 |
+| v7.6.3 | 2025-12-22 | Step 3 完成：subscribe_sse_events 订阅接口 |
+| v7.6.2 | 2025-12-22 | Step 2 完成：enqueue_sse_message 支持 Redis |
+| v7.6.1 | 2025-12-22 | Step 1 完成：Redis SSE 管理器 |
+| v7.6.0 | 2025-12-22 | 微服务架构分离，发现 SSE 跨进程问题 |

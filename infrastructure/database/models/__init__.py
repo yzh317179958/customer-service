@@ -26,6 +26,9 @@ from .session import SessionArchiveModel
 # 邮件记录
 from .email import EmailRecordModel
 
+# 物流追踪
+from .tracking import TrackingRegistrationModel, NotificationRecordModel
+
 __all__ = [
     # 工单
     "TicketModel",
@@ -41,4 +44,7 @@ __all__ = [
     "SessionArchiveModel",
     # 邮件记录
     "EmailRecordModel",
+    # 物流追踪
+    "TrackingRegistrationModel",
+    "NotificationRecordModel",
 ]
