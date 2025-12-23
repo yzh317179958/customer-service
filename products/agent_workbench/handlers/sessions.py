@@ -42,6 +42,7 @@ from products.agent_workbench.dependencies import (
     get_sse_queues, get_or_create_sse_queue,
     require_agent, verify_agent_token_from_query
 )
+from infrastructure.bootstrap.sse import enqueue_sse_message, subscribe_sse_events
 
 router = APIRouter(prefix="/sessions", tags=["Sessions"])
 
@@ -70,17 +71,6 @@ class AgentMessageRequest(BaseModel):
 # ============================================================================
 # Helper Functions
 # ============================================================================
-
-async def enqueue_sse_message(target: str, message: dict):
-    """Enqueue SSE message to target"""
-    sse_queues = get_sse_queues()
-    if target not in sse_queues:
-        return
-    try:
-        await sse_queues[target].put(message)
-    except Exception as e:
-        print(f"Warning: Failed to enqueue SSE message: {e}")
-
 
 def _record_agent_response_time(agent_identifier: str, seconds: float):
     """Record agent response time (placeholder - uses backend.py impl)"""
@@ -314,19 +304,19 @@ async def release_session(session_name: str, request: dict):
             "timestamp": int(time.time())
         }, ensure_ascii=False))
 
-        if session_name in sse_queues:
-            await sse_queues[session_name].put({
-                "type": "manual_message",
-                "role": "system",
-                "content": "Human service ended, AI assistant has taken over",
-                "timestamp": system_message.timestamp
-            })
-            await sse_queues[session_name].put({
-                "type": "status_change",
-                "status": session_state.status,
-                "reason": "released",
-                "timestamp": int(time.time())
-            })
+        # 通过统一 SSE 接口发送消息（支持 Redis 跨进程）
+        await enqueue_sse_message(session_name, {
+            "type": "manual_message",
+            "role": "system",
+            "content": "Human service ended, AI assistant has taken over",
+            "timestamp": system_message.timestamp
+        })
+        await enqueue_sse_message(session_name, {
+            "type": "status_change",
+            "status": session_state.status,
+            "reason": "released",
+            "timestamp": int(time.time())
+        })
 
         try:
             agent_manager = get_agent_manager()
@@ -413,19 +403,19 @@ async def takeover_session(session_name: str, takeover_request: dict):
             "timestamp": int(time.time())
         }, ensure_ascii=False))
 
-        if session_name in sse_queues:
-            await sse_queues[session_name].put({
-                "type": "status_change",
-                "status": "manual_live",
-                "agent_info": {"agent_id": agent_id, "agent_name": agent_name},
-                "timestamp": int(time.time())
-            })
-            await sse_queues[session_name].put({
-                "type": "manual_message",
-                "role": "system",
-                "content": f"Agent [{agent_name}] has joined, serving you now",
-                "timestamp": system_message.timestamp
-            })
+        # 通过统一 SSE 接口发送消息（支持 Redis 跨进程）
+        await enqueue_sse_message(session_name, {
+            "type": "status_change",
+            "status": "manual_live",
+            "agent_info": {"agent_id": agent_id, "agent_name": agent_name},
+            "timestamp": int(time.time())
+        })
+        await enqueue_sse_message(session_name, {
+            "type": "manual_message",
+            "role": "system",
+            "content": f"Agent [{agent_name}] has joined, serving you now",
+            "timestamp": system_message.timestamp
+        })
 
         try:
             agent_manager = get_agent_manager()
@@ -862,9 +852,6 @@ async def session_events(
     if not session_state:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    # 获取或创建该会话的 SSE 队列
-    queue = get_or_create_sse_queue(session_name)
-
     agent_name = agent.get("username", "unknown")
     print(f"✅ 会话事件 SSE 连接: session={session_name}, agent={agent_name}")
 
@@ -873,14 +860,20 @@ async def session_events(
             # 发送连接成功事件
             yield f"data: {json.dumps({'type': 'connected', 'session_name': session_name, 'timestamp': int(time.time())}, ensure_ascii=False)}\n\n"
 
+            # 使用统一订阅接口（支持 Redis 跨进程）
+            subscription = subscribe_sse_events(session_name)
+
             while True:
                 try:
-                    # 等待队列中的消息，30秒超时发送心跳
-                    payload = await asyncio.wait_for(queue.get(), timeout=30.0)
+                    # 等待下一条消息，30秒超时发送心跳
+                    payload = await asyncio.wait_for(subscription.__anext__(), timeout=30.0)
                     yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
                 except asyncio.TimeoutError:
                     # 发送心跳保持连接
                     yield f"data: {json.dumps({'type': 'heartbeat', 'timestamp': int(time.time())}, ensure_ascii=False)}\n\n"
+                except StopAsyncIteration:
+                    # 订阅结束
+                    break
         except asyncio.CancelledError:
             print(f"⏹️  会话事件 SSE 断开: session={session_name}, agent={agent_name}")
             raise

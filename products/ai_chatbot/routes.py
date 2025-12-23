@@ -17,6 +17,8 @@ AI 智能客服 - API 路由
 - POST /token/refresh - 刷新 Token
 - POST /manual/escalate - 人工升级
 - POST /manual/messages - 人工消息写入
+- GET /sessions/{session_name} - 获取会话状态
+- GET /sessions/{session_name}/events - 会话 SSE 事件流
 """
 
 from fastapi import APIRouter
@@ -29,9 +31,11 @@ from products.ai_chatbot.handlers.chat import router as chat_router
 from products.ai_chatbot.handlers.conversation import router as conversation_router
 from products.ai_chatbot.handlers.config import router as config_router
 from products.ai_chatbot.handlers.manual import router as manual_router
+from products.ai_chatbot.handlers.sessions import router as sessions_router
 
 # 注册所有子路由
 router.include_router(chat_router)
 router.include_router(conversation_router)
 router.include_router(config_router)
 router.include_router(manual_router)
+router.include_router(sessions_router)

@@ -46,6 +46,7 @@
 |------|--------|------|-----------|
 | 转人工会话流转 | `docs/features/human-handoff/` | ✅ | 触发转人工、发布事件 |
 | 微服务 SSE 通信 | `docs/features/microservice-sse-communication/` | ⏳ 开发中 | 发送 SSE 消息 |
+| 17track 物流集成 | `docs/features/17track-integration/` | ⏳ 开发中 | 商品卡片展示物流轨迹 |
 
 ---
 
@@ -68,3 +69,26 @@
 **对接模块**:
 - `infrastructure/bootstrap/sse.py` - SSE 消息发布
 - `products/agent_workbench` - 接收消息
+
+---
+
+### 17track 物流追踪集成
+
+**主文档**: `docs/features/17track-integration/`
+
+**状态**: ⏳ 开发中
+
+**本模块职责**:
+- 商品卡片展示物流状态
+- 点击「查看物流」展开完整轨迹时间线
+- 调用 tracking 服务获取物流事件
+
+**涉及文件**:
+| 文件 | 改动类型 | 说明 |
+|------|----------|------|
+| `frontend/src/components/ChatMessage.vue` | 修改 | 添加可折叠物流轨迹 |
+| `routes.py` 或 `handlers/` | 新增 | 物流轨迹查询 API |
+
+**对接模块**:
+- `services/tracking` - 17track API 封装
+- `products/notification` - 物流状态通知

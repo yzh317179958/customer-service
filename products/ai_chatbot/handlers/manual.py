@@ -22,8 +22,9 @@ from services.session.shift_config import is_in_shift
 from services.email.service import send_escalation_email
 from products.ai_chatbot.dependencies import (
     get_session_store, get_regulator,
-    get_sse_queues, get_smart_assignment_engine, get_customer_reply_auto_reopen
+    get_smart_assignment_engine, get_customer_reply_auto_reopen
 )
+from infrastructure.bootstrap.sse import enqueue_sse_message
 from products.ai_chatbot.handlers.chat import conversation_cache
 
 router = APIRouter(prefix="/manual", tags=["Manual"])
@@ -39,9 +40,8 @@ async def handle_customer_reply_event(session_state: SessionState, source: str):
 
     try:
         async def notify_callback(target: str, payload: dict):
-            sse_queues = get_sse_queues()
-            if target in sse_queues:
-                await sse_queues[target].put(payload)
+            # 使用统一 SSE 接口（支持 Redis 跨进程）
+            await enqueue_sse_message(target, payload)
 
         updated_tickets = await customer_reply_auto_reopen.handle_reply(
             session_state,
@@ -65,7 +65,6 @@ async def manual_escalate(request: dict):
     Body: { "session_name": "session_123", "reason": "user_request" }
     """
     session_store = get_session_store()
-    sse_queues = get_sse_queues()
 
     session_name = request.get("session_name")
     reason = request.get("reason", "user_request")
@@ -161,15 +160,14 @@ async def manual_escalate(request: dict):
             "timestamp": int(time.time())
         }, ensure_ascii=False))
 
-        # P0-5: 推送状态变化事件到 SSE
-        if session_name in sse_queues:
-            await sse_queues[session_name].put({
-                "type": "status_change",
-                "status": session_state.status,
-                "reason": reason,
-                "timestamp": int(time.time())
-            })
-            print(f"✅ SSE 推送状态变化: {session_state.status}")
+        # P0-5: 推送状态变化事件到 SSE（支持 Redis 跨进程）
+        await enqueue_sse_message(session_name, {
+            "type": "status_change",
+            "status": session_state.status,
+            "reason": reason,
+            "timestamp": int(time.time())
+        })
+        print(f"✅ SSE 推送状态变化: {session_state.status}")
 
         return {
             "success": True,
@@ -206,7 +204,6 @@ async def manual_message(request: dict):
     }
     """
     session_store = get_session_store()
-    sse_queues = get_sse_queues()
 
     session_name = request.get("session_name")
     role = request.get("role")
@@ -252,17 +249,16 @@ async def manual_message(request: dict):
             "timestamp": message.timestamp
         }, ensure_ascii=False))
 
-        # P0-5: 通过 SSE 推送消息到客户端
-        if session_name in sse_queues:
-            await sse_queues[session_name].put({
-                "type": "manual_message",
-                "role": role,
-                "content": content,
-                "timestamp": message.timestamp,
-                "agent_id": message.agent_id,
-                "agent_name": message.agent_name
-            })
-            print(f"✅ SSE 推送人工消息到队列: {session_name}, role={role}")
+        # P0-5: 通过 SSE 推送消息到客户端（支持 Redis 跨进程）
+        await enqueue_sse_message(session_name, {
+            "type": "manual_message",
+            "role": role,
+            "content": content,
+            "timestamp": message.timestamp,
+            "agent_id": message.agent_id,
+            "agent_name": message.agent_name
+        })
+        print(f"✅ SSE 推送人工消息到队列: {session_name}, role={role}")
 
         if role == "user":
             await handle_customer_reply_event(session_state, source="manual_message")

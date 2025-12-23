@@ -71,6 +71,7 @@ from .sse import (
     get_sse_queues,
     get_or_create_sse_queue,
     enqueue_sse_message,
+    subscribe_sse_events,
     remove_sse_queue,
 )
 
@@ -133,6 +134,7 @@ __all__ = [
     "get_sse_queues",
     "get_or_create_sse_queue",
     "enqueue_sse_message",
+    "subscribe_sse_events",
     "remove_sse_queue",
     # Scheduler
     "start_background_tasks",
