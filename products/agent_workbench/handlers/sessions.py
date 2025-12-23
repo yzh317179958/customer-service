@@ -860,6 +860,10 @@ async def session_events(
             # 发送连接成功事件
             yield f"data: {json.dumps({'type': 'connected', 'session_name': session_name, 'timestamp': int(time.time())}, ensure_ascii=False)}\n\n"
 
+            # 发送消息历史（解决再次点击会话消息丢失问题）
+            if session_state and session_state.history:
+                yield f"data: {json.dumps({'type': 'history', 'messages': session_state.history}, ensure_ascii=False)}\n\n"
+
             # 使用统一订阅接口（支持 Redis 跨进程）
             subscription = subscribe_sse_events(session_name)
 

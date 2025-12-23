@@ -313,18 +313,18 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     if (!currentSession) return false;
 
     try {
-      const message = await sessionsApi.sendMessage(currentSession.session_name, {
+      await sessionsApi.sendMessage(currentSession.session_name, {
         content,
         message_type: messageType,
       });
 
-      // 添加到消息列表
-      get().addMessageToCurrentSession(message);
+      // 不在此处添加消息到列表，依赖 SSE 推送
+      // 避免 HTTP 响应 + SSE 事件导致消息重复
 
       return true;
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : '发送消息失败';
-      set({ error: message });
+      const errorMessage = error instanceof Error ? error.message : '发送消息失败';
+      set({ error: errorMessage });
       return false;
     }
   },

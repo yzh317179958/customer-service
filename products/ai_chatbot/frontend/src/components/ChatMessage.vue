@@ -796,39 +796,21 @@ const senderName = computed(() => {
 
 /* Agent Message - Premium Dark Theme (与坐席工作台一致) */
 .message.agent .message-content {
-  background: linear-gradient(135deg, var(--fiido-black, #0f172a) 0%, #1e293b 100%);
+  background: var(--fiido-black, #0f172a);
   color: #ffffff;
   border-bottom-left-radius: 4px;
-  box-shadow:
-    0 4px 16px rgba(15, 23, 42, 0.2),
-    0 2px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   border: none;
-  position: relative;
-  overflow: hidden;
 }
 
-/* Agent Message Accent Line */
+/* Agent Message Accent Line - 移除过度装饰 */
 .message.agent .message-content::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: linear-gradient(180deg, var(--fiido, #00a6a0) 0%, #00c4bd 100%);
-  border-radius: 3px 0 0 3px;
+  display: none;
 }
 
-/* Agent Message Subtle Glow */
+/* Agent Message Subtle Glow - 移除过度装饰 */
 .message.agent .message-content::after {
-  content: '';
-  position: absolute;
-  top: -50%;
-  right: -50%;
-  width: 100%;
-  height: 100%;
-  background: radial-gradient(circle, rgba(0, 166, 160, 0.08) 0%, transparent 70%);
-  pointer-events: none;
+  display: none;
 }
 
 /* Markdown Styles */
