@@ -22,6 +22,7 @@ import uuid
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -862,7 +863,8 @@ async def session_events(
 
             # 发送消息历史（解决再次点击会话消息丢失问题）
             if session_state and session_state.history:
-                yield f"data: {json.dumps({'type': 'history', 'messages': session_state.history}, ensure_ascii=False)}\n\n"
+                history = jsonable_encoder(session_state.history)
+                yield f"data: {json.dumps({'type': 'history', 'messages': history}, ensure_ascii=False)}\n\n"
 
             # 使用统一订阅接口（支持 Redis 跨进程）
             subscription = subscribe_sse_events(session_name)
@@ -871,7 +873,7 @@ async def session_events(
                 try:
                     # 等待下一条消息，30秒超时发送心跳
                     payload = await asyncio.wait_for(subscription.__anext__(), timeout=30.0)
-                    yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+                    yield f"data: {json.dumps(jsonable_encoder(payload), ensure_ascii=False)}\n\n"
                 except asyncio.TimeoutError:
                     # 发送心跳保持连接
                     yield f"data: {json.dumps({'type': 'heartbeat', 'timestamp': int(time.time())}, ensure_ascii=False)}\n\n"

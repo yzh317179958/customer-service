@@ -361,10 +361,46 @@ curl "https://ai.fiido.com/api/shopify/orders/global-search?q=UK22080"
 
 ---
 
+## Step 10: Bug 修复（坐席端重复消息/点击会话清空 + 气泡一致性）
+
+**完成时间:** 2025-12-23 12:30
+**版本号:** v7.6.11
+**所属模块:** products/agent_workbench + products/ai_chatbot
+
+**问题现象:**
+- 坐席工作台在人工接管后，发送一条消息会显示两条重复气泡
+- 再次点击同一会话，消息区域被清空且无法恢复
+- AI 客服端人工回复气泡比用户气泡“更大/更高”，视觉不一致
+
+**根因分析:**
+- 坐席端消息列表缺少去重 + 重复建立 SSE 订阅时易收到同一条事件多次
+- 会话重新选择时清空 `currentMessages`，但 SSE `history` 事件在后端序列化失败导致无法回填
+- AI 客服端人工/AI 消息走 Markdown 渲染，默认会包裹 `<p>` 并带 margin，导致单段文本高度比用户纯文本更大
+
+**修复内容:**
+- 坐席端：增加消息去重窗口（按 role/content/agent_id/timestamp 近似判重），避免重复展示
+- 坐席端：记录并复用已订阅会话，重复点击同一会话不再重复建立 SSE 连接/清空消息
+- 坐席端：选择会话时优先使用会话详情中的 `history` 直接填充消息列表（不再完全依赖 SSE）
+- 后端：SSE `history` 与实时 payload 使用 `jsonable_encoder` 序列化，避免 Pydantic Model 导致连接异常
+- AI 客服端：收敛气泡 padding/font-size，并移除 Markdown 单段落额外 margin（保留段落间距）
+
+**涉及文件:**
+- `products/agent_workbench/handlers/sessions.py`
+- `products/agent_workbench/frontend/src/stores/sessionStore.ts`
+- `products/ai_chatbot/frontend/src/components/ChatMessage.vue`
+
+**测试结果:**
+- ✅ 坐席端发送消息不再出现重复两条
+- ✅ 重复点击会话列表，消息不再清空/可稳定展示历史
+- ✅ AI 客服端人工回复与用户消息气泡高度更一致
+
+---
+
 ## 版本记录
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| v7.6.11 | 2025-12-23 | Step 10 完成：修复坐席端重复/清空问题，统一气泡显示 |
 | v7.6.10 | 2025-12-23 | Step 9 完成：修复消息重复、持久化、UI 问题 |
 | v7.6.7 | 2025-12-23 | Step 8 完成：部署到生产服务器验证通过 |
 | v7.6.7 | 2025-12-23 | Step 7 完成：跨进程端到端测试通过 |

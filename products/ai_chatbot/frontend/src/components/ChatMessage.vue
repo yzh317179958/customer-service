@@ -769,11 +769,11 @@ const senderName = computed(() => {
 
 /* Message Content Bubble - 统一风格 */
 .message-content {
-  padding: 14px 18px;
+  padding: 12px 16px;
   border-radius: 16px;
   word-wrap: break-word;
   line-height: 1.6;
-  font-size: 14px;
+  font-size: 13px;
   position: relative;
 }
 
@@ -828,7 +828,11 @@ const senderName = computed(() => {
 }
 
 .message-content :deep(p) {
-  margin: 8px 0;
+  margin: 0;
+}
+
+.message-content :deep(p + p) {
+  margin-top: 8px;
 }
 
 .message-content :deep(ul),

@@ -22,6 +22,30 @@ import { useAuthStore } from './authStore';
 
 // ============ 类型定义 ============
 
+const DUPLICATE_MESSAGE_WINDOW_SECONDS = 0.5;
+
+const isDuplicateMessage = (existing: MessageInfo[], incoming: MessageInfo): boolean => {
+  const tail = existing.slice(-20);
+  return tail.some((m) => {
+    const sameRole = m.role === incoming.role;
+    const sameContent = m.content === incoming.content;
+    const sameAgent = (m.agent_id || '') === (incoming.agent_id || '');
+    const sameType = (m.message_type || 'text') === (incoming.message_type || 'text');
+    const tsDiff = Math.abs((m.timestamp || 0) - (incoming.timestamp || 0));
+    return sameRole && sameContent && sameAgent && sameType && tsDiff < DUPLICATE_MESSAGE_WINDOW_SECONDS;
+  });
+};
+
+const dedupeMessages = (messages: MessageInfo[]): MessageInfo[] => {
+  const result: MessageInfo[] = [];
+  for (const msg of messages) {
+    if (!isDuplicateMessage(result, msg)) {
+      result.push(msg);
+    }
+  }
+  return result;
+};
+
 interface SessionState {
   // 列表数据
   sessions: SessionInfo[];
@@ -43,6 +67,7 @@ interface SessionState {
 
   // SSE
   eventSource: EventSource | null;
+  subscribedSessionName: string | null;
 
   // 筛选
   statusFilter: SessionStatus | null;
@@ -93,6 +118,7 @@ const initialState: SessionState = {
   isLoadingMessages: false,
   error: null,
   eventSource: null,
+  subscribedSessionName: null,
   statusFilter: null,
 };
 
@@ -165,13 +191,24 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
    * 选中会话
    */
   selectSession: async (sessionName: string): Promise<void> => {
+    const { currentSession, subscribedSessionName, eventSource } = get();
+
+    // 重复点击同一个会话：保持现有消息，不重复建立 SSE 连接
+    if (currentSession?.session_name === sessionName && eventSource && subscribedSessionName === sessionName) {
+      return;
+    }
+
     set({ isLoadingMessages: true, error: null });
 
     try {
       const session = await sessionsApi.getSession(sessionName);
+
+      // 会话详情可能包含 history（后端 SessionState），优先用它填充消息列表
+      const history = (session as any).history || (session as any).messages || [];
+
       set({
         currentSession: session,
-        currentMessages: [], // 消息从 SSE 获取
+        currentMessages: Array.isArray(history) ? dedupeMessages(history) : [],
         isLoadingMessages: false,
       });
 
@@ -350,7 +387,12 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
    * 订阅会话 SSE 事件
    */
   subscribeToSession: (sessionName: string): void => {
-    // 先取消之前的订阅
+    const { eventSource: existingEventSource, subscribedSessionName } = get();
+    if (existingEventSource && subscribedSessionName === sessionName) {
+      return;
+    }
+
+    // 先取消之前的订阅（切换会话）
     get().unsubscribeFromSession();
 
     const eventSource = sessionsApi.subscribeEvents(
@@ -383,12 +425,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
             case 'status_change':
               // 处理会话状态变化，刷新会话列表
               console.log('Session status changed:', data.status);
-              get().refreshSessions();
+              void get().fetchSessions();
+              void get().fetchQueue();
               break;
             case 'history':
               // 初始消息历史
               if (Array.isArray(data.messages)) {
-                set({ currentMessages: data.messages });
+                set({ currentMessages: dedupeMessages(data.messages) });
               }
               break;
             case 'connected':
@@ -408,7 +451,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       }
     );
 
-    set({ eventSource });
+    set({ eventSource, subscribedSessionName: sessionName });
   },
 
   /**
@@ -418,7 +461,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     const { eventSource } = get();
     if (eventSource) {
       eventSource.close();
-      set({ eventSource: null });
+      set({ eventSource: null, subscribedSessionName: null });
     }
   },
 
@@ -445,9 +488,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
    * 添加消息到当前会话
    */
   addMessageToCurrentSession: (message: MessageInfo): void => {
-    set((state) => ({
-      currentMessages: [...state.currentMessages, message],
-    }));
+    set((state) => {
+      const incoming = message as MessageInfo;
+      if (isDuplicateMessage(state.currentMessages, incoming)) {
+        return state;
+      }
+      return { currentMessages: [...state.currentMessages, incoming] };
+    });
   },
 
   /**
