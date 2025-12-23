@@ -44,9 +44,11 @@ from services.session.state import (
 router = APIRouter()
 
 # HTTP 超时配置
+# 注意：Coze Workflow 调用插件（如 Shopify 订单查询）可能需要较长时间
+# read 超时需要足够长，建议 120 秒以上
 HTTP_TIMEOUT = httpx.Timeout(
     connect=float(os.getenv("HTTP_TIMEOUT_CONNECT", 10.0)),
-    read=float(os.getenv("HTTP_TIMEOUT_READ", 30.0)),
+    read=float(os.getenv("HTTP_TIMEOUT_READ", 120.0)),  # 从 30s 增加到 120s
     write=float(os.getenv("HTTP_TIMEOUT_WRITE", 30.0)),
     pool=float(os.getenv("HTTP_TIMEOUT_POOL", 10.0))
 )

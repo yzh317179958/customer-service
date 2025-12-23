@@ -12,7 +12,7 @@
 | Phase 1: services/tracking | ✅ 完成 | 4/4 |
 | Phase 2: products/notification | ✅ 完成 | 6/6 |
 | Phase 3: ai_chatbot 扩展 | ✅ 完成 | 3/3 |
-| Phase 4: 集成与部署 | ⏳ 开发中 | 1/2 |
+| Phase 4: 集成与部署 | ✅ 完成 | 2/2 |
 
 ---
 
@@ -489,4 +489,91 @@ notification_records (20 字段, 10 索引)
 
 ---
 
-*下一步: Step 4.2 环境变量配置和部署*
+## Step 4.2: 环境变量配置和部署
+
+**完成时间:** 2025-12-23
+**所属模块:** 跨模块集成
+
+**完成内容:**
+- 验证 `.env` 中 17track 配置项完整性
+  - `TRACK17_API_KEY` - 已配置
+  - `TRACK17_API_URL` - 已配置
+  - `TRACK17_WEBHOOK_SECRET` - 暂留空（可选，后续按需配置）
+- 启用 notification 模块：`ENABLE_NOTIFICATION=true`
+- 验证所有模块导入正常
+
+**测试结果:**
+- ✅ 环境变量配置完整
+- ✅ notification 模块导入成功（routes, handlers, notification_sender）
+- ✅ tracking 服务初始化成功
+- ✅ 数据库模型导入成功（TrackingRegistrationModel, NotificationRecordModel）
+
+**备注:**
+- WEBHOOK_SECRET 暂留空，17track 推送时不验证签名
+- 如需验证签名安全性，后续可在 17track 控制台获取并配置
+
+---
+
+## 🎉 17track 物流追踪集成 - 开发完成
+
+**完成时间:** 2025-12-23
+**版本号:** v7.6.0
+
+### 功能清单
+
+| 模块 | 功能 | 状态 |
+|------|------|------|
+| services/tracking | 17track API V2.4 客户端 | ✅ |
+| services/tracking | 运单注册、轨迹查询 | ✅ |
+| services/tracking | Webhook 解析、签名验证 | ✅ |
+| services/tracking | 缓存机制（Redis/内存） | ✅ |
+| products/notification | Shopify 发货 Webhook | ✅ |
+| products/notification | 17track 状态推送处理 | ✅ |
+| products/notification | 拆包裹/预售通知 | ✅ |
+| products/notification | 异常警报/签收确认 | ✅ |
+| products/ai_chatbot | 物流轨迹查询 API | ✅ |
+| products/ai_chatbot | 前端物流时间线 | ✅ |
+| infrastructure/database | 运单注册记录表 | ✅ |
+| infrastructure/database | 通知发送记录表 | ✅ |
+
+### 文件清单
+
+```
+新增文件:
+├── services/tracking/
+│   ├── __init__.py
+│   ├── README.md
+│   ├── client.py           # 17track API 客户端
+│   ├── models.py           # 数据模型
+│   ├── webhook.py          # Webhook 解析
+│   └── service.py          # 业务逻辑层
+│
+├── products/notification/
+│   ├── __init__.py
+│   ├── main.py             # 独立模式入口
+│   ├── config.py           # 配置管理
+│   ├── routes.py           # Webhook 路由
+│   ├── handlers/
+│   │   ├── shopify_handler.py
+│   │   ├── tracking_handler.py
+│   │   └── notification_sender.py
+│   └── templates/          # 4 个邮件模板
+│
+├── products/ai_chatbot/handlers/tracking.py  # 物流轨迹 API
+│
+└── infrastructure/database/
+    ├── models/tracking.py                    # ORM 模型
+    └── migrations/versions/2a8f3b4c5d6e_*.py  # 迁移脚本
+
+修改文件:
+├── .env                                      # ENABLE_NOTIFICATION=true
+├── products/ai_chatbot/routes.py             # 注册 tracking 路由
+├── products/ai_chatbot/frontend/.../ChatMessage.vue  # 物流时间线
+└── infrastructure/database/models/__init__.py        # 导出新模型
+```
+
+### 下一步（可选）
+
+1. 配置 Shopify Webhook（发货事件回调）
+2. 配置 17track Webhook Secret（安全验证）
+3. 部署到生产服务器
