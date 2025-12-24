@@ -424,7 +424,7 @@ docs/features/[功能名]/
 **生成提示词（内部使用）：**
 
 ```
-请根据以下 PRD 和技术栈文档生成跨模块实现计划：
+！请根据以下 PRD 和技术栈文档生成跨模块实现计划：
 
 【PRD 文档】@prd.md
 
@@ -443,7 +443,7 @@ docs/features/[功能名]/
 2. 每个 Step 要小且具体
 3. 每个 Step 标注所属模块
 4. 每个 Step 包含测试方法
-5. 只写指令，不写具体代码
+5. 只写指令，不写具体代码！！！
 
 格式要求：
 
@@ -670,15 +670,15 @@ Phase 5: 集成测试
 
 ## 完成后的检查清单
 
-- [ ] 已询问用户需求描述
-- [ ] 已分析涉及模块并获用户确认
-- [ ] 创建 `docs/features/[功能名]/` 目录
-- [ ] 生成 `prd.md`
-- [ ] 生成 `tech-stack.md`
-- [ ] 生成 `implementation-plan.md`
-- [ ] 创建空白 `progress.md`
-- [ ] 创建空白 `architecture.md`
-- [ ] 更新各模块 `cross-module-refs.md`
+- [ ]  已询问用户需求描述
+- [ ]  已分析涉及模块并获用户确认
+- [ ]  创建 `docs/features/[功能名]/` 目录
+- [ ]  生成 `prd.md`
+- [ ]  生成 `tech-stack.md`
+- [ ]  生成 `implementation-plan.md`
+- [ ]  创建空白 `progress.md`
+- [ ]  创建空白 `architecture.md`
+- [ ]  更新各模块 `cross-module-refs.md`
 
 ---
 
@@ -931,23 +931,24 @@ docs/features/_templates/
 
 ## 迭代更新的检查清单
 
-- [ ] 已阅读现有 docs/features/[功能名]/ 所有文档
-- [ ] 已阅读各模块 cross-module-refs.md
-- [ ] 已询问用户新需求描述
-- [ ] 已在 prd.md 开头追加 v2.0 章节
-- [ ] 已在 tech-stack.md 追加新依赖（如有）
-- [ ] 已在 implementation-plan.md 追加新 Phase
-- [ ] 已在 progress.md 追加 v2.0 步骤
-- [ ] 已更新各模块 cross-module-refs.md 状态
-- [ ] 保留了所有历史内容
-- [ ] 通知用户可以继续开发
+- [ ]  已阅读现有 docs/features/[功能名]/ 所有文档
+- [ ]  已阅读各模块 cross-module-refs.md
+- [ ]  已询问用户新需求描述
+- [ ]  已在 prd.md 开头追加 v2.0 章节
+- [ ]  已在 tech-stack.md 追加新依赖（如有）
+- [ ]  已在 implementation-plan.md 追加新 Phase
+- [ ]  已在 progress.md 追加 v2.0 步骤
+- [ ]  已更新各模块 cross-module-refs.md 状态
+- [ ]  保留了所有历史内容
+- [ ]  通知用户可以继续开发
 
 ---
 
 ## 相关资源
 
-| 资源             | 路径                                              |
-| ---------------- | ------------------------------------------------- |
+
+| 资源             | 路径                                            |
+| ---------------- | ----------------------------------------------- |
 | 单模块文档生成   | `.claude/skills/memory-bank-guide/SKILL.md`     |
 | 跨模块开发执行   | `.claude/skills/cross-module-workflow/SKILL.md` |
 | Vibe Coding 规范 | `docs/参考资料/Vibe_Coding开发规范流程说明.md`  |

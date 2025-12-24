@@ -87,3 +87,14 @@ export type {
   QuickReplyListParams,
   UseQuickReplyRequest,
 } from './quickReplies';
+
+// Shopify 订单 API
+export { shopifyApi } from './shopify';
+export type {
+  ShopifySite,
+  OrderLineItem,
+  OrderAddress,
+  ShopifyOrder,
+  TrackingInfo,
+  TrackingEvent,
+} from './shopify';

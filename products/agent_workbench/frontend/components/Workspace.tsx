@@ -11,14 +11,17 @@ import {
   ChevronUp, UserPlus, Hash, Calendar, Layers, Info, Settings2,
   Box, CreditCard, Activity, HelpCircle, Tag, TrendingUp, Loader2
 } from 'lucide-react';
-import { useSessionStore } from '../src/stores';
+import { useSessionStore, useAuthStore } from '../src/stores';
 import { sessionsApi } from '../src/api';
 import MessageContent from './MessageContent';
+import QuickReplyPanel from './QuickReplyPanel';
+import OrderPanel from './OrderPanel';
 
 const Workspace: React.FC = () => {
   const [inputText, setInputText] = useState('');
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
   const [rightPanelTab, setRightPanelTab] = useState<'info' | 'order' | 'roi'>('info');
+  const [showQuickReplyPanel, setShowQuickReplyPanel] = useState(false);
 
   // 创建工单弹窗状态
   const [showTicketModal, setShowTicketModal] = useState(false);
@@ -47,6 +50,9 @@ const Workspace: React.FC = () => {
     sendMessage,
     clearError,
   } = useSessionStore();
+
+  // 从 authStore 获取坐席信息
+  const { agent } = useAuthStore();
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -348,7 +354,26 @@ const Workspace: React.FC = () => {
             </div>
 
             {/* 输入区域 */}
-            <div className="p-4 border-t border-slate-100 bg-white">
+            <div className="p-4 border-t border-slate-100 bg-white relative">
+              {/* 快捷回复面板 */}
+              <QuickReplyPanel
+                isOpen={showQuickReplyPanel}
+                onClose={() => setShowQuickReplyPanel(false)}
+                onSelect={(content) => {
+                  setInputText(prev => prev ? `${prev}\n${content}` : content);
+                  setShowQuickReplyPanel(false);
+                }}
+                sessionContext={{
+                  session_name: currentSession?.session_name,
+                  customer_name: currentSession?.customer_name,
+                  customer_email: currentSession?.customer_email,
+                }}
+                agentContext={{
+                  agent_name: agent?.name,
+                  agent_id: agent?.id,
+                }}
+              />
+
               {aiSuggestions.length > 0 && (
                 <div className="flex gap-2 mb-3 overflow-x-auto no-scrollbar py-1">
                   <span className="bg-slate-50 text-slate-400 px-2 py-1 rounded text-[9px] font-black uppercase flex items-center gap-1 shrink-0 border border-slate-200">
@@ -379,6 +404,13 @@ const Workspace: React.FC = () => {
                     <Image size={16} className="cursor-pointer hover:text-fiido"/>
                     <Paperclip size={16} className="cursor-pointer hover:text-fiido"/>
                     <Monitor size={16} className="cursor-pointer hover:text-fiido"/>
+                    <button
+                      onClick={() => setShowQuickReplyPanel(!showQuickReplyPanel)}
+                      className={`transition-colors ${showQuickReplyPanel ? 'text-fiido' : 'hover:text-fiido'}`}
+                      title="快捷回复"
+                    >
+                      <Zap size={16} />
+                    </button>
                   </div>
                   <button
                     onClick={handleSendMessage}
@@ -485,16 +517,13 @@ const Workspace: React.FC = () => {
             )}
 
             {rightPanelTab === 'order' && (
-              <div className="space-y-3 animate-in fade-in duration-300">
-                <div className="flex flex-col items-center justify-center py-8 text-slate-400">
-                  <ShoppingBag size={32} className="mb-3 opacity-30" />
-                  <p className="text-[11px] font-bold">暂无关联订单</p>
-                  <p className="text-[10px] mt-1">可通过邮箱查询客户订单</p>
-                </div>
-                <button className="w-full py-2.5 border border-dashed border-slate-200 rounded-xl text-[10px] font-black text-slate-400 hover:border-fiido hover:text-fiido transition-all uppercase tracking-widest">
-                  + 查询 Shopify 订单
-                </button>
-              </div>
+              <OrderPanel
+                customerEmail={currentSession?.customer_email}
+                onOrderSelect={(order) => {
+                  console.log('选中订单:', order);
+                  // TODO: 可以在这里添加订单关联逻辑
+                }}
+              />
             )}
 
             {rightPanelTab === 'roi' && (

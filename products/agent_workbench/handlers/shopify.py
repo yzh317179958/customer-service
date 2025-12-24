@@ -40,6 +40,7 @@ from services.shopify.service import (
 from services.shopify.client import ShopifyAPIError
 from services.shopify.sites import get_all_configured_sites
 from services.asset.service import match_order_items_images
+from services.tracking import get_tracking_service
 
 router = APIRouter(prefix="/shopify", tags=["Shopify Orders"])
 
@@ -444,7 +445,7 @@ async def get_shopify_site_order_tracking(
         order_id: Shopify 订单 ID
 
     Returns:
-        物流信息
+        物流信息（包含 17track 轨迹事件）
     """
     # 检查 order_id 是否为空或无效值
     if not order_id or order_id in ("null", "None", "undefined", ""):
@@ -461,6 +462,48 @@ async def get_shopify_site_order_tracking(
     try:
         service = get_shopify_service(site)
         result = await service.get_order_tracking(order_id)
+
+        # 如果有运单号，调用 17track 获取轨迹事件
+        tracking_data = result.get("tracking")
+        primary_tracking = tracking_data.get("primary_tracking") if tracking_data else None
+        tracking_number = primary_tracking.get("number") if primary_tracking else None
+
+        if tracking_data and tracking_number:
+            try:
+                tracking_service = get_tracking_service()
+                tracking_info = await tracking_service.get_tracking_info_with_auto_register(
+                    tracking_number=tracking_number,
+                    carrier=primary_tracking.get("company"),
+                    order_id=order_id,
+                    order_number=tracking_data.get("order_number"),
+                )
+                if tracking_info:
+                    # 添加 17track 返回的事件列表
+                    events = []
+                    if tracking_info.events:
+                        for event in tracking_info.events:
+                            events.append({
+                                "timestamp": event.timestamp_str or (event.timestamp.isoformat() if event.timestamp else None),
+                                "description": event.description or event.status,
+                                "description_zh": event.status_zh or event.description_zh,
+                                "location": event.location,
+                            })
+                    tracking_data["events"] = events
+                    # 添加物流状态
+                    if tracking_info.status:
+                        tracking_data["shipment_status"] = tracking_info.status.value
+                        tracking_data["shipment_status_zh"] = tracking_info.status.zh
+                    if tracking_info.is_pending:
+                        tracking_data["is_pending"] = True
+            except Exception as e:
+                # 17track 查询失败不影响主流程，记录日志即可
+                print(f"⚠️ 17track 物流查询失败: {tracking_number}, 错误: {e}")
+
+        # 添加前端兼容字段（从 primary_tracking 提取）
+        if tracking_data and primary_tracking:
+            tracking_data["tracking_number"] = primary_tracking.get("number")
+            tracking_data["tracking_company"] = primary_tracking.get("company")
+            tracking_data["tracking_url"] = primary_tracking.get("tracking_url_generated") or primary_tracking.get("url")
 
         return {
             "success": True,

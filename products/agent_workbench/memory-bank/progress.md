@@ -2,7 +2,7 @@
 
 > 产品模块：products/agent_workbench
 > 开始日期：2025-12-21
-> 当前步骤：Step 12 ✅ 已完成（核心功能全部完成）
+> 当前步骤：Step 13 ✅ 已完成
 
 ---
 
@@ -327,6 +327,43 @@
 
 ---
 
+### Step 13: 快捷回复接入
+
+**完成时间:** 2025-12-24
+**版本号:** v7.4.3
+
+**完成内容:**
+- 创建 `components/QuickReplyPanel.tsx`：快捷回复弹出面板
+  - 分类筛选（全部、问候语、结束语、道歉、物流、退款、产品、技术、自定义）
+  - 关键词搜索（300ms 防抖）
+  - 点击快捷回复自动插入输入框
+  - 变量替换（通过 API `/api/quick-replies/{id}/use`）
+  - ESC 键关闭、点击外部关闭
+- 修改 `components/Workspace.tsx`：集成快捷回复面板
+  - 添加 ⚡ 闪电图标按钮（工具栏）
+  - 传递 sessionContext 和 agentContext 用于变量替换
+- 创建 `components/QuickReplyManager.tsx`：话术短语库管理页面
+  - 话术列表展示（卡片式布局）
+  - 新增/编辑/删除话术（带确认弹窗）
+  - 分类筛选、关键词搜索
+  - 支持快捷键、共享开关
+  - 变量提示说明
+- 修改 `components/Settings.tsx`：点击"话术短语库"进入管理页面
+
+**测试结果:**
+- ✅ Workspace 闪电图标可弹出快捷回复面板
+- ✅ 点击快捷回复内容插入输入框
+- ✅ 变量替换正常（{agent_name}, {current_time} 等）
+- ✅ Settings 点击"话术短语库"进入管理页面
+- ✅ 话术 CRUD 功能正常
+
+**备注:**
+- 变量使用单花括号 `{变量名}`
+- 当前可用变量：{agent_name}, {customer_name}, {current_time}, {current_date}
+- {order_id} 等 Shopify 相关变量需 Step 14 集成后可用
+
+---
+
 ## 待完成步骤
 
 | Phase | Step | 标题 | 状态 |
@@ -343,7 +380,7 @@
 | **Phase 4** | Step 10 | 登录页功能接入 | ✅ 已完成 |
 | | Step 11 | 会话工作台接入 | ✅ 已完成 |
 | | Step 12 | 工单中心接入 | ✅ 已完成 |
-| **Phase 5** | Step 13 | 快捷回复接入 | ⏳ 待开始 |
+| **Phase 5** | Step 13 | 快捷回复接入 | ✅ 已完成 |
 | | Step 14 | 客户信息与订单查询 | ⏳ 待开始 |
 | | Step 15 | 侧边栏导航与路由 | ⏳ 待开始 |
 | **Phase 6** | Step 16 | 效能报表 Dashboard | ⏳ 待开始 |

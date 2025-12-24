@@ -431,6 +431,83 @@ class TrackingService:
         info = await self.get_tracking_info(tracking_number, carrier)
         return info.status if info else None
 
+    async def get_cached_status(
+        self,
+        tracking_number: str,
+    ) -> Optional[TrackingStatus]:
+        """
+        获取缓存中的物流状态（只读缓存，不发起 API 请求）
+
+        用于订单解析时快速获取已缓存的物流状态，
+        避免阻塞订单查询。
+
+        当 Shopify 的 shipment_status 为空时，可用此方法
+        从 17track 缓存中补充真实的物流状态。
+
+        Args:
+            tracking_number: 运单号
+
+        Returns:
+            TrackingStatus 枚举值，缓存不存在返回 None
+
+        性能说明:
+            - 只读 Redis/内存缓存，不发起网络请求
+            - 执行时间 < 10ms
+        """
+        cache_key = f"info:{tracking_number}"
+
+        # 只从缓存获取，不发起 API 请求
+        cached = await self._cache_get(cache_key)
+        if cached:
+            status_data = cached.get("status")
+            if status_data:
+                # 缓存中存储的是 status 的 value 字符串
+                if isinstance(status_data, str):
+                    return TrackingStatus.from_string(status_data)
+                elif isinstance(status_data, dict) and "value" in status_data:
+                    return TrackingStatus.from_string(status_data["value"])
+            logger.debug(f"缓存命中但无状态: {tracking_number}")
+            return None
+
+        logger.debug(f"缓存未命中: {tracking_number}")
+        return None
+
+    def get_cached_status_sync(
+        self,
+        tracking_number: str,
+    ) -> Optional[TrackingStatus]:
+        """
+        同步版本的缓存状态查询（只查内存缓存，不查 Redis）
+
+        用于同步方法中快速获取物流状态，避免 async/await 问题。
+        优先级低于 get_cached_status()，因为不查 Redis 可能命中率更低。
+
+        Args:
+            tracking_number: 运单号
+
+        Returns:
+            TrackingStatus 枚举值，内存缓存不存在返回 None
+
+        性能说明:
+            - 只读内存缓存，执行时间 < 1ms
+            - 不查 Redis，命中率可能较低
+        """
+        cache_key = f"info:{tracking_number}"
+
+        # 只从内存缓存获取
+        cached = self._cache.get(cache_key)
+        if cached:
+            if cached.get("expires_at", 0) > datetime.now().timestamp():
+                data = cached.get("data", {})
+                status_data = data.get("status")
+                if status_data:
+                    if isinstance(status_data, str):
+                        return TrackingStatus.from_string(status_data)
+                    elif isinstance(status_data, dict) and "value" in status_data:
+                        return TrackingStatus.from_string(status_data["value"])
+
+        return None
+
     async def is_delivered(
         self,
         tracking_number: str,
@@ -529,24 +606,51 @@ class TrackingService:
             # 有数据，直接返回
             return info
 
-        # 2. 查询失败或无数据，后台异步注册（不等待）
-        # 2.1 有 order_id：注册并建立订单映射（用于 webhook 通知）
-        if order_id and await self._mark_register_attempt(tracking_number):
-            logger.info(f"运单未注册，后台异步注册(含订单映射): {tracking_number} -> {order_id}")
-            asyncio.create_task(
-                self._async_register(tracking_number, carrier, order_id, order_number, destination_postal_code)
-            )
-        # 2.2 无 order_id：仍尝试注册到 17track（用于"查看物流"场景，避免一直 pending）
-        elif await self._mark_register_attempt(tracking_number):
-            logger.info(f"运单未注册，后台异步注册(无订单映射): {tracking_number}")
-            asyncio.create_task(self._async_register_tracking_only(tracking_number, carrier, destination_postal_code))
+        # 使用 carrier/邮编 作为后缀，避免“无邮编注册失败后 300s 内不重试”导致一直 pending
+        suffix_parts = []
+        if carrier:
+            suffix_parts.append(str(carrier).strip().lower())
+        if destination_postal_code:
+            suffix_parts.append(str(destination_postal_code).strip())
+        register_key_suffix = "|".join(suffix_parts) if suffix_parts else None
 
-        # 3. 返回"追踪中"状态，让用户稍后刷新
+        # 2. 查询失败或无数据，后台异步注册（不等待）
+        can_trigger_register = await self._mark_register_attempt(tracking_number, key_suffix=register_key_suffix)
+        if can_trigger_register:
+            # 2.1 有 order_id：注册并建立订单映射（用于 webhook 通知）
+            if order_id:
+                logger.info(f"运单未注册，后台异步注册(含订单映射): {tracking_number} -> {order_id}")
+                asyncio.create_task(
+                    self._async_register(tracking_number, carrier, order_id, order_number, destination_postal_code)
+                )
+            # 2.2 无 order_id：仍尝试注册到 17track（用于"查看物流"场景，避免一直 pending）
+            else:
+                logger.info(f"运单未注册，后台异步注册(无订单映射): {tracking_number}")
+                asyncio.create_task(
+                    self._async_register_tracking_only(
+                        tracking_number,
+                        carrier,
+                        destination_postal_code,
+                        order_number=order_number,
+                    )
+                )
+
+            # 3. 首次触发注册：返回“追踪中”
+            return TrackingInfo(
+                tracking_number=tracking_number,
+                status=TrackingStatus.NOT_FOUND,
+                status_zh="追踪中",
+                is_pending=True,
+                order_id=order_id,
+                order_number=order_number,
+            )
+
+        # 3. 近期已触发过注册但仍无数据：返回“未找到”（避免前端长期显示“更新中”）
         return TrackingInfo(
             tracking_number=tracking_number,
             status=TrackingStatus.NOT_FOUND,
-            status_zh="追踪中",
-            is_pending=True,
+            status_zh="暂无物流信息",
+            is_pending=False,
             order_id=order_id,
             order_number=order_number,
         )
@@ -588,7 +692,13 @@ class TrackingService:
         except Exception as e:
             logger.error(f"异步注册异常: {tracking_number}, {e}")
 
-    async def _mark_register_attempt(self, tracking_number: str, ttl_seconds: int = 300) -> bool:
+    async def _mark_register_attempt(
+        self,
+        tracking_number: str,
+        ttl_seconds: int = 300,
+        *,
+        key_suffix: Optional[str] = None,
+    ) -> bool:
         """
         标记一次“尝试注册”以避免短时间重复触发注册。
 
@@ -596,16 +706,17 @@ class TrackingService:
             True 表示本次可以触发注册；False 表示近期已触发过。
         """
         now = datetime.now().timestamp()
+        attempt_key = tracking_number if not key_suffix else f"{tracking_number}:{key_suffix}"
 
         # 内存去重
-        last = self._register_attempts.get(tracking_number)
+        last = self._register_attempts.get(attempt_key)
         if last and now - last < ttl_seconds:
             return False
 
         redis = self._get_redis()
         if redis:
             try:
-                key = f"tracking:register_attempt:{tracking_number}"
+                key = f"tracking:register_attempt:{attempt_key}"
                 # 优先使用 setnx / nx 语义（不同 redis 客户端 API 可能不同）
                 if hasattr(redis, "set"):
                     ok = await asyncio.wait_for(
@@ -613,13 +724,13 @@ class TrackingService:
                         timeout=REDIS_IO_TIMEOUT_SECONDS,
                     )
                     if ok:
-                        self._register_attempts[tracking_number] = now
+                        self._register_attempts[attempt_key] = now
                         return True
                     return False
             except Exception as e:
                 logger.debug(f"Redis 注册去重失败，降级到内存: {e}")
 
-        self._register_attempts[tracking_number] = now
+        self._register_attempts[attempt_key] = now
         return True
 
     async def _async_register_tracking_only(
@@ -627,6 +738,7 @@ class TrackingService:
         tracking_number: str,
         carrier: Optional[str],
         destination_postal_code: Optional[str] = None,
+        order_number: Optional[str] = None,
     ):
         """
         异步注册运单（无订单映射）
@@ -634,6 +746,12 @@ class TrackingService:
         适用于仅"查看物流"场景：允许用户没有 order_id 时也能完成 17track 注册并后续查询到轨迹。
         """
         try:
+            # 某些承运商（如 DX）需要目的地邮编；在无 order_id 场景下，尽量用 order_number 跨站点补齐
+            if not destination_postal_code and order_number:
+                destination_postal_code = await self._get_postal_code_from_order(order_number)
+                if destination_postal_code:
+                    logger.info(f"从订单 {order_number} 获取到邮编: {destination_postal_code}")
+
             result = await self.client.register_tracking(
                 tracking_number=tracking_number,
                 carrier_code=carrier,

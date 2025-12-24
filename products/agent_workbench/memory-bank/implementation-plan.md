@@ -17,6 +17,7 @@
 ```
 
 **关键前提**：
+
 - 后端 API 已完整实现（handlers/*.py）
 - 前端原型已存在（fronted_origin/）
 - 本计划聚焦前端改造和 API 接入
@@ -33,10 +34,12 @@
 将 `fronted_origin/` 重命名为 `frontend/`，更新 package.json 添加生产环境必需依赖。
 
 **涉及文件：**
+
 - `fronted_origin/` → `frontend/`（重命名）
 - `frontend/package.json`（修改）
 
 **测试方法：**
+
 ```bash
 cd products/agent_workbench/frontend
 npm install
@@ -45,6 +48,7 @@ npm run dev
 ```
 
 **预期结果：**
+
 - 目录已重命名为 frontend/
 - npm install 成功
 - Vite 开发服务器正常启动
@@ -58,9 +62,11 @@ npm run dev
 安装 axios、zustand、react-router-dom、clsx 等核心依赖。
 
 **涉及文件：**
+
 - `frontend/package.json`（修改）
 
 **测试方法：**
+
 ```bash
 cd products/agent_workbench/frontend
 npm install axios zustand react-router-dom clsx
@@ -69,6 +75,7 @@ npm run dev
 ```
 
 **预期结果：**
+
 - 所有依赖安装成功
 - 无版本冲突
 - 开发服务器正常运行
@@ -81,6 +88,7 @@ npm run dev
 将 CDN 引入的 Tailwind 改为本地构建，移除 index.html 中的 CDN 脚本。
 
 **涉及文件：**
+
 - `frontend/tailwind.config.js`（新增）
 - `frontend/postcss.config.js`（新增）
 - `frontend/src/index.css`（新增）
@@ -88,6 +96,7 @@ npm run dev
 - `frontend/src/main.tsx`（修改，引入 index.css）
 
 **测试方法：**
+
 ```bash
 npm run dev
 # 检查页面样式是否正常
@@ -95,6 +104,7 @@ npm run dev
 ```
 
 **预期结果：**
+
 - index.html 中无 CDN script 标签
 - Tailwind 样式正常编译
 - 自定义 fiido 品牌色生效
@@ -112,9 +122,11 @@ npm run dev
 创建 Axios 实例，配置 baseURL、JWT 自动注入、401 拦截跳转。
 
 **涉及文件：**
+
 - `frontend/src/api/client.ts`（新增）
 
 **测试方法：**
+
 ```bash
 npm run dev
 # 在浏览器控制台验证：
@@ -123,6 +135,7 @@ npm run dev
 ```
 
 **预期结果：**
+
 - Axios 实例创建成功
 - 请求自动携带 Authorization header（如有 token）
 - 401 响应触发登录跳转逻辑
@@ -135,9 +148,11 @@ npm run dev
 封装登录、登出、刷新 Token、获取/更新坐席信息等接口。
 
 **涉及文件：**
+
 - `frontend/src/api/auth.ts`（新增）
 
 **测试方法：**
+
 ```bash
 # 启动后端
 uvicorn backend:app --reload --port 8000
@@ -151,6 +166,7 @@ npm run dev
 ```
 
 **预期结果：**
+
 - login/logout/refresh/getProfile 函数可调用
 - 接口请求发送成功
 - 返回数据结构正确
@@ -163,9 +179,11 @@ npm run dev
 封装会话列表、队列、接管、转接、释放、消息发送等接口。
 
 **涉及文件：**
+
 - `frontend/src/api/sessions.ts`（新增）
 
 **测试方法：**
+
 ```bash
 # 浏览器控制台测试
 # import { sessionsApi } from './api/sessions'
@@ -174,6 +192,7 @@ npm run dev
 ```
 
 **预期结果：**
+
 - 所有会话相关接口函数可调用
 - GET/POST 请求正常发送
 
@@ -185,11 +204,13 @@ npm run dev
 封装工单 CRUD、SLA 仪表盘、快捷回复管理等接口。
 
 **涉及文件：**
+
 - `frontend/src/api/tickets.ts`（新增）
 - `frontend/src/api/quickReplies.ts`（新增）
 - `frontend/src/api/index.ts`（新增，统一导出）
 
 **测试方法：**
+
 ```bash
 # 浏览器控制台测试
 # import { ticketsApi, quickRepliesApi } from './api'
@@ -198,6 +219,7 @@ npm run dev
 ```
 
 **预期结果：**
+
 - 所有 API 模块可通过 index.ts 统一导出
 - 接口调用正常
 
@@ -213,9 +235,11 @@ npm run dev
 使用 Zustand 创建 authStore，管理登录状态、Token、坐席信息。
 
 **涉及文件：**
+
 - `frontend/src/stores/authStore.ts`（新增）
 
 **测试方法：**
+
 ```bash
 npm run dev
 # 浏览器控制台测试
@@ -224,6 +248,7 @@ npm run dev
 ```
 
 **预期结果：**
+
 - authStore 创建成功
 - login/logout 方法可调用
 - Token 存储到 localStorage
@@ -237,11 +262,13 @@ npm run dev
 创建 sessionStore 和 ticketStore，管理列表数据和当前选中项。
 
 **涉及文件：**
+
 - `frontend/src/stores/sessionStore.ts`（新增）
 - `frontend/src/stores/ticketStore.ts`（新增）
 - `frontend/src/stores/index.ts`（新增，统一导出）
 
 **测试方法：**
+
 ```bash
 npm run dev
 # 验证 store 可正常导入
@@ -249,6 +276,7 @@ npm run dev
 ```
 
 **预期结果：**
+
 - 两个 store 创建成功
 - 列表加载方法可调用
 - 状态变更触发组件更新
@@ -265,10 +293,12 @@ npm run dev
 将 LoginView 组件接入真实登录 API，实现完整登录流程。
 
 **涉及文件：**
+
 - `frontend/src/components/LoginView.tsx`（修改）
 - `frontend/src/App.tsx`（修改，添加路由守卫）
 
 **测试方法：**
+
 ```bash
 # 1. 访问 http://localhost:5173
 # 2. 使用测试账号登录
@@ -277,6 +307,7 @@ npm run dev
 ```
 
 **预期结果：**
+
 - 正确账号可登录成功
 - 错误账号显示错误提示
 - Token 存储到 localStorage
@@ -291,10 +322,12 @@ npm run dev
 接入会话列表、队列、接管、消息收发功能，实现 SSE 实时推送。
 
 **涉及文件：**
+
 - `frontend/src/components/Workspace.tsx`（修改）
 - `frontend/src/hooks/useSSE.ts`（新增）
 
 **测试方法：**
+
 ```bash
 # 1. 登录后进入工作台
 # 2. 查看待接入队列
@@ -304,6 +337,7 @@ npm run dev
 ```
 
 **预期结果：**
+
 - 会话队列从 API 加载
 - 可接管会话
 - 消息发送成功
@@ -317,9 +351,11 @@ npm run dev
 接入工单列表、创建、编辑、SLA 管理功能。
 
 **涉及文件：**
+
 - `frontend/src/components/TicketsView.tsx`（修改）
 
 **测试方法：**
+
 ```bash
 # 1. 进入工单中心
 # 2. 查看工单列表
@@ -329,6 +365,7 @@ npm run dev
 ```
 
 **预期结果：**
+
 - 工单列表正确加载
 - 列表/看板视图切换正常
 - 工单 CRUD 功能完整
@@ -346,9 +383,11 @@ npm run dev
 接入快捷回复列表、创建、编辑、删除功能。
 
 **涉及文件：**
+
 - `frontend/src/components/Workspace.tsx`（修改，右侧面板）
 
 **测试方法：**
+
 ```bash
 # 1. 在对话中点击快捷回复
 # 2. 验证可插入到输入框
@@ -356,6 +395,7 @@ npm run dev
 ```
 
 **预期结果：**
+
 - 快捷回复列表加载
 - 可插入到对话输入框
 - CRUD 功能正常
@@ -368,10 +408,12 @@ npm run dev
 接入客户档案显示、Shopify 订单查询功能。
 
 **涉及文件：**
+
 - `frontend/src/api/shopify.ts`（新增）
 - `frontend/src/components/Workspace.tsx`（修改）
 
 **测试方法：**
+
 ```bash
 # 1. 选中一个会话
 # 2. 查看客户信息面板
@@ -379,6 +421,7 @@ npm run dev
 ```
 
 **预期结果：**
+
 - 客户标签显示正确
 - 订单信息加载成功
 - 订单详情可展开
@@ -391,10 +434,12 @@ npm run dev
 实现 react-router-dom 路由，侧边栏导航切换页面。
 
 **涉及文件：**
+
 - `frontend/src/App.tsx`（修改）
 - `frontend/src/components/Sidebar.tsx`（修改）
 
 **测试方法：**
+
 ```bash
 # 1. 点击侧边栏各菜单
 # 2. 验证页面切换
@@ -403,6 +448,7 @@ npm run dev
 ```
 
 **预期结果：**
+
 - 路由切换正常
 - 浏览器地址栏 URL 正确
 - 刷新页面保持当前路由
@@ -419,10 +465,12 @@ npm run dev
 接入统计数据 API，实现图表展示（可用 Mock 数据）。
 
 **涉及文件：**
+
 - `frontend/src/components/Dashboard.tsx`（修改）
 - `frontend/src/api/stats.ts`（新增，可选）
 
 **测试方法：**
+
 ```bash
 # 1. 进入 Dashboard 页面
 # 2. 查看各统计卡片
@@ -430,6 +478,7 @@ npm run dev
 ```
 
 **预期结果：**
+
 - 统计数据显示（真实或 Mock）
 - 图表正确渲染
 - 无 JS 错误
@@ -442,9 +491,11 @@ npm run dev
 接入个人配置修改、密码修改功能。
 
 **涉及文件：**
+
 - `frontend/src/components/Settings.tsx`（修改）
 
 **测试方法：**
+
 ```bash
 # 1. 进入设置页面
 # 2. 修改个人信息
@@ -452,6 +503,7 @@ npm run dev
 ```
 
 **预期结果：**
+
 - 配置信息加载
 - 修改保存成功
 - 密码修改流程正常
@@ -468,10 +520,12 @@ npm run dev
 完整流程测试，修复问题，配置生产构建。
 
 **涉及文件：**
+
 - `frontend/vite.config.ts`（修改）
 - `frontend/.env.production`（新增）
 
 **测试方法：**
+
 ```bash
 # 完整流程测试：
 # 1. 登录 → 2. 查看队列 → 3. 接管会话 → 4. 发消息
@@ -483,6 +537,7 @@ npm run preview
 ```
 
 **预期结果：**
+
 - 核心流程无阻塞性 Bug
 - 构建成功无错误
 - 构建产物可正常运行
@@ -522,8 +577,9 @@ Step 18 (测试部署) ←── 最终验收
 
 ## 开发过程中可能需要的信息
 
-| 信息类型 | 说明 | 获取方式 |
-|----------|------|----------|
+
+| 信息类型      | 说明         | 获取方式            |
+| ------------- | ------------ | ------------------- |
 | 后端 API 地址 | 开发环境 URL | 询问用户或检查 .env |
-| 测试账号 | 登录测试用 | 询问用户或后端创建 |
-| Shopify API | 订单查询配置 | 检查 .env 已有配置 |
+| 测试账号      | 登录测试用   | 询问用户或后端创建  |
+| Shopify API   | 订单查询配置 | 检查 .env 已有配置  |

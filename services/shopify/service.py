@@ -26,6 +26,7 @@ from services.shopify.sites import (
     SiteCode,
 )
 from services.shopify.tracking import enrich_tracking_data
+from services.tracking import get_tracking_service, TrackingStatus
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +132,83 @@ class ShopifyService:
         Returns:
             包含订单详情和缓存状态的字典，如果订单不存在返回 None
         """
+        async def enrich_cached_delivery_status(order: Dict[str, Any]) -> bool:
+            """
+            缓存命中时的状态补全：
+            Shopify fulfillment.shipment_status 可能为空，导致商品显示为“已发货”。
+            若存在 tracking_number，则用 17track 的状态补全为“已收货/运输中/派送中/投递失败”。
+
+            Returns:
+                bool: 是否发生了更新（用于回写缓存）
+            """
+            line_items: List[Dict[str, Any]] = order.get("line_items") or []
+            if not line_items:
+                return False
+
+            # 仅补全：已发货（fulfilled）但 delivery_status 为空的实物商品
+            candidates: Dict[str, Optional[str]] = {}
+            for item in line_items:
+                if item.get("delivery_status"):
+                    continue
+                if item.get("fulfillment_status") != "fulfilled":
+                    continue
+                tracking_number = item.get("tracking_number")
+                if not tracking_number:
+                    continue
+                candidates.setdefault(tracking_number, item.get("tracking_company"))
+
+            if not candidates:
+                return False
+
+            status_text_map = {
+                "success": ("已收货", "Received"),
+                "in_transit": ("运输中", "In Transit"),
+                "out_for_delivery": ("派送中", "Out for Delivery"),
+                "failure": ("投递失败", "Delivery Failed"),
+            }
+
+            track17_service = get_tracking_service()
+            updated = False
+
+            for tracking_number, tracking_company in candidates.items():
+                try:
+                    track17_status = await track17_service.get_status(tracking_number, tracking_company)
+                except Exception as exc:
+                    logger.warning(f"17track 查询失败: {tracking_number}, {exc}")
+                    continue
+
+                if not track17_status:
+                    continue
+
+                delivery_status = None
+                if track17_status == TrackingStatus.DELIVERED:
+                    delivery_status = "success"
+                elif track17_status == TrackingStatus.IN_TRANSIT:
+                    delivery_status = "in_transit"
+                elif track17_status == TrackingStatus.OUT_FOR_DELIVERY:
+                    delivery_status = "out_for_delivery"
+                elif track17_status in (TrackingStatus.ALERT, TrackingStatus.UNDELIVERED, TrackingStatus.EXPIRED):
+                    delivery_status = "failure"
+
+                if not delivery_status:
+                    continue
+
+                status_zh, status_en = status_text_map[delivery_status]
+
+                for item in line_items:
+                    if item.get("tracking_number") != tracking_number:
+                        continue
+                    if item.get("delivery_status"):
+                        continue
+                    if item.get("fulfillment_status") != "fulfilled":
+                        continue
+                    item["delivery_status"] = delivery_status
+                    item["delivery_status_zh"] = status_zh
+                    item["delivery_status_en"] = status_en
+                    updated = True
+
+            return updated
+
         # 尝试从缓存获取
         if use_cache:
             cached_order = await self.cache.get_order_by_number(order_number)
@@ -139,6 +217,17 @@ class ShopifyService:
                 if cached_order.get("_not_found"):
                     logger.info(f"🎯 缓存命中: 订单不存在 ({self.site_code}:{order_number})")
                     return None
+
+                # 缓存命中：对“已发货但实际已收货”的情况做 17track 补全，并回写缓存
+                try:
+                    updated = await enrich_cached_delivery_status(cached_order)
+                    if updated:
+                        await self.cache.set_order_by_number(order_number, cached_order)
+                        order_id = cached_order.get("order_id")
+                        if order_id:
+                            await self.cache.set_order_detail(str(order_id), cached_order)
+                except Exception as exc:
+                    logger.warning(f"缓存订单状态补全失败: {self.site_code}:{order_number}, {exc}")
 
                 logger.info(f"🎯 缓存命中: 订单搜索 ({self.site_code}:{order_number})")
                 return {

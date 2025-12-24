@@ -7,14 +7,16 @@
 - GET /api/tracking/{tracking_number} - 查询物流轨迹
 """
 
+import os
 import logging
 from typing import Optional, List
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from services.tracking import get_tracking_service, TrackingStatus
+from services.shopify.sites import get_all_configured_sites
 from services.shopify import get_shopify_service
 
 logger = logging.getLogger(__name__)
@@ -55,6 +57,7 @@ class TrackingResponse(BaseModel):
     )
     last_updated: Optional[str] = Field(None, description="最后更新时间")
     order_id: Optional[str] = Field(None, description="关联订单 ID")
+    debug: Optional[dict] = Field(None, description="调试信息（仅 debug=1 时返回）")
 
 
 # ============ API 端点 ============
@@ -72,6 +75,10 @@ async def get_tracking(
     order_number: Optional[str] = None,
     postal_code: Optional[str] = None,
     refresh: bool = False,
+    debug: Optional[str] = Query(
+        None,
+        description="调试开关：true/1/on/yes 时返回 debug 字段",
+    ),
 ):
     """
     查询物流轨迹
@@ -92,10 +99,12 @@ async def get_tracking(
     try:
         service = get_tracking_service()
 
+        postal_code_source = "query" if postal_code else None
         # 如果有订单号但没有邮编，尝试从 Shopify 获取
         if order_number and not postal_code:
             postal_code = await _get_postal_code_from_order(order_number)
             if postal_code:
+                postal_code_source = "shopify"
                 logger.info(f"从订单 {order_number} 获取到邮编: {postal_code}")
 
         if refresh:
@@ -106,9 +115,87 @@ async def get_tracking(
             tracking_number=tracking_number,
             carrier=carrier,
             order_id=order_id,
+            order_number=order_number,
             destination_postal_code=postal_code,
             refresh=refresh,
         )
+
+        debug_enabled = str(debug).lower() in {"1", "true", "on", "yes"}
+
+        debug_info = None
+        if debug_enabled:
+            has_track17_api_key = bool(os.getenv("TRACK17_API_KEY"))
+            configured_shopify_sites = sorted(get_all_configured_sites().keys())
+            carrier_lower = (carrier or "").lower()
+            carrier_maybe_dx = "dx" in carrier_lower
+            pending_reason_guess = None
+            if not has_track17_api_key:
+                pending_reason_guess = "TRACK17_API_KEY 未配置，无法查询/注册到 17track"
+            elif carrier_maybe_dx and not postal_code:
+                pending_reason_guess = "DX 承运商通常需要目的地邮编；当前请求未拿到 postal_code"
+            elif not order_number:
+                pending_reason_guess = "未传 order_number，后端无法从订单自动获取邮编（DX 场景会一直 pending）"
+
+            debug_info = {
+                "tracking_number": tracking_number,
+                "carrier": carrier,
+                "order_id": order_id,
+                "order_number": order_number,
+                "postal_code": postal_code,
+                "postal_code_source": postal_code_source,
+                "refresh": refresh,
+                "has_track17_api_key": has_track17_api_key,
+                "configured_shopify_sites": configured_shopify_sites,
+                "info_is_pending": bool(getattr(info, "is_pending", False)),
+                "info_status": getattr(getattr(info, "status", None), "value", None),
+                "info_events_count": len(getattr(info, "events", []) or []),
+                "pending_reason_guess": pending_reason_guess,
+                "tips": [
+                    "如果一直 pending：先确认后端环境变量 TRACK17_API_KEY 已配置",
+                    "DX 承运商：需要订单收货邮编；确保请求带上 order_number 或 postal_code",
+                    "pending 是异步注册机制：首次点击可能 pending，稍后携带 refresh=1 再点一次"
+                ]
+            }
+
+            # debug 模式：如果仍 pending，尝试同步触发一次注册并立即重查，拿到 17track 的拒绝原因
+            if getattr(info, "is_pending", False):
+                register_result = None
+                register_error = None
+                refetch_error = None
+                try:
+                    register_result = await service.client.register_tracking(
+                        tracking_number=tracking_number,
+                        carrier_code=carrier,
+                        order_id=order_id,
+                        tag=None,
+                        destination_postal_code=postal_code,
+                    )
+                except Exception as exc:
+                    register_error = str(exc)
+
+                try:
+                    refetched = await service.get_tracking_info(
+                        tracking_number=tracking_number,
+                        carrier=carrier,
+                        use_cache=False,
+                    )
+                    if refetched and (
+                        refetched.events
+                        or (refetched.status and refetched.status != TrackingStatus.NOT_FOUND)
+                    ):
+                        info = refetched
+                        debug_info["info_is_pending"] = False
+                        debug_info["info_status"] = getattr(getattr(info, "status", None), "value", None)
+                        debug_info["info_events_count"] = len(getattr(info, "events", []) or [])
+                except Exception as exc:
+                    refetch_error = str(exc)
+
+                debug_info["debug_register"] = {
+                    "attempted": True,
+                    "register_result": register_result,
+                    "register_error": register_error,
+                    "refetch_error": refetch_error,
+                }
 
         # 如果是 pending 状态，直接返回
         if info.is_pending:
@@ -122,6 +209,7 @@ async def get_tracking(
                 event_count=0,
                 events=[],
                 order_id=info.order_id,
+                debug=debug_info,
             )
 
         # 构建完整响应
@@ -163,6 +251,7 @@ async def get_tracking(
             events=events_resp,
             last_updated=last_updated,
             order_id=info.order_id,
+            debug=debug_info,
         )
 
     except HTTPException:

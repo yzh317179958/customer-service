@@ -68,6 +68,7 @@ async function fetchTrackingData(
     const params = new URLSearchParams()
     if (carrier) params.set('carrier', carrier)
     if (orderNumber) params.set('order_number', orderNumber)
+    if (options?.force) params.set('refresh', '1')
     const query = params.toString() ? `?${params.toString()}` : ''
     const url = `${API_BASE}/api/tracking/${encodeURIComponent(trackingNumber)}${query}`
     const response = await fetch(url)
@@ -174,7 +175,7 @@ function updateTimelineDOM(trackingNumber: string, expanded: boolean): void {
             </div>
           </div>
         `
-      } else if (data.is_pending || (data.events.length === 0 && data.current_status === 'NotFound')) {
+      } else if (data.is_pending) {
         // 运单正在追踪中（后台注册中），显示友好提示
         container.innerHTML = `
           <div class="tracking-timeline pending">
@@ -189,7 +190,7 @@ function updateTimelineDOM(trackingNumber: string, expanded: boolean): void {
           <div class="tracking-timeline empty">
             <div class="timeline-empty">
               <span class="empty-icon">📦</span>
-              <span>暂无物流轨迹</span>
+              <span>暂无物流轨迹，可点击 Track 查看承运商官网</span>
             </div>
           </div>
         `
@@ -295,6 +296,17 @@ function extractOrderNumber(content: string): string | null {
     if (match && match[1]) {
       return match[1]
     }
+  }
+  return null
+}
+
+function extractLatestOrderNumberFromChat(): string | null {
+  const messages = chatStore.messages
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i]
+    if (!msg?.content) continue
+    const orderNumber = extractOrderNumber(String(msg.content))
+    if (orderNumber) return orderNumber
   }
   return null
 }
@@ -483,7 +495,7 @@ const renderedContent = computed(() => {
 
   if (hasProductCards) {
     // 提取订单号用于物流查询
-    const orderNumber = extractOrderNumber(content)
+    const orderNumber = extractOrderNumber(content) || extractLatestOrderNumberFromChat()
 
     // 先将 [PRODUCT] 标记替换为占位符，避免被 marked 处理
     const productMatches: string[] = []

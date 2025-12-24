@@ -309,17 +309,37 @@ class ShopifyClient:
         Returns:
             订单详情，如果不存在返回 None
         """
-        # 清理订单号格式
-        clean_number = order_number.strip().lstrip("#")
+        # 兼容 Shopify 订单名通常带 "#" 前缀：#UK22080
+        raw = (order_number or "").strip()
+        if not raw:
+            return None
 
-        params = {
-            "name": clean_number,
-            "status": "any",
-            "limit": 1
-        }
+        normalized = raw.lstrip("#")
+        candidates = []
+        # 优先尝试原始输入格式，避免一些店铺只认带 # 的 name
+        candidates.append(raw)
+        candidates.append(normalized)
+        if not raw.startswith("#"):
+            candidates.append(f"#{normalized}")
 
-        data = await self._request("GET", "/orders.json", params=params)
-        orders = data.get("orders", [])
+        seen = set()
+        orders = []
+        for candidate in candidates:
+            candidate = (candidate or "").strip()
+            if not candidate or candidate in seen:
+                continue
+            seen.add(candidate)
+
+            params = {
+                "name": candidate,
+                "status": "any",
+                "limit": 1
+            }
+
+            data = await self._request("GET", "/orders.json", params=params)
+            orders = data.get("orders", [])
+            if orders:
+                break
 
         if not orders:
             return None
@@ -330,7 +350,8 @@ class ShopifyClient:
         if order_id:
             return await self.get_order_detail(str(order_id))
 
-        return self._parse_order_detail(orders[0])
+        # 降级：直接解析（带 17track 缓存查询）
+        return await self._parse_order_detail_with_tracking(orders[0])
 
     async def get_order_detail(self, order_id: str) -> ShopifyOrderDetail:
         """
@@ -351,7 +372,8 @@ class ShopifyClient:
                 ERROR_CODES["ORDER_NOT_FOUND"]["message"]
             )
 
-        return self._parse_order_detail(order)
+        # 使用带 17track 缓存查询的版本
+        return await self._parse_order_detail_with_tracking(order)
 
     async def get_order_count(
         self,
@@ -588,7 +610,47 @@ class ShopifyClient:
         return ("待发货", "Pending")
 
     def _parse_order_detail(self, order: Dict) -> ShopifyOrderDetail:
-        """解析订单详情"""
+        """
+        解析订单详情（同步版本，不查询 17track 缓存）
+
+        注意：此方法是同步的，无法查询 17track 缓存。
+        如需补充 17track 状态，请使用异步版本 _parse_order_detail_with_tracking()
+        """
+        return self._parse_order_detail_impl(order, track17_service=None)
+
+    async def _parse_order_detail_with_tracking(self, order: Dict) -> ShopifyOrderDetail:
+        """
+        解析订单详情（异步版本，支持 17track 状态查询）
+
+        当 Shopify 的 shipment_status 为空时，会主动查询 17track API
+        获取真实的物流状态。
+
+        Args:
+            order: Shopify 订单原始数据
+
+        Returns:
+            ShopifyOrderDetail 对象
+        """
+        # 延迟导入避免循环依赖
+        from services.tracking import get_tracking_service
+        track17_service = get_tracking_service()
+        return await self._parse_order_detail_impl_async(order, track17_service=track17_service)
+
+    def _parse_order_detail_impl(
+        self,
+        order: Dict,
+        track17_service=None,
+    ) -> ShopifyOrderDetail:
+        """
+        解析订单详情的核心实现
+
+        Args:
+            order: Shopify 订单原始数据
+            track17_service: TrackingService 实例（可选，用于查询 17track 缓存）
+
+        Returns:
+            ShopifyOrderDetail 对象
+        """
         summary = self._parse_order_summary(order)
 
         # 获取订单支付状态，用于服务类商品状态判断
@@ -718,8 +780,29 @@ class ShopifyClient:
                             delivery_status = shipment_status  # in_transit, out_for_delivery, failure 等
                     elif f_status == "success":
                         # 发货成功但没有 shipment_status，说明已发货但物流状态未知
-                        # 默认为"已发货"状态，由 fulfillment_status 决定
-                        delivery_status = None  # 让前端根据 fulfillment_status 显示"已发货"
+                        # 【增强】尝试从 17track 缓存获取真实状态
+                        tracking_number = fulfillment_info.get("tracking_number")
+                        track17_status = None
+                        if tracking_number and track17_service:
+                            track17_status = track17_service.get_cached_status_sync(tracking_number)
+
+                        if track17_status:
+                            # 17track 有缓存数据，使用它来补充状态
+                            from services.tracking import TrackingStatus
+                            if track17_status == TrackingStatus.DELIVERED:
+                                delivery_status = "success"  # 17track 显示已送达 → 已收货
+                            elif track17_status == TrackingStatus.IN_TRANSIT:
+                                delivery_status = "in_transit"  # 运输中
+                            elif track17_status == TrackingStatus.OUT_FOR_DELIVERY:
+                                delivery_status = "out_for_delivery"  # 派送中
+                            elif track17_status in (TrackingStatus.ALERT, TrackingStatus.UNDELIVERED):
+                                delivery_status = "failure"  # 异常/投递失败
+                            else:
+                                # 其他状态，保持"已发货"
+                                delivery_status = None
+                        else:
+                            # 无 17track 缓存，保持原有逻辑
+                            delivery_status = None  # 让前端根据 fulfillment_status 显示"已发货"
                     else:
                         delivery_status = f_status if f_status else None
 
@@ -785,6 +868,229 @@ class ShopifyClient:
             ))
 
         # 解析折扣码
+        discount_codes = [
+            dc.get("code", "") for dc in order.get("discount_codes", [])
+        ]
+
+        return ShopifyOrderDetail(
+            **summary.model_dump(),
+            line_items=line_items,
+            subtotal_price=order.get("subtotal_price"),
+            total_shipping=order.get("total_shipping_price_set", {}).get(
+                "shop_money", {}
+            ).get("amount"),
+            total_discounts=order.get("total_discounts"),
+            total_tax=order.get("total_tax"),
+            shipping_address=shipping_address,
+            fulfillments=fulfillments,
+            note=order.get("note"),
+            tags=order.get("tags"),
+            discount_codes=discount_codes
+        )
+
+    async def _parse_order_detail_impl_async(
+        self,
+        order: Dict,
+        track17_service=None,
+    ) -> ShopifyOrderDetail:
+        """
+        解析订单详情的异步版本（支持主动查询 17track API）
+
+        当 Shopify 的 shipment_status 为空时，会主动调用 17track API
+        获取真实的物流状态，而不是只依赖缓存。
+
+        Args:
+            order: Shopify 订单原始数据
+            track17_service: TrackingService 实例
+
+        Returns:
+            ShopifyOrderDetail 对象
+        """
+        summary = self._parse_order_summary(order)
+        financial_status = order.get("financial_status", "")
+        fulfillments_raw = order.get("fulfillments", [])
+
+        # 构建商品名称到发货信息的映射
+        item_fulfillment_map = {}
+        for f in fulfillments_raw:
+            f_status = f.get("status", "")
+            f_shipment_status = f.get("shipment_status")
+            f_company = f.get("tracking_company")
+            f_number = f.get("tracking_number")
+            f_url = f.get("tracking_url")
+            for item in f.get("line_items", []):
+                item_title = item.get("title", "")
+                if item_title:
+                    item_fulfillment_map[item_title] = {
+                        "status": f_status,
+                        "shipment_status": f_shipment_status,
+                        "tracking_company": f_company,
+                        "tracking_number": f_number,
+                        "tracking_url": f_url
+                    }
+
+        # 解析退款信息
+        item_refund_map = {}
+        refunds = order.get("refunds", [])
+        for refund in refunds:
+            for refund_line_item in refund.get("refund_line_items", []):
+                line_item = refund_line_item.get("line_item", {})
+                item_title = line_item.get("title", "")
+                if item_title:
+                    item_refund_map[item_title] = {
+                        "refunded": True,
+                        "restock_type": refund_line_item.get("restock_type", ""),
+                        "quantity": refund_line_item.get("quantity", 0)
+                    }
+
+        # 统计实物商品退款情况
+        all_line_items = order.get("line_items", [])
+        physical_items_count = 0
+        physical_items_refunded_count = 0
+        for item in all_line_items:
+            item_title = item.get("title", "")
+            item_sku = item.get("sku", "")
+            if not self._is_service_product(item_title, item_sku):
+                physical_items_count += 1
+                if item_title in item_refund_map:
+                    physical_items_refunded_count += 1
+
+        all_physical_refunded = (physical_items_count > 0 and
+                                  physical_items_refunded_count == physical_items_count)
+
+        # 解析商品列表
+        line_items = []
+        for item in order.get("line_items", []):
+            item_title = item.get("title", "")
+            item_sku = item.get("sku", "")
+            is_service_product = self._is_service_product(item_title, item_sku)
+            fulfillment_info = item_fulfillment_map.get(item_title, {})
+            refund_info = item_refund_map.get(item_title, {})
+            is_refunded = refund_info.get("refunded", False)
+            restock_type = refund_info.get("restock_type", "")
+
+            if is_service_product:
+                # 服务类商品状态判断
+                if all_physical_refunded or financial_status == "refunded":
+                    service_status = "expired"
+                elif financial_status == "paid":
+                    service_status = "active"
+                elif financial_status == "pending":
+                    service_status = "pending"
+                else:
+                    service_status = "active" if financial_status else "pending"
+
+                delivery_status = service_status
+                fulfillment_status = "service"
+            else:
+                # 实物商品状态判断
+                if is_refunded:
+                    if restock_type == "return":
+                        delivery_status = "returned"
+                    elif restock_type == "cancel":
+                        delivery_status = "cancelled"
+                    else:
+                        delivery_status = "refunded"
+                    fulfillment_status = item.get("fulfillment_status")
+                else:
+                    shipment_status = fulfillment_info.get("shipment_status")
+                    f_status = fulfillment_info.get("status")
+
+                    if shipment_status:
+                        if shipment_status == "delivered":
+                            delivery_status = "success"
+                        else:
+                            delivery_status = shipment_status
+                    elif f_status == "success":
+                        # 发货成功但没有 shipment_status
+                        # 【主动查询】调用 17track API 获取真实状态
+                        tracking_number = fulfillment_info.get("tracking_number")
+                        tracking_company = fulfillment_info.get("tracking_company")
+                        track17_status = None
+
+                        if tracking_number and track17_service:
+                            try:
+                                # 主动查询 17track API（会使用缓存）
+                                track17_status = await track17_service.get_status(
+                                    tracking_number, tracking_company
+                                )
+                            except Exception as e:
+                                logger.warning(f"17track 查询失败: {tracking_number}, {e}")
+
+                        if track17_status:
+                            from services.tracking import TrackingStatus
+                            if track17_status == TrackingStatus.DELIVERED:
+                                delivery_status = "success"
+                            elif track17_status == TrackingStatus.IN_TRANSIT:
+                                delivery_status = "in_transit"
+                            elif track17_status == TrackingStatus.OUT_FOR_DELIVERY:
+                                delivery_status = "out_for_delivery"
+                            elif track17_status in (TrackingStatus.ALERT, TrackingStatus.UNDELIVERED):
+                                delivery_status = "failure"
+                            else:
+                                delivery_status = None
+                        else:
+                            delivery_status = None
+                    else:
+                        delivery_status = f_status if f_status else None
+
+                    fulfillment_status = item.get("fulfillment_status")
+
+            status_zh, status_en = self._translate_delivery_status(delivery_status, fulfillment_status)
+            image_url = self._get_product_image_by_title(item_title)
+            product_url = None
+            product_id = item.get("product_id")
+            if product_id:
+                product_url = f"https://www.fiido.com/products/{product_id}"
+
+            line_items.append(ShopifyLineItem(
+                title=item_title,
+                variant_title=item.get("variant_title"),
+                sku=item_sku,
+                quantity=item.get("quantity", 1),
+                price=item.get("price", "0"),
+                fulfillment_status=fulfillment_status,
+                delivery_status=delivery_status,
+                delivery_status_zh=status_zh,
+                delivery_status_en=status_en,
+                tracking_company=fulfillment_info.get("tracking_company") if not is_service_product else None,
+                tracking_number=fulfillment_info.get("tracking_number") if not is_service_product else None,
+                tracking_url=fulfillment_info.get("tracking_url") if not is_service_product else None,
+                image_url=image_url,
+                product_url=product_url
+            ))
+
+        # 解析收货地址
+        shipping = order.get("shipping_address") or {}
+        shipping_address = ShopifyAddress(
+            address1=shipping.get("address1"),
+            address2=shipping.get("address2"),
+            city=shipping.get("city"),
+            province=shipping.get("province"),
+            country=shipping.get("country"),
+            zip=shipping.get("zip")
+        ) if shipping else None
+
+        # 解析发货信息
+        fulfillments = []
+        for f in order.get("fulfillments", []):
+            fulfillment_line_items = [
+                FulfillmentLineItem(
+                    title=item.get("title", ""),
+                    quantity=item.get("quantity", 1)
+                )
+                for item in f.get("line_items", [])
+            ]
+            fulfillments.append(ShopifyFulfillment(
+                id=f.get("id"),
+                status=f.get("status", ""),
+                tracking_company=f.get("tracking_company"),
+                tracking_number=f.get("tracking_number"),
+                tracking_url=f.get("tracking_url"),
+                created_at=f.get("created_at"),
+                line_items=fulfillment_line_items
+            ))
+
         discount_codes = [
             dc.get("code", "") for dc in order.get("discount_codes", [])
         ]

@@ -180,17 +180,18 @@ products/agent_workbench/frontend/
 │   │   ├── auth.ts           # 认证 API
 │   │   ├── sessions.ts       # 会话 API
 │   │   ├── tickets.ts        # 工单 API
+│   │   ├── quickReplies.ts   # 快捷回复 API
 │   │   └── index.ts
 │   ├── stores/                # Zustand 状态（新增）
 │   │   ├── authStore.ts
 │   │   ├── sessionStore.ts
 │   │   ├── ticketStore.ts
 │   │   └── index.ts
-│   ├── components/            # 页面组件（迁移自原型）
+│   ├── components/            # 页面组件
 │   │   ├── LoginView.tsx
 │   │   ├── Sidebar.tsx
 │   │   ├── Topbar.tsx
-│   │   ├── Workspace.tsx
+│   │   ├── Workspace.tsx          # 集成快捷回复面板
 │   │   ├── TicketsView.tsx
 │   │   ├── Dashboard.tsx
 │   │   ├── KnowledgeBase.tsx
@@ -198,7 +199,10 @@ products/agent_workbench/frontend/
 │   │   ├── QualityAudit.tsx
 │   │   ├── BillingView.tsx
 │   │   ├── BillingPortal.tsx
-│   │   └── Settings.tsx
+│   │   ├── Settings.tsx           # 集成话术短语库入口
+│   │   ├── QuickReplyPanel.tsx    # 快捷回复弹出面板（Step 13）
+│   │   ├── QuickReplyManager.tsx  # 话术短语库管理页面（Step 13）
+│   │   └── MessageContent.tsx
 │   ├── hooks/                 # 自定义 Hooks
 │   │   └── useSSE.ts
 │   ├── types/
