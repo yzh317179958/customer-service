@@ -280,17 +280,70 @@ systemctl restart fiido-ai-chatbot fiido-agent-workbench
 journalctl -u fiido-ai-chatbot -f
 journalctl -u fiido-agent-workbench -f
 
-# 部署更新（从本地同步）
-rsync -avz --exclude '.venv' --exclude '__pycache__' --exclude 'node_modules' \
-  products/ services/ infrastructure/ assets/ config/ requirements.txt .env \
-  root@8.211.27.199:/opt/fiido-ai-service/
+# ⚠️ 部署更新（从本地同步）- 必须分开同步每个目录！
+# 【重要】不要把 services/ 和 infrastructure/ 直接同步到根目录！
+# 否则 email/, logging/ 等目录会覆盖 Python 标准库导致服务启动失败！
+cd /home/yzh/AI客服/鉴权
+rsync -avz --exclude '__pycache__' --exclude 'node_modules' --exclude '.git' \
+  products/ root@8.211.27.199:/opt/fiido-ai-service/products/
+rsync -avz --exclude '__pycache__' --exclude 'node_modules' --exclude '.git' \
+  services/ root@8.211.27.199:/opt/fiido-ai-service/services/
+rsync -avz --exclude '__pycache__' --exclude 'node_modules' --exclude '.git' \
+  infrastructure/ root@8.211.27.199:/opt/fiido-ai-service/infrastructure/
+rsync -avz assets/ root@8.211.27.199:/opt/fiido-ai-service/assets/
+rsync -avz config/ root@8.211.27.199:/opt/fiido-ai-service/config/
+rsync -avz requirements.txt .env root@8.211.27.199:/opt/fiido-ai-service/
 
-# 部署前端
-cp -r products/ai_chatbot/frontend/dist/* /var/www/fiido-frontend/
-cp -r products/agent_workbench/frontend/dist/* /var/www/fiido-workbench/
+# 部署前端（在服务器上执行）
+ssh root@8.211.27.199 "cp -r /opt/fiido-ai-service/products/ai_chatbot/frontend/dist/* /var/www/fiido-frontend/"
+ssh root@8.211.27.199 "cp -r /opt/fiido-ai-service/products/agent_workbench/frontend/dist/* /var/www/fiido-workbench/"
 
 # 完整重启
-systemctl restart fiido-ai-chatbot fiido-agent-workbench && systemctl reload nginx
+ssh root@8.211.27.199 "systemctl restart fiido-ai-chatbot fiido-agent-workbench"
+```
+
+### 3.7 部署注意事项（铁律）
+
+**⚠️ 绝对禁止以下操作：**
+
+```bash
+# ❌ 错误！会导致 email/, logging/ 等目录覆盖 Python 标准库！
+rsync services/ infrastructure/ root@8.211.27.199:/opt/fiido-ai-service/
+
+# ❌ 错误！同上
+rsync -avz products/ services/ infrastructure/ root@8.211.27.199:/opt/fiido-ai-service/
+```
+
+**服务器目录结构必须是：**
+```
+/opt/fiido-ai-service/
+├── products/           # 产品层
+│   ├── ai_chatbot/
+│   └── agent_workbench/
+├── services/           # 服务层（在 services/ 子目录下）
+│   ├── email/          # 不是 /opt/fiido-ai-service/email/
+│   ├── shopify/
+│   └── ...
+├── infrastructure/     # 基础设施层（在 infrastructure/ 子目录下）
+│   ├── logging/        # 不是 /opt/fiido-ai-service/logging/
+│   └── ...
+└── ...
+```
+
+**如果服务启动失败报 `AttributeError: module 'logging' has no attribute 'getLogger'`：**
+```bash
+# 检查并删除错误同步的目录
+ssh root@8.211.27.199 "ls /opt/fiido-ai-service/ | grep -E '^(email|logging|monitoring|scheduler|security|session|shopify|ticket|tracking|bootstrap|coze|billing|asset|notification|database)$'"
+
+# 如果有输出，删除这些目录
+ssh root@8.211.27.199 "cd /opt/fiido-ai-service && rm -rf email logging monitoring scheduler security session shopify ticket tracking bootstrap coze billing asset notification database"
+
+# 重新同步
+rsync -avz services/ root@8.211.27.199:/opt/fiido-ai-service/services/
+rsync -avz infrastructure/ root@8.211.27.199:/opt/fiido-ai-service/infrastructure/
+
+# 重启服务
+ssh root@8.211.27.199 "systemctl restart fiido-ai-chatbot fiido-agent-workbench"
 ```
 
 ---
