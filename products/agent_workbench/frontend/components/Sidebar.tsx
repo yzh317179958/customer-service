@@ -1,38 +1,38 @@
 
 import React from 'react';
-import { 
-  MessageSquare, 
-  Ticket, 
-  BookOpen, 
-  Activity, 
-  BarChart3, 
-  Settings, 
+import { NavLink, useNavigate } from 'react-router-dom';
+import {
+  MessageSquare,
+  Ticket,
+  BookOpen,
+  Activity,
+  BarChart3,
+  Settings,
   ChevronLeft,
   ChevronRight,
   ShieldCheck,
   Bike,
-  Zap,
   CreditCard,
   Sparkles
 } from 'lucide-react';
 
 interface SidebarProps {
-  activeTab: string;
-  onTabChange: (tab: string) => void;
   isCollapsed: boolean;
   toggleCollapse: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, isCollapsed, toggleCollapse }) => {
+const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, toggleCollapse }) => {
+  const navigate = useNavigate();
+
   const navItems = [
-    { id: 'workspace', icon: MessageSquare, label: '会话工作台' },
-    { id: 'tickets', icon: Ticket, label: '工单中心' },
-    { id: 'knowledge', icon: BookOpen, label: '知识文档' },
-    { id: 'monitoring', icon: Activity, label: '实时大屏' },
-    { id: 'dashboard', icon: BarChart3, label: '效能报表' },
-    { id: 'audit', icon: ShieldCheck, label: '智能质检' },
-    { id: 'billing', icon: CreditCard, label: '计费管理' },
-    { id: 'settings', icon: Settings, label: '系统设置' },
+    { path: '/workspace', icon: MessageSquare, label: '会话工作台' },
+    { path: '/tickets', icon: Ticket, label: '工单中心' },
+    { path: '/knowledge', icon: BookOpen, label: '知识文档' },
+    { path: '/monitoring', icon: Activity, label: '实时大屏' },
+    { path: '/dashboard', icon: BarChart3, label: '效能报表' },
+    { path: '/audit', icon: ShieldCheck, label: '智能质检' },
+    { path: '/billing', icon: CreditCard, label: '计费管理' },
+    { path: '/settings', icon: Settings, label: '系统设置' },
   ];
 
   return (
@@ -51,21 +51,27 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, isCollapsed, 
 
       <nav className="flex-1 overflow-y-auto custom-scrollbar py-4 px-2.5 space-y-1">
         {navItems.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => onTabChange(item.id)}
-            className={`w-full flex items-center gap-3.5 p-3 rounded-xl transition-all group relative ${
-              activeTab === item.id 
-                ? 'bg-fiido text-white shadow-lg shadow-fiido/20 font-bold' 
-                : 'hover:bg-white/5 text-slate-400 hover:text-white'
-            }`}
+          <NavLink
+            key={item.path}
+            to={item.path}
+            className={({ isActive }) =>
+              `w-full flex items-center gap-3.5 p-3 rounded-xl transition-all group relative ${
+                isActive
+                  ? 'bg-fiido text-white shadow-lg shadow-fiido/20 font-bold'
+                  : 'hover:bg-white/5 text-slate-400 hover:text-white'
+              }`
+            }
           >
-            <item.icon className={`w-5 h-5 flex-shrink-0 ${activeTab === item.id ? 'text-white' : 'group-hover:text-fiido'}`} />
-            {!isCollapsed && <span className="text-[13px] tracking-wide whitespace-nowrap">{item.label}</span>}
-            {activeTab === item.id && (
-              <div className="absolute right-0 w-1 h-5 bg-white rounded-l-full"></div>
+            {({ isActive }) => (
+              <>
+                <item.icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-white' : 'group-hover:text-fiido'}`} />
+                {!isCollapsed && <span className="text-[13px] tracking-wide whitespace-nowrap">{item.label}</span>}
+                {isActive && (
+                  <div className="absolute right-0 w-1 h-5 bg-white rounded-l-full"></div>
+                )}
+              </>
             )}
-          </button>
+          </NavLink>
         ))}
       </nav>
 
@@ -80,14 +86,14 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, isCollapsed, 
            </div>
            <div className="flex justify-between items-center text-[9px] font-bold text-slate-500">
               <span>本月已用 7.5k / 10k</span>
-              <button onClick={() => onTabChange('billing')} className="text-fiido hover:underline">加油包</button>
+              <button onClick={() => navigate('/billing')} className="text-fiido hover:underline">加油包</button>
            </div>
         </div>
       )}
 
       <div className="p-3 border-t border-white/5 bg-black/10">
-        <button 
-          onClick={toggleCollapse} 
+        <button
+          onClick={toggleCollapse}
           className="w-full flex items-center justify-center p-2 rounded-xl hover:bg-white/5 transition-colors text-slate-500 hover:text-fiido"
         >
           {isCollapsed ? <ChevronRight size={20} /> : <div className="flex items-center gap-2 font-bold text-[10px] uppercase tracking-widest text-slate-500 hover:text-fiido"><ChevronLeft size={16} /> 收起面板</div>}

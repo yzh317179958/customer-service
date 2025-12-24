@@ -1,7 +1,8 @@
 # 架构说明
 
 > 产品模块：products/agent_workbench
-> 最后更新：2025-12-22
+> 最后更新：2025-12-24
+> 当前版本：v7.4.6
 > 遵循规范：CLAUDE.md 三层架构
 
 ---
@@ -28,12 +29,13 @@
 │  └──────────────────────────────────────────────────────────────┘  │
 │                              ↓ API 调用                             │
 │  ┌──────────────────────────────────────────────────────────────┐  │
-│  │  API Services (Step 4-7 已完成)                              │  │
+│  │  API Services (Step 4-7, 14 已完成)                         │  │
 │  │  ├── client.ts        ← Axios 实例 (JWT, 拦截器)              │  │
 │  │  ├── auth.ts          ← 认证 API                             │  │
 │  │  ├── sessions.ts      ← 会话 API                             │  │
 │  │  ├── tickets.ts       ← 工单 API                             │  │
 │  │  ├── quickReplies.ts  ← 快捷回复 API                         │  │
+│  │  ├── shopify.ts       ← Shopify 订单 API（Step 14 新增）      │  │
 │  │  └── index.ts         ← 统一导出                             │  │
 │  └──────────────────────────────────────────────────────────────┘  │
 │                              ↓ 状态管理                             │
@@ -127,9 +129,9 @@ products/agent_workbench/
 ```
 products/agent_workbench/frontend/   # Step 1: 已从 fronted_origin 重命名
 ├── index.html                  # 入口 HTML（Step 3: 已移除 CDN Tailwind）
-├── index.tsx                   # React 入口（Step 3: 已添加 CSS 导入）
+├── index.tsx                   # React 入口（Step 15: 添加 BrowserRouter）
 ├── index.css                   # Step 3: Tailwind CSS 本地化入口
-├── App.tsx                     # 根组件（路由管理）
+├── App.tsx                     # 根组件（Step 15: Routes/Route 路由管理）
 ├── types.ts                    # TypeScript 类型定义
 ├── constants.tsx               # 常量配置
 ├── vite.config.ts              # Vite 配置
@@ -145,6 +147,8 @@ products/agent_workbench/frontend/   # Step 1: 已从 fronted_origin 重命名
 │   │   ├── sessions.ts       # Step 6: 会话 API 封装（列表/接管/消息/SSE）
 │   │   ├── tickets.ts        # Step 7: 工单 API 封装（CRUD/SLA/批量操作）
 │   │   ├── quickReplies.ts   # Step 7: 快捷回复 API 封装
+│   │   ├── shopify.ts        # Step 14: Shopify 订单 API（跨站点查询/物流）
+│   │   ├── stats.ts          # Step 16: 统计数据 API（会话/坐席/SLA）
 │   │   └── index.ts          # Step 7: 统一导出
 │   ├── stores/               # Step 8-9: 状态管理
 │   │   ├── authStore.ts      # Step 8: 认证状态 Store
@@ -154,17 +158,20 @@ products/agent_workbench/frontend/   # Step 1: 已从 fronted_origin 重命名
 │   └── vite-env.d.ts         # Step 4: Vite 环境类型声明
 ├── components/                 # 页面组件
 │   ├── LoginView.tsx          # 登录页 (9KB)
-│   ├── Sidebar.tsx            # 侧边栏 (4KB)
+│   ├── Sidebar.tsx            # 侧边栏 (Step 15: NavLink 路由导航)
 │   ├── Topbar.tsx             # 顶部栏 (5KB)
 │   ├── Workspace.tsx          # 会话工作台 (15KB) - 核心
 │   ├── TicketsView.tsx        # 工单中心 (10KB)
-│   ├── Dashboard.tsx          # 效能报表 (8KB)
+│   ├── Dashboard.tsx          # Step 16: 效能报表（真实API+Mock）
 │   ├── KnowledgeBase.tsx      # 知识库 (7KB)
 │   ├── Monitoring.tsx         # 实时监控 (7KB)
 │   ├── QualityAudit.tsx       # 智能质检 (7KB)
 │   ├── BillingView.tsx        # 计费入口 (1KB)
 │   ├── BillingPortal.tsx      # 计费详情 (16KB)
-│   └── Settings.tsx           # 系统设置 (6KB)
+│   ├── Settings.tsx           # 系统设置 (6KB)
+│   ├── QuickReplyPanel.tsx    # Step 13: 快捷回复弹出面板
+│   ├── QuickReplyManager.tsx  # Step 13: 话术短语库管理
+│   └── OrderPanel.tsx         # Step 14: 订单查询面板（邮箱/订单号/物流）
 └── docs/                       # 原型文档
 ```
 
@@ -181,6 +188,7 @@ products/agent_workbench/frontend/
 │   │   ├── sessions.ts       # 会话 API
 │   │   ├── tickets.ts        # 工单 API
 │   │   ├── quickReplies.ts   # 快捷回复 API
+│   │   ├── shopify.ts        # Shopify 订单 API（Step 14）
 │   │   └── index.ts
 │   ├── stores/                # Zustand 状态（新增）
 │   │   ├── authStore.ts
@@ -202,6 +210,7 @@ products/agent_workbench/frontend/
 │   │   ├── Settings.tsx           # 集成话术短语库入口
 │   │   ├── QuickReplyPanel.tsx    # 快捷回复弹出面板（Step 13）
 │   │   ├── QuickReplyManager.tsx  # 话术短语库管理页面（Step 13）
+│   │   ├── OrderPanel.tsx         # 订单查询面板（Step 14）
 │   │   └── MessageContent.tsx
 │   ├── hooks/                 # 自定义 Hooks
 │   │   └── useSSE.ts

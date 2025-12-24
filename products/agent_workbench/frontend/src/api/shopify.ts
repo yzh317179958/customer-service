@@ -44,6 +44,11 @@ export interface OrderAddress {
 // 订单信息
 export interface ShopifyOrder {
   id: string;
+  /**
+   * 后端常见字段名是 order_id（尤其是 global-search 返回）。
+   * 前端统一使用 id；order_id 仅用于兼容/调试。
+   */
+  order_id?: string;
   order_number: string;
   name: string;  // 如 #UK22080
   email: string;
@@ -65,6 +70,24 @@ export interface ShopifyOrder {
   site_code?: string;  // 站点代码
 }
 
+type ShopifyOrderApi = Omit<ShopifyOrder, 'id'> & {
+  id?: string;
+  order_id?: string;
+};
+
+function normalizeOrder(order: ShopifyOrderApi): ShopifyOrder {
+  const id = order.id ?? order.order_id;
+  if (!id) {
+    // 保持调用方可用：若后端缺少 id/order_id，则抛出明确错误，便于定位数据源问题
+    throw new Error('ShopifyOrder missing id/order_id');
+  }
+  return {
+    ...(order as Omit<ShopifyOrder, 'id'>),
+    id: String(id),
+    order_id: order.order_id ? String(order.order_id) : undefined,
+  };
+}
+
 // 物流信息
 export interface TrackingInfo {
   tracking_number?: string;
@@ -79,6 +102,7 @@ export interface TrackingInfo {
 export interface TrackingEvent {
   timestamp: string;
   description: string;
+  description_zh?: string | null;
   location?: string;
 }
 
@@ -114,11 +138,14 @@ export async function getOrdersByEmail(
     limit: options?.limit || 10,
     status: options?.status || 'any',
   };
-  const response = await apiClient.get<ShopifyResponse<{ orders: ShopifyOrder[]; total: number }>>(
+  const response = await apiClient.get<ShopifyResponse<{ orders: ShopifyOrderApi[]; total: number }>>(
     `/shopify/${site}/orders`,
     { params }
   );
-  return response.data.data;
+  return {
+    orders: (response.data.data.orders || []).map(normalizeOrder),
+    total: response.data.data.total,
+  };
 }
 
 /**
@@ -128,11 +155,14 @@ export async function searchOrder(
   site: string,
   query: string
 ): Promise<{ order: ShopifyOrder | null; query: string; site_code: string; message?: string }> {
-  const response = await apiClient.get<ShopifyResponse<{ order: ShopifyOrder | null; query: string; site_code: string; message?: string }>>(
+  const response = await apiClient.get<ShopifyResponse<{ order: ShopifyOrderApi | null; query: string; site_code: string; message?: string }>>(
     `/shopify/${site}/orders/search`,
     { params: { q: query } }
   );
-  return response.data.data;
+  return {
+    ...response.data.data,
+    order: response.data.data.order ? normalizeOrder(response.data.data.order) : null,
+  };
 }
 
 /**
@@ -141,11 +171,14 @@ export async function searchOrder(
 export async function searchOrderGlobal(
   query: string
 ): Promise<{ order: ShopifyOrder | null; query: string; site_code?: string; message?: string }> {
-  const response = await apiClient.get<ShopifyResponse<{ order: ShopifyOrder | null; query: string; site_code?: string; message?: string }>>(
+  const response = await apiClient.get<ShopifyResponse<{ order: ShopifyOrderApi | null; query: string; site_code?: string; message?: string }>>(
     '/shopify/orders/global-search',
     { params: { q: query } }
   );
-  return response.data.data;
+  return {
+    ...response.data.data,
+    order: response.data.data.order ? normalizeOrder(response.data.data.order) : null,
+  };
 }
 
 /**
@@ -161,7 +194,7 @@ export async function searchOrdersByEmailGlobal(
   sites_with_orders: string[];
 }> {
   const response = await apiClient.get<ShopifyResponse<{
-    orders: ShopifyOrder[];
+    orders: ShopifyOrderApi[];
     total: number;
     sites_searched: string[];
     sites_with_orders: string[];
@@ -169,7 +202,10 @@ export async function searchOrdersByEmailGlobal(
     '/shopify/orders/global-email-search',
     { params: { email, limit } }
   );
-  return response.data.data;
+  return {
+    ...response.data.data,
+    orders: (response.data.data.orders || []).map(normalizeOrder),
+  };
 }
 
 /**
@@ -179,10 +215,13 @@ export async function getOrderDetail(
   site: string,
   orderId: string
 ): Promise<{ order: ShopifyOrder | null; message?: string }> {
-  const response = await apiClient.get<ShopifyResponse<{ order: ShopifyOrder | null; message?: string }>>(
+  const response = await apiClient.get<ShopifyResponse<{ order: ShopifyOrderApi | null; message?: string }>>(
     `/shopify/${site}/orders/${orderId}`
   );
-  return response.data.data;
+  return {
+    ...response.data.data,
+    order: response.data.data.order ? normalizeOrder(response.data.data.order) : null,
+  };
 }
 
 /**

@@ -821,6 +821,8 @@ const senderName = computed(() => {
   line-height: 1.6;
   font-size: 13px;
   position: relative;
+  width: fit-content;
+  max-width: 100%;
 }
 
 /* User Message - 深色主题 */

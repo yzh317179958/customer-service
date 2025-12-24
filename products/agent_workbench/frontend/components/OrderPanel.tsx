@@ -163,7 +163,9 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       setExpandedOrderId(orderId);
       // 如果还没有物流信息，自动获取
       const order = orders.find(o => o.id === orderId);
-      if (order && !trackingInfo[orderId] && order.fulfillment_status) {
+      const existing = trackingInfo[orderId];
+      const hasEvents = (existing?.events?.length || 0) > 0;
+      if (order && (!existing || !hasEvents)) {
         handleGetTracking(order);
       }
     }
@@ -390,17 +392,21 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                             )}
                           </div>
                           {/* 物流轨迹 */}
-                          {trackingInfo[order.id]?.events && trackingInfo[order.id]!.events!.length > 0 && (
-                            <div className="space-y-1 pl-2">
-                              {trackingInfo[order.id]!.events!.slice(0, 3).map((event, idx) => (
+                          {trackingInfo[order.id]?.events && trackingInfo[order.id]!.events!.length > 0 ? (
+                            <div className="space-y-1 pl-2 max-h-40 overflow-y-auto">
+                              {trackingInfo[order.id]!.events!.map((event, idx) => (
                                 <div key={idx} className="flex items-start gap-2 text-[9px]">
                                   <div className="w-1.5 h-1.5 rounded-full bg-fiido shrink-0 mt-1" />
                                   <div>
                                     <p className="text-slate-600">{event.description}</p>
-                                    <p className="text-slate-400">{event.timestamp}</p>
+                                    <p className="text-slate-400">{event.timestamp}{event.location ? ` · ${event.location}` : ''}</p>
                                   </div>
                                 </div>
                               ))}
+                            </div>
+                          ) : (
+                            <div className="text-[10px] text-slate-400 text-center py-2">
+                              {loadingTracking === order.id ? '加载中...' : '暂无物流轨迹'}
                             </div>
                           )}
                         </div>

@@ -2,7 +2,7 @@
 
 > 产品模块：products/agent_workbench
 > 开始日期：2025-12-21
-> 当前步骤：Step 13 ✅ 已完成
+> 当前步骤：Step 16 ✅ 已完成
 
 ---
 
@@ -364,6 +364,128 @@
 
 ---
 
+### Step 14: 客户信息与订单查询
+
+**完成时间:** 2025-12-24
+**版本号:** v7.4.4
+
+**完成内容:**
+- 创建 `src/api/shopify.ts`：Shopify 订单 API 封装
+  - getSites：获取已配置站点列表
+  - getOrdersByEmail：按邮箱查询指定站点订单
+  - searchOrder：按订单号搜索指定站点订单
+  - searchOrderGlobal：跨站点订单号搜索（自动识别站点前缀）
+  - searchOrdersByEmailGlobal：跨站点邮箱搜索（遍历所有站点）
+  - getOrderDetail：获取订单详情
+  - getOrderTracking：获取订单物流信息
+  - getTrackingGlobal：跨站点物流查询
+  - checkSiteHealth / checkAllSitesHealth：站点健康检查
+- 创建 `components/OrderPanel.tsx`：订单面板组件
+  - 通过邮箱或订单号查询客户订单（跨站点）
+  - 自动检测搜索类型（邮箱 vs 订单号）
+  - 订单列表展示（支付状态、物流状态、金额）
+  - 订单详情展开（商品明细、收货地址）
+  - 物流信息查询与轨迹展示
+  - 关联订单到会话功能
+- 更新 `src/api/index.ts`：导出 shopifyApi
+
+**测试结果:**
+- ✅ 按邮箱查询订单正常（跨站点）
+- ✅ 按订单号查询订单正常（自动识别站点）
+- ✅ 订单详情展开显示商品、地址
+- ✅ 物流信息加载与轨迹展示正常
+- ✅ 搜索类型自动切换（@符号检测）
+
+**备注:**
+- 使用 normalizeOrder 函数统一处理后端返回的 id/order_id 字段
+- 物流轨迹支持中英文双语显示
+- 展开订单时自动加载物流信息
+
+---
+
+### Step 15: 侧边栏导航与路由
+
+**完成时间:** 2025-12-24
+**版本号:** v7.4.5
+
+**完成内容:**
+- 修改 `index.tsx`：添加 BrowserRouter 包裹整个应用
+- 修改 `App.tsx`：
+  - 用 Routes/Route 替代 switch/case 渲染逻辑
+  - 移除 activeTab 状态管理
+  - 添加根路径 `/` 重定向到 `/workspace`
+  - 添加 `*` 通配符路由显示 ComingSoon 组件
+- 修改 `components/Sidebar.tsx`：
+  - 用 NavLink 替代 button 实现导航
+  - 使用 useNavigate 处理"加油包"跳转
+  - 移除 activeTab/onTabChange props
+  - NavLink 自动处理 isActive 状态高亮
+
+**路由配置:**
+| 路径 | 组件 |
+|------|------|
+| `/` | → `/workspace` |
+| `/workspace` | Workspace |
+| `/tickets` | TicketsView |
+| `/knowledge` | KnowledgeBase |
+| `/monitoring` | Monitoring |
+| `/dashboard` | Dashboard |
+| `/audit` | QualityAudit |
+| `/billing` | BillingView |
+| `/settings` | Settings |
+
+**测试结果:**
+- ✅ 点击侧边栏菜单页面切换正常
+- ✅ 浏览器地址栏 URL 正确变化
+- ✅ 刷新页面保持当前路由
+- ✅ 根路径自动重定向到 /workspace
+
+---
+
+### Step 16: 效能报表 Dashboard
+
+**完成时间:** 2025-12-24
+**版本号:** v7.4.6
+
+**完成内容:**
+- 创建 `src/api/stats.ts`：统计数据 API 封装
+  - getSessionStats：获取会话统计
+  - getAgentTodayStats：获取坐席今日统计
+  - getSLADashboard：获取 SLA 仪表盘数据
+  - getDashboardStats：并行请求所有统计
+- 修改 `components/Dashboard.tsx`：接入真实数据 + Mock
+  - 核心指标卡片接入 API（今日会话、响应时长）
+  - 添加刷新按钮和 loading 状态
+  - 自动刷新（60秒间隔）
+  - 更新时间显示真实时间
+- 更新 `src/api/index.ts`：导出 statsApi
+
+**数据来源说明:**
+| 功能 | 数据来源 | 状态 |
+|------|----------|------|
+| 今日会话总数 | `/api/agent/stats/today` | ✅ 真实 API |
+| 平均响应时长 | `/api/sessions/stats` | ✅ 真实 API |
+| 全渠道满意度 | Mock | ⚠️ 待完善 |
+| 服务质检评级 | Mock | ⚠️ 待完善 |
+| 近7日趋势图 | Mock | ⚠️ 待完善（需后端历史统计 API）|
+| 满意度分布 | Mock | ⚠️ 待完善（需后端满意度 API）|
+| 导出报告按钮 | 占位 | ⚠️ 待完善 |
+
+**测试结果:**
+- ✅ Dashboard 页面正常显示
+- ✅ 统计卡片显示数据（真实/Mock）
+- ✅ 图表正常渲染
+- ✅ 刷新按钮功能正常
+- ✅ 无 JS 错误
+
+**待后续完善:**
+1. 后端需新增历史统计 API（近7日/30日趋势）
+2. 后端需新增满意度详细分布 API
+3. 后端需新增质检评级 API
+4. 实现导出满意度报告功能
+
+---
+
 ## 待完成步骤
 
 | Phase | Step | 标题 | 状态 |
@@ -381,8 +503,8 @@
 | | Step 11 | 会话工作台接入 | ✅ 已完成 |
 | | Step 12 | 工单中心接入 | ✅ 已完成 |
 | **Phase 5** | Step 13 | 快捷回复接入 | ✅ 已完成 |
-| | Step 14 | 客户信息与订单查询 | ⏳ 待开始 |
-| | Step 15 | 侧边栏导航与路由 | ⏳ 待开始 |
-| **Phase 6** | Step 16 | 效能报表 Dashboard | ⏳ 待开始 |
+| | Step 14 | 客户信息与订单查询 | ✅ 已完成 |
+| | Step 15 | 侧边栏导航与路由 | ✅ 已完成 |
+| **Phase 6** | Step 16 | 效能报表 Dashboard | ✅ 已完成 |
 | | Step 17 | 系统设置功能 | ⏳ 待开始 |
 | **Phase 7** | Step 18 | 核心功能测试与生产构建 | ⏳ 待开始 |

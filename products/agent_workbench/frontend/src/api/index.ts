@@ -98,3 +98,14 @@ export type {
   TrackingInfo,
   TrackingEvent,
 } from './shopify';
+
+// 统计数据 API
+export { statsApi } from './stats';
+export type {
+  SessionStats as DashboardSessionStats,
+  AgentTodayStats,
+  SLAStats,
+  SLAAlert as DashboardSLAAlert,
+  SLADashboard as DashboardSLAData,
+  DashboardStats,
+} from './stats';
