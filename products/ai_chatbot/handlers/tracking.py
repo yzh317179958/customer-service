@@ -57,6 +57,9 @@ class TrackingResponse(BaseModel):
     )
     last_updated: Optional[str] = Field(None, description="最后更新时间")
     order_id: Optional[str] = Field(None, description="关联订单 ID")
+    message: Optional[str] = Field(None, description="提示信息（轨迹不可用时显示）")
+    message_en: Optional[str] = Field(None, description="提示信息（英文）")
+    tracking_url: Optional[str] = Field(None, description="承运商官方追踪链接")
     debug: Optional[dict] = Field(None, description="调试信息（仅 debug=1 时返回）")
 
 
@@ -214,12 +217,34 @@ async def get_tracking(
 
         # 构建完整响应
         carrier_resp = None
+        carrier_name = None
+        carrier_url = None
         if info.carrier:
             carrier_resp = CarrierResponse(
                 code=info.carrier.code,
                 name=info.carrier.name,
                 url=info.carrier.url,
             )
+            carrier_name = info.carrier.name
+            carrier_url = info.carrier.url
+
+        # 如果 17track 没有返回承运商名称，使用请求参数中的 carrier
+        if not carrier_name and carrier:
+            carrier_name = carrier.upper()
+            # 常见承运商官网映射
+            carrier_urls = {
+                "DX": "https://my.dxdelivery.com/",
+                "DX FREIGHT": "https://my.dxdelivery.com/",
+                "UPS": "https://www.ups.com/track",
+                "FEDEX": "https://www.fedex.com/fedextrack/",
+                "DHL": "https://www.dhl.com/global-en/home/tracking.html",
+                "YUNWAY": "https://www.yuntrack.com/",
+                "ROYAL MAIL": "https://www.royalmail.com/track-your-item",
+                "DPD": "https://www.dpd.co.uk/tracking",
+                "EVRI": "https://www.evri.com/track-a-parcel",
+                "HERMES": "https://www.evri.com/track-a-parcel",
+            }
+            carrier_url = carrier_urls.get(carrier_name, carrier_urls.get(carrier.upper()))
 
         events_resp = [
             TrackingEventResponse(
@@ -239,6 +264,36 @@ async def get_tracking(
         elif info.events and info.events[0].timestamp:
             last_updated = info.events[0].timestamp.isoformat()
 
+        # 生成友好提示信息（当轨迹为空时）
+        message = None
+        message_en = None
+        tracking_url = None
+
+        if len(info.events) == 0:
+            # 轨迹为空，根据不同情况生成提示
+            if info.status == TrackingStatus.NOT_FOUND:
+                # 17track 未找到该运单
+                if carrier_name:
+                    message = f"暂无物流轨迹数据。该运单由 {carrier_name} 承运，轨迹信息可能已过期或该承运商暂不支持在线追踪。请访问承运商官网查询。"
+                    message_en = f"No tracking data available. This shipment is handled by {carrier_name}. The tracking info may have expired or this carrier doesn't support online tracking. Please check the carrier's website."
+                else:
+                    message = "暂无物流轨迹数据。轨迹信息可能已过期或该承运商暂不支持在线追踪。"
+                    message_en = "No tracking data available. The tracking info may have expired or this carrier doesn't support online tracking."
+                tracking_url = carrier_url
+            elif info.status == TrackingStatus.DELIVERED:
+                # 已签收但无轨迹详情
+                message = "包裹已签收，但详细轨迹数据不可用。"
+                message_en = "Package delivered, but detailed tracking data is not available."
+            elif info.status == TrackingStatus.EXPIRED:
+                # 轨迹已过期
+                message = "该运单轨迹已过期，无法查询历史记录。"
+                message_en = "This tracking record has expired and historical data is no longer available."
+            else:
+                # 其他情况
+                message = "暂无详细轨迹数据，请稍后再试或访问承运商官网查询。"
+                message_en = "No detailed tracking data available. Please try again later or check the carrier's website."
+                tracking_url = carrier_url
+
         return TrackingResponse(
             tracking_number=info.tracking_number,
             carrier=carrier_resp,
@@ -251,6 +306,9 @@ async def get_tracking(
             events=events_resp,
             last_updated=last_updated,
             order_id=info.order_id,
+            message=message,
+            message_en=message_en,
+            tracking_url=tracking_url,
             debug=debug_info,
         )
 
