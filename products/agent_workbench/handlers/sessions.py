@@ -21,7 +21,8 @@ import time
 import uuid
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+import os
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
@@ -952,3 +953,86 @@ async def create_test_session(request: TestSessionRequest):
     except Exception as e:
         print(f"Error: Create test session failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Create failed: {str(e)}")
+
+
+# ============================================================================
+# Chat Image Upload
+# ============================================================================
+
+# 聊天图片存储目录
+CHAT_IMAGES_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
+    "assets", "chat-images"
+)
+CHAT_IMAGE_ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+CHAT_IMAGE_MAX_SIZE = 5 * 1024 * 1024  # 5MB
+
+
+@router.post("/upload/image")
+async def upload_chat_image(
+    file: UploadFile = File(...),
+    agent: Dict[str, Any] = Depends(require_agent)
+):
+    """
+    Upload chat image for agent workbench
+
+    Returns:
+        image_url: URL of the uploaded image
+        markdown: Markdown syntax to insert into message
+    """
+    try:
+        # 验证文件
+        if not file.filename:
+            raise HTTPException(status_code=400, detail="No file provided")
+
+        ext = os.path.splitext(file.filename)[1].lower()
+        if ext not in CHAT_IMAGE_ALLOWED_EXTENSIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid file type. Allowed: {', '.join(CHAT_IMAGE_ALLOWED_EXTENSIONS)}"
+            )
+
+        # 读取文件
+        content = await file.read()
+
+        # 验证大小
+        if len(content) > CHAT_IMAGE_MAX_SIZE:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File too large. Max size: {CHAT_IMAGE_MAX_SIZE // 1024 // 1024}MB"
+            )
+
+        # 确保目录存在
+        os.makedirs(CHAT_IMAGES_DIR, exist_ok=True)
+
+        # 生成唯一文件名
+        username = agent.get("username", "agent")
+        timestamp = int(time.time())
+        unique_id = uuid.uuid4().hex[:8]
+        filename = f"{username}_{timestamp}_{unique_id}{ext}"
+        filepath = os.path.join(CHAT_IMAGES_DIR, filename)
+
+        # 保存文件
+        with open(filepath, "wb") as f:
+            f.write(content)
+
+        # 返回访问 URL
+        image_url = f"/assets/chat-images/{filename}"
+
+        print(f"Agent uploaded chat image: {username} -> {filename}")
+
+        return {
+            "success": True,
+            "image_url": image_url,
+            "filename": filename,
+            "markdown": f"![image]({image_url})"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error: Upload chat image failed: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Upload failed: {str(e)}"
+        )

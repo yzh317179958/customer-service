@@ -1,39 +1,43 @@
 <script setup lang="ts">
-import { useChatStore } from '@/stores/chatStore'
+import { useChatStore, type UserIntent } from '@/stores/chatStore'
 
 const chatStore = useChatStore()
 
-// 快捷问题列表 - 包含引导回复
+// 快捷问题列表 - 包含引导回复和意图
 const quickQuestions = [
   {
     icon: '🚚',
-    text: 'Order status',
+    text: "Where's my package?",
+    intent: 'order_status' as UserIntent,
     // 本地引导回复，不调用API
     guideReply: 'To help you check your order status, please provide your **order number** (e.g., #12345 or FD-XXXXX). You can find it in your order confirmation email.'
   },
   {
     icon: '🔧',
     text: 'Product help',
+    intent: 'presale' as UserIntent,
     guideReply: 'I\'d be happy to help with your Fiido e-bike! Please describe the issue you\'re experiencing, or let me know which product model you have (e.g., D11, X3, etc.).'
   },
   {
     icon: '↩️',
-    text: 'Returns',
-    guideReply: 'For returns or refunds, please provide your **order number** and briefly describe the reason for return. Our team will assist you promptly.'
+    text: 'Running into a little issue',
+    intent: 'after_sale' as UserIntent,
+    guideReply: 'For returns or refunds, please provide your **order number** so I can look up your order details.'
   },
   {
     icon: '📞',
     text: 'Contact us',
+    intent: 'contact_agent' as UserIntent,
     guideReply: 'I can connect you with our support team. Before I do, could you briefly describe your issue so we can direct you to the right specialist?'
   }
 ]
 
 const emit = defineEmits<{
-  (e: 'quick-question', data: { text: string, guideReply: string }): void
+  (e: 'quick-question', data: { text: string, guideReply: string, intent: UserIntent }): void
 }>()
 
 const handleQuickQuestion = (item: typeof quickQuestions[0]) => {
-  emit('quick-question', { text: item.text, guideReply: item.guideReply })
+  emit('quick-question', { text: item.text, guideReply: item.guideReply, intent: item.intent })
 }
 </script>
 

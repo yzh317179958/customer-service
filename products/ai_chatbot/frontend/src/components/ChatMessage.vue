@@ -100,7 +100,7 @@ async function fetchTrackingData(
       is_pending: false,
       events: [],
       loading: false,
-      error: error instanceof Error ? error.message : '加载失败'
+      error: error instanceof Error ? error.message : 'Failed to load'
     })
   }
 }
@@ -162,7 +162,7 @@ function updateTimelineDOM(trackingNumber: string, expanded: boolean): void {
           <div class="tracking-timeline loading">
             <div class="timeline-loading">
               <span class="loading-spinner"></span>
-              <span>加载中...</span>
+              <span>Loading...</span>
             </div>
           </div>
         `
@@ -171,7 +171,7 @@ function updateTimelineDOM(trackingNumber: string, expanded: boolean): void {
           <div class="tracking-timeline error">
             <div class="timeline-error">
               <span class="error-icon">⚠️</span>
-              <span>暂无物流信息</span>
+              <span>No tracking info</span>
             </div>
           </div>
         `
@@ -181,7 +181,7 @@ function updateTimelineDOM(trackingNumber: string, expanded: boolean): void {
           <div class="tracking-timeline pending">
             <div class="timeline-pending">
               <span class="pending-icon">⏳</span>
-              <span>物流信息更新中，请稍后刷新</span>
+              <span>Tracking info updating, please refresh later</span>
             </div>
           </div>
         `
@@ -190,7 +190,7 @@ function updateTimelineDOM(trackingNumber: string, expanded: boolean): void {
           <div class="tracking-timeline empty">
             <div class="timeline-empty">
               <span class="empty-icon">📦</span>
-              <span>暂无物流轨迹，可点击 Track 查看承运商官网</span>
+              <span>No tracking events, click Track to check carrier website</span>
             </div>
           </div>
         `
@@ -200,7 +200,7 @@ function updateTimelineDOM(trackingNumber: string, expanded: boolean): void {
             <div class="timeline-dot ${index === 0 ? 'active' : ''}"></div>
             <div class="timeline-content">
               <div class="timeline-time">${formatTimestamp(event.timestamp)}</div>
-              <div class="timeline-status">${event.status_zh || event.status || event.description || ''}</div>
+              <div class="timeline-status">${event.status || event.status_zh || event.description || ''}</div>
               ${event.location ? `<div class="timeline-location">📍 ${event.location}</div>` : ''}
             </div>
           </div>
@@ -210,9 +210,9 @@ function updateTimelineDOM(trackingNumber: string, expanded: boolean): void {
           <div class="tracking-timeline">
             <div class="timeline-header">
               <span class="timeline-status-badge ${data.is_delivered ? 'delivered' : data.is_exception ? 'exception' : 'in-transit'}">
-                ${data.current_status_zh || data.current_status || '运输中'}
+                ${data.current_status || data.current_status_zh || 'In Transit'}
               </span>
-              <span class="timeline-count">${data.events.length} 条轨迹</span>
+              <span class="timeline-count">${data.events.length} events</span>
             </div>
             <div class="timeline-events">
               ${eventsHtml}
@@ -226,8 +226,8 @@ function updateTimelineDOM(trackingNumber: string, expanded: boolean): void {
   // 更新按钮状态
   buttons.forEach(btn => {
     const button = btn as HTMLElement
-    const expandText = button.dataset.expand || '查看物流'
-    const collapseText = button.dataset.collapse || '收起'
+    const expandText = button.dataset.expand || 'Track Details'
+    const collapseText = button.dataset.collapse || 'Collapse'
     const icon = button.querySelector('.expand-icon')
     const text = button.querySelector('.expand-text')
 
@@ -255,11 +255,32 @@ function handleTrackingClick(event: Event): void {
 // 挂载/卸载事件监听
 onMounted(() => {
   document.addEventListener('click', handleTrackingClick)
+  document.addEventListener('click', handleImageClick)
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', handleTrackingClick)
+  document.removeEventListener('click', handleImageClick)
 })
+
+// ============ 图片预览功能 ============
+const zoomedImageUrl = ref<string | null>(null)
+
+function handleImageClick(e: MouseEvent) {
+  const target = e.target as HTMLElement
+  // 检查是否点击了消息内容中的图片
+  if (target.tagName === 'IMG' && target.closest('.message-content')) {
+    const imgSrc = (target as HTMLImageElement).src
+    // 排除产品图片和头像等小图
+    if (imgSrc && !target.classList.contains('product-img')) {
+      zoomedImageUrl.value = imgSrc
+    }
+  }
+}
+
+function closeImagePreview() {
+  zoomedImageUrl.value = null
+}
 
 // Configure marked for rendering markdown
 marked.setOptions({
@@ -580,6 +601,16 @@ const senderName = computed(() => {
       <div class="message-content" v-else v-html="renderedContent"></div>
     </div>
   </div>
+
+  <!-- 图片预览弹窗 -->
+  <Teleport to="body">
+    <div v-if="zoomedImageUrl" class="image-preview-overlay" @click="closeImagePreview">
+      <div class="image-preview-container" @click.stop>
+        <img :src="zoomedImageUrl" alt="Preview" class="image-preview-img" />
+        <button class="image-preview-close" @click="closeImagePreview">×</button>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -1824,5 +1855,84 @@ const senderName = computed(() => {
 
 .message-content :deep(.timeline-events::-webkit-scrollbar-thumb:hover) {
   background: #94a3b8;
+}
+
+/* =====================================================
+   图片预览弹窗样式
+   ===================================================== */
+.image-preview-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  cursor: pointer;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.image-preview-container {
+  position: relative;
+  max-width: 90vw;
+  max-height: 90vh;
+  cursor: default;
+  animation: zoomIn 0.25s ease-out;
+}
+
+@keyframes zoomIn {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.image-preview-img {
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 12px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+.image-preview-close {
+  position: absolute;
+  top: -40px;
+  right: 0;
+  width: 36px;
+  height: 36px;
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  border-radius: 50%;
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.image-preview-close:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: scale(1.1);
+}
+
+/* 让消息内容中的图片显示可点击的样式 */
+.message-content :deep(img) {
+  cursor: pointer;
 }
 </style>

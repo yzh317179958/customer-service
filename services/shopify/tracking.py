@@ -227,7 +227,7 @@ def get_tracking_url(carrier: str, tracking_number: str) -> Optional[str]:
     return f"https://t.17track.net/en#nums={tracking_number}"
 
 
-def translate_fulfillment_status(status: Optional[str], lang: str = "zh") -> str:
+def translate_fulfillment_status(status: Optional[str], lang: str = "en") -> str:
     """
     翻译订单发货状态 (order.fulfillment_status)
 
@@ -247,7 +247,7 @@ def translate_fulfillment_status(status: Optional[str], lang: str = "zh") -> str
     return translation.get(lang, status or "Unknown")
 
 
-def translate_fulfillment_record_status(status: str, lang: str = "zh") -> str:
+def translate_fulfillment_record_status(status: str, lang: str = "en") -> str:
     """
     翻译发货记录状态 (fulfillment.status)
 
@@ -267,7 +267,7 @@ def translate_fulfillment_record_status(status: str, lang: str = "zh") -> str:
     return translation.get(lang, status)
 
 
-def translate_tracking_status(status: str, lang: str = "zh") -> str:
+def translate_tracking_status(status: str, lang: str = "en") -> str:
     """
     翻译物流追踪状态
 
@@ -287,7 +287,7 @@ def translate_tracking_status(status: str, lang: str = "zh") -> str:
     return translation.get(lang, status)
 
 
-def translate_financial_status(status: str, lang: str = "zh") -> str:
+def translate_financial_status(status: str, lang: str = "en") -> str:
     """
     翻译支付状态
 

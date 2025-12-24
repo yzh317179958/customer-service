@@ -207,6 +207,20 @@ export async function createTicket(sessionName: string, data: CreateTicketReques
 }
 
 /**
+ * 上传聊天图片
+ */
+export async function uploadChatImage(file: File): Promise<{ success: boolean; image_url: string; filename: string; markdown: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await apiClient.post<{ success: boolean; image_url: string; filename: string; markdown: string }>(
+    '/sessions/upload/image',
+    formData
+  );
+  return response.data;
+}
+
+/**
  * 订阅会话 SSE 事件流
  * 返回 EventSource 实例，调用方需要自行管理生命周期
  */
@@ -238,6 +252,7 @@ export const sessionsApi = {
   sendMessage,
   addNote,
   createTicket,
+  uploadChatImage,
   subscribeEvents,
 };
 

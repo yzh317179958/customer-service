@@ -31,7 +31,7 @@ from products.ai_chatbot.dependencies import (
 )
 
 # 导入模型
-from products.ai_chatbot.models import ChatRequest, ChatResponse
+from products.ai_chatbot.models import ChatRequest, ChatResponse, UserIntent
 
 # 导入会话状态相关
 from services.session.state import (
@@ -154,6 +154,16 @@ async def chat(request: ChatRequest) -> ChatResponse:
                 }
             ]
         }
+
+        # v7.7.0: 传递 intent 参数给 Coze
+        if request.intent:
+            payload["parameters"]["INTENT"] = request.intent.value
+            print(f"🎯 Intent: {request.intent.value}")
+
+        # v7.7.0: 传递订单号给 Coze（售后流程使用）
+        if request.order_number:
+            payload["parameters"]["ORDER_NUMBER"] = request.order_number
+            print(f"📦 Order Number: {request.order_number}")
 
         if conversation_id:
             payload["conversation_id"] = conversation_id
@@ -369,6 +379,16 @@ async def chat_stream(request: ChatRequest):
                 ]
             }
 
+            # v7.7.0: 传递 intent 参数给 Coze
+            if request.intent:
+                payload["parameters"]["INTENT"] = request.intent.value
+                print(f"🎯 流式 Intent: {request.intent.value}")
+
+            # v7.7.0: 传递订单号给 Coze（售后流程使用）
+            if request.order_number:
+                payload["parameters"]["ORDER_NUMBER"] = request.order_number
+                print(f"📦 流式 Order Number: {request.order_number}")
+
             if conversation_id:
                 payload["conversation_id"] = conversation_id
                 print(f"💬 流式接口使用 Conversation: {conversation_id}")
@@ -538,10 +558,10 @@ async def get_bot_info():
     try:
         workflow_id = get_workflow_id()
 
-        bot_name = os.getenv("COZE_BOT_NAME", "Fiido 客服")
+        bot_name = os.getenv("COZE_BOT_NAME", "Fiido Support")
         bot_icon_url = os.getenv("COZE_BOT_ICON_URL", "http://localhost:8000/fiido2.png")
-        bot_description = os.getenv("COZE_BOT_DESCRIPTION", "Fiido 智能客服助手")
-        bot_welcome = os.getenv("COZE_BOT_WELCOME", "您好！我是Fiido智能客服助手,很高兴为您服务。请问有什么可以帮助您的？")
+        bot_description = os.getenv("COZE_BOT_DESCRIPTION", "Fiido AI Support Assistant")
+        bot_welcome = os.getenv("COZE_BOT_WELCOME", "Hello! I'm Fiido's AI assistant. How can I help you today?")
 
         bot_info = {
             "name": bot_name,

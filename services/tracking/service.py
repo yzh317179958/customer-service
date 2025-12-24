@@ -639,7 +639,7 @@ class TrackingService:
             return TrackingInfo(
                 tracking_number=tracking_number,
                 status=TrackingStatus.NOT_FOUND,
-                status_zh="追踪中",
+                status_zh="Tracking",
                 is_pending=True,
                 order_id=order_id,
                 order_number=order_number,
@@ -649,7 +649,7 @@ class TrackingService:
         return TrackingInfo(
             tracking_number=tracking_number,
             status=TrackingStatus.NOT_FOUND,
-            status_zh="暂无物流信息",
+            status_zh="No tracking info",
             is_pending=False,
             order_id=order_id,
             order_number=order_number,

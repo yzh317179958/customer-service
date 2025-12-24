@@ -224,11 +224,9 @@ memory-bank/
 
 请阅读并根据以下文档生成详细的实现计划：
 
-【PRD 文档】@prd.md
-
-【技术栈文档】@tech-stack.md
-
-【最高约束性文档】@claude.md
+prd.md
+tech-stack.md
+claude.md
 
 请生成 implementation-plan.md，要求：
 

@@ -9,13 +9,14 @@ import {
   UserCheck, ShieldAlert, Monitor, Plus, Edit3,
   ExternalLink, RefreshCw, Truck, ClipboardList, ChevronDown,
   ChevronUp, UserPlus, Hash, Calendar, Layers, Info, Settings2,
-  Box, CreditCard, Activity, HelpCircle, Tag, TrendingUp, Loader2
+  Box, CreditCard, Activity, HelpCircle, Tag, TrendingUp, Loader2, Upload
 } from 'lucide-react';
 import { useSessionStore, useAuthStore } from '../src/stores';
 import { sessionsApi } from '../src/api';
 import MessageContent from './MessageContent';
 import QuickReplyPanel from './QuickReplyPanel';
 import OrderPanel from './OrderPanel';
+import EmojiPicker from './EmojiPicker';
 
 const Workspace: React.FC = () => {
   const [inputText, setInputText] = useState('');
@@ -55,6 +56,11 @@ const Workspace: React.FC = () => {
   const { agent } = useAuthStore();
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  // 表情选择器和图片上传状态
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   // 初始化加载会话列表和队列
   useEffect(() => {
@@ -97,6 +103,53 @@ const Workspace: React.FC = () => {
       setInputText('');
       fetchAiSuggestions(inputText);
     }
+  };
+
+  // 处理图片上传
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // 验证文件类型
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      alert('请选择 JPG、PNG、GIF 或 WebP 格式的图片');
+      return;
+    }
+
+    // 验证文件大小（5MB）
+    if (file.size > 5 * 1024 * 1024) {
+      alert('图片大小不能超过 5MB');
+      return;
+    }
+
+    setIsUploadingImage(true);
+
+    try {
+      const result = await sessionsApi.uploadChatImage(file);
+      // 将图片 Markdown 插入到输入框
+      setInputText(prev => prev ? `${prev}\n${result.markdown}` : result.markdown);
+    } catch (error) {
+      console.error('上传图片失败:', error);
+      alert('上传图片失败，请重试');
+    } finally {
+      setIsUploadingImage(false);
+      // 清空文件输入
+      if (imageInputRef.current) {
+        imageInputRef.current.value = '';
+      }
+    }
+  };
+
+  // 触发图片选择 - 直接同步调用，无延迟
+  const handleImageClick = () => {
+    imageInputRef.current?.click();
+  };
+
+  // 插入表情
+  const handleEmojiSelect = (emoji: string) => {
+    setInputText(prev => prev + emoji);
+    setShowEmojiPicker(false);
   };
 
   // 接管会话
@@ -399,23 +452,86 @@ const Workspace: React.FC = () => {
                   onKeyDown={e => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); }}}
                 />
                 <div className="flex items-center justify-between p-3 border-t border-slate-100/50">
-                  <div className="flex gap-3 text-slate-400">
-                    <Smile size={16} className="cursor-pointer hover:text-fiido"/>
-                    <Image size={16} className="cursor-pointer hover:text-fiido"/>
-                    <Paperclip size={16} className="cursor-pointer hover:text-fiido"/>
-                    <Monitor size={16} className="cursor-pointer hover:text-fiido"/>
+                  <div className="flex gap-1 text-slate-400 relative">
+                    {/* 表情选择器 */}
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                        className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 ${
+                          showEmojiPicker
+                            ? 'text-fiido bg-fiido/10 scale-110'
+                            : 'hover:text-fiido hover:bg-slate-100 hover:scale-110 active:scale-95'
+                        }`}
+                        title="表情"
+                      >
+                        <Smile size={18} />
+                      </button>
+                      <EmojiPicker
+                        isOpen={showEmojiPicker}
+                        onClose={() => setShowEmojiPicker(false)}
+                        onSelect={handleEmojiSelect}
+                      />
+                    </div>
+
+                    {/* 图片上传 */}
+                    <button
+                      onClick={handleImageClick}
+                      disabled={isUploadingImage}
+                      className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 ${
+                        isUploadingImage
+                          ? 'text-fiido bg-fiido/10'
+                          : 'hover:text-fiido hover:bg-slate-100 hover:scale-110 active:scale-95'
+                      }`}
+                      title="上传图片"
+                    >
+                      {isUploadingImage ? <Loader2 size={18} className="animate-spin" /> : <Image size={18} />}
+                    </button>
+                    <input
+                      ref={imageInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/gif,image/webp"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                    />
+
+                    {/* 附件 */}
+                    <button
+                      className="w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 hover:text-slate-500 hover:bg-slate-100 hover:scale-110 active:scale-95 cursor-not-allowed opacity-50"
+                      title="附件 (即将支持)"
+                      disabled
+                    >
+                      <Paperclip size={18} />
+                    </button>
+
+                    {/* 屏幕共享 */}
+                    <button
+                      className="w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 hover:text-slate-500 hover:bg-slate-100 hover:scale-110 active:scale-95 cursor-not-allowed opacity-50"
+                      title="屏幕共享 (即将支持)"
+                      disabled
+                    >
+                      <Monitor size={18} />
+                    </button>
+
+                    {/* 分隔线 */}
+                    <div className="w-px h-5 bg-slate-200 mx-1 self-center" />
+
+                    {/* 快捷回复 */}
                     <button
                       onClick={() => setShowQuickReplyPanel(!showQuickReplyPanel)}
-                      className={`transition-colors ${showQuickReplyPanel ? 'text-fiido' : 'hover:text-fiido'}`}
+                      className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 ${
+                        showQuickReplyPanel
+                          ? 'text-fiido bg-fiido/10 scale-110'
+                          : 'hover:text-fiido hover:bg-slate-100 hover:scale-110 active:scale-95'
+                      }`}
                       title="快捷回复"
                     >
-                      <Zap size={16} />
+                      <Zap size={18} />
                     </button>
                   </div>
                   <button
                     onClick={handleSendMessage}
                     disabled={!inputText.trim()}
-                    className="bg-fiido text-white px-4 py-1.5 rounded font-black text-[11px] flex items-center gap-2 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="bg-fiido text-white px-4 py-1.5 rounded-lg font-black text-[11px] flex items-center gap-2 transition-all duration-200 hover:bg-fiido-dark hover:scale-105 hover:shadow-lg hover:shadow-fiido/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-none"
                   >
                     发送 <Send size={12}/>
                   </button>

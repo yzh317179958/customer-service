@@ -23,6 +23,24 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/tracking", tags=["物流追踪"])
 
+def _status_text_en(status: Optional[TrackingStatus], *, is_pending: bool = False) -> str:
+    if is_pending:
+        return "Tracking"
+    if not status:
+        return "Unknown"
+    mapping = {
+        TrackingStatus.NOT_FOUND: "No tracking info",
+        TrackingStatus.INFO_RECEIVED: "Info received",
+        TrackingStatus.IN_TRANSIT: "In transit",
+        TrackingStatus.PICK_UP: "Ready for pickup",
+        TrackingStatus.OUT_FOR_DELIVERY: "Out for delivery",
+        TrackingStatus.UNDELIVERED: "Undelivered",
+        TrackingStatus.DELIVERED: "Delivered",
+        TrackingStatus.ALERT: "Exception",
+        TrackingStatus.EXPIRED: "Expired",
+    }
+    return mapping.get(status, "Unknown")
+
 
 # ============ 响应模型 ============
 
@@ -58,7 +76,7 @@ class TrackingResponse(BaseModel):
     last_updated: Optional[str] = Field(None, description="最后更新时间")
     order_id: Optional[str] = Field(None, description="关联订单 ID")
     message: Optional[str] = Field(None, description="提示信息（轨迹不可用时显示）")
-    message_en: Optional[str] = Field(None, description="提示信息（英文）")
+    message_zh: Optional[str] = Field(None, description="提示信息（中文）")
     tracking_url: Optional[str] = Field(None, description="承运商官方追踪链接")
     debug: Optional[dict] = Field(None, description="调试信息（仅 debug=1 时返回）")
 
@@ -200,12 +218,21 @@ async def get_tracking(
                     "refetch_error": refetch_error,
                 }
 
+            try:
+                debug_info["code_location"] = {
+                    "handler_file": __file__,
+                    "handler_mtime": os.path.getmtime(__file__),
+                    "tracking_service_file": getattr(service.__class__, "__module__", None),
+                }
+            except Exception:
+                pass
+
         # 如果是 pending 状态，直接返回
         if info.is_pending:
             return TrackingResponse(
                 tracking_number=info.tracking_number,
                 current_status="NotFound",
-                current_status_zh=info.status_zh or "追踪中",
+                current_status_zh=_status_text_en(info.status, is_pending=True),
                 is_delivered=False,
                 is_exception=False,
                 is_pending=True,
@@ -266,7 +293,7 @@ async def get_tracking(
 
         # 生成友好提示信息（当轨迹为空时）
         message = None
-        message_en = None
+        message_zh = None
         tracking_url = None
 
         if len(info.events) == 0:
@@ -274,31 +301,31 @@ async def get_tracking(
             if info.status == TrackingStatus.NOT_FOUND:
                 # 17track 未找到该运单
                 if carrier_name:
-                    message = f"暂无物流轨迹数据。该运单由 {carrier_name} 承运，轨迹信息可能已过期或该承运商暂不支持在线追踪。请访问承运商官网查询。"
-                    message_en = f"No tracking data available. This shipment is handled by {carrier_name}. The tracking info may have expired or this carrier doesn't support online tracking. Please check the carrier's website."
+                    message = f"No tracking data available. This shipment is handled by {carrier_name}. The tracking info may have expired or this carrier doesn't support online tracking. Please check the carrier's website."
+                    message_zh = f"暂无物流轨迹数据。该运单由 {carrier_name} 承运，轨迹信息可能已过期或该承运商暂不支持在线追踪。请访问承运商官网查询。"
                 else:
-                    message = "暂无物流轨迹数据。轨迹信息可能已过期或该承运商暂不支持在线追踪。"
-                    message_en = "No tracking data available. The tracking info may have expired or this carrier doesn't support online tracking."
+                    message = "No tracking data available. The tracking info may have expired or this carrier doesn't support online tracking."
+                    message_zh = "暂无物流轨迹数据。轨迹信息可能已过期或该承运商暂不支持在线追踪。"
                 tracking_url = carrier_url
             elif info.status == TrackingStatus.DELIVERED:
                 # 已签收但无轨迹详情
-                message = "包裹已签收，但详细轨迹数据不可用。"
-                message_en = "Package delivered, but detailed tracking data is not available."
+                message = "Package delivered, but detailed tracking data is not available."
+                message_zh = "包裹已签收，但详细轨迹数据不可用。"
             elif info.status == TrackingStatus.EXPIRED:
                 # 轨迹已过期
-                message = "该运单轨迹已过期，无法查询历史记录。"
-                message_en = "This tracking record has expired and historical data is no longer available."
+                message = "This tracking record has expired and historical data is no longer available."
+                message_zh = "该运单轨迹已过期，无法查询历史记录。"
             else:
                 # 其他情况
-                message = "暂无详细轨迹数据，请稍后再试或访问承运商官网查询。"
-                message_en = "No detailed tracking data available. Please try again later or check the carrier's website."
+                message = "No detailed tracking data available. Please try again later or check the carrier's website."
+                message_zh = "暂无详细轨迹数据，请稍后再试或访问承运商官网查询。"
                 tracking_url = carrier_url
 
         return TrackingResponse(
             tracking_number=info.tracking_number,
             carrier=carrier_resp,
             current_status=info.status.value if info.status else "unknown",
-            current_status_zh=info.status_zh or "未知",
+            current_status_zh=_status_text_en(info.status),
             is_delivered=info.is_delivered,
             is_exception=info.is_exception,
             is_pending=False,
@@ -307,7 +334,7 @@ async def get_tracking(
             last_updated=last_updated,
             order_id=info.order_id,
             message=message,
-            message_en=message_en,
+            message_zh=message_zh,
             tracking_url=tracking_url,
             debug=debug_info,
         )

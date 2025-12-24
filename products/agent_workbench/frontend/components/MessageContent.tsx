@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ExternalLink, ShoppingBag, Truck } from 'lucide-react';
+import { ExternalLink, ShoppingBag, Truck, ZoomIn } from 'lucide-react';
 
 type ProductCardData = {
   imageUrl: string;
@@ -118,9 +118,128 @@ const ProductCard: React.FC<{ data: ProductCardData }> = ({ data }) => {
   );
 };
 
-const renderProductCardMessage = (content: string): React.ReactNode => {
-  if (!content || !content.includes('[PRODUCT]')) {
+// Markdown 图片正则: ![alt](url)
+const MARKDOWN_IMAGE_REGEX = /!\[([^\]]*)\]\(([^)]+)\)/g;
+
+// 渲染 Markdown 图片
+const ImagePreview: React.FC<{ src: string; alt: string }> = ({ src, alt }) => {
+  const [error, setError] = useState(false);
+  const [isZoomed, setIsZoomed] = useState(false);
+
+  if (error) {
+    return (
+      <div className="inline-flex items-center gap-2 px-3 py-2 bg-slate-100 rounded-lg text-slate-500 text-[11px]">
+        <ShoppingBag size={14} />
+        <span>图片加载失败</span>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="relative inline-block group">
+        <img
+          src={src}
+          alt={alt || 'image'}
+          className="max-w-[240px] max-h-[180px] rounded-lg border border-slate-200 cursor-pointer hover:opacity-90 transition-all"
+          onError={() => setError(true)}
+          onClick={() => setIsZoomed(true)}
+        />
+        <div
+          className="absolute inset-0 bg-black/0 group-hover:bg-black/10 rounded-lg transition-all flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer"
+          onClick={() => setIsZoomed(true)}
+        >
+          <ZoomIn size={20} className="text-white drop-shadow-lg" />
+        </div>
+      </div>
+
+      {/* 图片放大预览 */}
+      {isZoomed && (
+        <div
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 cursor-pointer"
+          onClick={() => setIsZoomed(false)}
+        >
+          <img
+            src={src}
+            alt={alt || 'image'}
+            className="max-w-[90vw] max-h-[90vh] rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <button
+            onClick={() => setIsZoomed(false)}
+            className="absolute top-4 right-4 text-white text-2xl hover:opacity-80"
+          >
+            ×
+          </button>
+        </div>
+      )}
+    </>
+  );
+};
+
+// 渲染带图片支持的消息内容
+const renderMessageWithImages = (content: string): React.ReactNode => {
+  // 检查是否包含 Markdown 图片
+  if (!content.includes('![')) {
     return content;
+  }
+
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let partIndex = 0;
+
+  MARKDOWN_IMAGE_REGEX.lastIndex = 0;
+  while ((match = MARKDOWN_IMAGE_REGEX.exec(content)) !== null) {
+    const startIndex = match.index;
+    const endIndex = match.index + match[0].length;
+
+    // 添加图片前的文本
+    if (startIndex > lastIndex) {
+      const text = content.slice(lastIndex, startIndex);
+      if (text.trim()) {
+        parts.push(
+          <span key={`t-${partIndex}`} className="whitespace-pre-wrap">
+            {text}
+          </span>
+        );
+        partIndex += 1;
+      }
+    }
+
+    // 添加图片
+    const alt = match[1] || '';
+    const src = match[2] || '';
+    parts.push(
+      <div key={`img-${partIndex}`} className="my-2">
+        <ImagePreview src={src} alt={alt} />
+      </div>
+    );
+    partIndex += 1;
+
+    lastIndex = endIndex;
+  }
+
+  // 添加剩余文本
+  if (lastIndex < content.length) {
+    const text = content.slice(lastIndex);
+    if (text.trim()) {
+      parts.push(
+        <span key={`t-${partIndex}`} className="whitespace-pre-wrap">
+          {text}
+        </span>
+      );
+    }
+  }
+
+  return <div className="space-y-1">{parts}</div>;
+};
+
+const renderProductCardMessage = (content: string): React.ReactNode => {
+  // 先检查是否有商品卡片
+  if (!content || !content.includes('[PRODUCT]')) {
+    // 没有商品卡片，检查是否有图片
+    return renderMessageWithImages(content);
   }
 
   const parts: React.ReactNode[] = [];

@@ -9,6 +9,12 @@ import type {
   EscalationReason
 } from '@/types'
 
+// v7.7.0: 用户意图类型
+export type UserIntent = 'presale' | 'order_status' | 'after_sale' | 'contact_agent' | 'general'
+
+// v7.7.0: 售后流程状态
+export type AfterSaleState = 'idle' | 'awaiting_order' | 'validating' | 'order_found' | 'awaiting_issue'
+
 export const useChatStore = defineStore('chat', () => {
   // ============ 原有状态 ============
   const messages = ref<Message[]>([])
@@ -30,6 +36,29 @@ export const useChatStore = defineStore('chat', () => {
     description: 'Fiido AI Support Assistant',
     welcome: 'Hello! I\'m Fiido\'s AI assistant. How can I help you today?'
   })
+
+  // ============ v7.7.0: Intent 和售后状态机 ============
+
+  /**
+   * 当前用户意图
+   * 由快捷回复按钮设置
+   */
+  const currentIntent = ref<UserIntent | null>(null)
+
+  /**
+   * 售后流程状态
+   * - idle: 空闲
+   * - awaiting_order: 等待用户输入订单号
+   * - validating: 正在验证订单
+   * - order_found: 订单已验证
+   * - awaiting_issue: 等待用户描述问题
+   */
+  const afterSaleState = ref<AfterSaleState>('idle')
+
+  /**
+   * 已验证的订单号
+   */
+  const validatedOrderNumber = ref<string | null>(null)
 
   // ============ 人工接管状态（新增）============
 
@@ -350,6 +379,52 @@ export const useChatStore = defineStore('chat', () => {
     console.log('🔄 人工接管状态已重置')
   }
 
+  // ============ v7.7.0: Intent 和售后状态机方法 ============
+
+  /**
+   * 设置当前意图
+   */
+  function setIntent(intent: UserIntent | null) {
+    currentIntent.value = intent
+    console.log(`🎯 设置意图: ${intent}`)
+  }
+
+  /**
+   * 更新售后状态
+   */
+  function setAfterSaleState(state: AfterSaleState) {
+    const oldState = afterSaleState.value
+    afterSaleState.value = state
+    console.log(`📋 售后状态: ${oldState} → ${state}`)
+  }
+
+  /**
+   * 设置已验证的订单号
+   */
+  function setValidatedOrderNumber(orderNumber: string | null) {
+    validatedOrderNumber.value = orderNumber
+    if (orderNumber) {
+      console.log(`✅ 订单已验证: ${orderNumber}`)
+    }
+  }
+
+  /**
+   * 重置售后状态机
+   */
+  function resetAfterSaleState() {
+    currentIntent.value = null
+    afterSaleState.value = 'idle'
+    validatedOrderNumber.value = null
+    console.log('🔄 售后状态已重置')
+  }
+
+  /**
+   * 检查是否处于售后流程中
+   */
+  const isInAfterSaleFlow = computed(() => {
+    return currentIntent.value === 'after_sale' && afterSaleState.value !== 'idle'
+  })
+
   return {
     // 原有状态
     messages,
@@ -377,6 +452,12 @@ export const useChatStore = defineStore('chat', () => {
     statusText,
     statusColorClass,
 
+    // v7.7.0: Intent 和售后状态
+    currentIntent,
+    afterSaleState,
+    validatedOrderNumber,
+    isInAfterSaleFlow,
+
     // 原有方法
     addMessage,
     updateLastMessage,
@@ -396,6 +477,12 @@ export const useChatStore = defineStore('chat', () => {
     setAgentInfo,
     escalateToManual,
     refreshSessionStatus,
-    resetManualState
+    resetManualState,
+
+    // v7.7.0: Intent 和售后状态机方法
+    setIntent,
+    setAfterSaleState,
+    setValidatedOrderNumber,
+    resetAfterSaleState
   }
 })

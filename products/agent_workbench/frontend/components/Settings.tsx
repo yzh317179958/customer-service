@@ -1,22 +1,32 @@
 import React, { useState } from 'react';
 import { User, Bell, Shield, Globe, Keyboard, Database, ChevronRight, Check, Settings as SettingsIcon } from 'lucide-react';
 import QuickReplyManager from './QuickReplyManager';
+import ProfileSettings from './ProfileSettings';
+import PasswordSettings from './PasswordSettings';
 
 const Settings: React.FC = () => {
   const [activeSection, setActiveSection] = useState<string | null>(null);
 
-  // 如果选中了话术短语库，显示管理页面
+  // 子页面路由
   if (activeSection === '话术短语库') {
     return <QuickReplyManager onBack={() => setActiveSection(null)} />;
   }
 
+  if (activeSection === '个人配置') {
+    return <ProfileSettings onBack={() => setActiveSection(null)} />;
+  }
+
+  if (activeSection === '账号与合规') {
+    return <PasswordSettings onBack={() => setActiveSection(null)} />;
+  }
+
   const sections = [
-    { title: '个人配置', icon: User, desc: '修改头像、中英文昵称及当前接单负荷设置' },
-    { title: '通知与提醒', icon: Bell, desc: '配置声音告警、弹窗及外部 IM 推送逻辑' },
-    { title: '账号与合规', icon: Shield, desc: '修改密码、动态令牌验证及系统操作审计' },
-    { title: '话术短语库', icon: Keyboard, desc: '管理个人及团队共享的快捷回复模版' },
-    { title: '语言与时区', icon: Globe, desc: '切换后台语言（默认中文）及各地区时区显示' },
-    { title: '外部集成', icon: Database, desc: '绑定 ERP 系统、物流 API 及售后备件库' },
+    { title: '个人配置', icon: User, desc: '修改头像、显示名称等个人信息', clickable: true },
+    { title: '通知与提醒', icon: Bell, desc: '配置声音告警、弹窗及外部 IM 推送逻辑', clickable: false },
+    { title: '账号与合规', icon: Shield, desc: '修改密码、动态令牌验证及系统操作审计', clickable: true },
+    { title: '话术短语库', icon: Keyboard, desc: '管理个人及团队共享的快捷回复模版', clickable: true },
+    { title: '语言与时区', icon: Globe, desc: '切换后台语言（默认中文）及各地区时区显示', clickable: false },
+    { title: '外部集成', icon: Database, desc: '绑定 ERP 系统、物流 API 及售后备件库', clickable: false },
   ];
 
   return (
@@ -31,9 +41,9 @@ const Settings: React.FC = () => {
            {sections.map((s, i) => (
              <div
                key={i}
-               onClick={() => s.title === '话术短语库' && setActiveSection(s.title)}
+               onClick={() => s.clickable && setActiveSection(s.title)}
                className={`bg-white p-8 rounded-[48px] border border-slate-100 shadow-[0_12px_32px_rgba(0,0,0,0.02)] hover:shadow-2xl hover:-translate-y-2 transition-all flex gap-6 group ${
-                 s.title === '话术短语库' ? 'cursor-pointer' : 'cursor-default'
+                 s.clickable ? 'cursor-pointer' : 'cursor-default opacity-60'
                }`}
              >
                 <div className="bg-slate-50 p-4 rounded-[28px] text-slate-400 group-hover:bg-fiido group-hover:text-white transition-all shadow-inner h-fit">

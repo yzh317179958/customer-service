@@ -2,7 +2,7 @@
 
 > 产品模块：products/agent_workbench
 > 最后更新：2025-12-24
-> 当前版本：v7.4.6
+> 当前版本：v7.4.8
 > 遵循规范：CLAUDE.md 三层架构
 
 ---
@@ -25,7 +25,9 @@
 │  │  ├── QualityAudit     ← 智能质检                             │  │
 │  │  ├── BillingView      ← 计费入口                             │  │
 │  │  ├── BillingPortal    ← 计费详情页 (16KB)                    │  │
-│  │  └── Settings         ← 系统设置                             │  │
+│  │  ├── Settings         ← 系统设置                             │  │
+│  │  │   ├── ProfileSettings   ← 个人配置（Step 17）           │  │
+│  │  │   └── PasswordSettings  ← 密码修改（Step 17）           │  │
 │  └──────────────────────────────────────────────────────────────┘  │
 │                              ↓ API 调用                             │
 │  ┌──────────────────────────────────────────────────────────────┐  │
@@ -169,6 +171,8 @@ products/agent_workbench/frontend/   # Step 1: 已从 fronted_origin 重命名
 │   ├── BillingView.tsx        # 计费入口 (1KB)
 │   ├── BillingPortal.tsx      # 计费详情 (16KB)
 │   ├── Settings.tsx           # 系统设置 (6KB)
+│   ├── ProfileSettings.tsx    # Step 17: 个人配置页面
+│   ├── PasswordSettings.tsx   # Step 17: 密码修改页面
 │   ├── QuickReplyPanel.tsx    # Step 13: 快捷回复弹出面板
 │   ├── QuickReplyManager.tsx  # Step 13: 话术短语库管理
 │   └── OrderPanel.tsx         # Step 14: 订单查询面板（邮箱/订单号/物流）

@@ -186,6 +186,20 @@ export async function getTodayStats(): Promise<TodayStats & { current_sessions: 
   return response.data;
 }
 
+/**
+ * 上传头像
+ */
+export async function uploadAvatar(file: File): Promise<{ success: boolean; avatar_url: string; filename: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await apiClient.post<{ success: boolean; avatar_url: string; filename: string }>(
+    '/agent/avatar/upload',
+    formData
+  );
+  return response.data;
+}
+
 // ============ 导出 ============
 
 export const authApi = {
@@ -199,6 +213,7 @@ export const authApi = {
   changePassword,
   heartbeat,
   getTodayStats,
+  uploadAvatar,
 };
 
 export default authApi;

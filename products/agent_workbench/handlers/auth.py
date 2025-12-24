@@ -11,13 +11,15 @@ Endpoints:
 - POST /agent/refresh - Refresh token
 - POST /agent/change-password - Change password
 - PUT /agent/profile - Update profile
+- POST /agent/avatar/upload - Upload avatar
 """
 import os
 import time
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel, Field
 
 from infrastructure.security.agent_auth import (
@@ -558,3 +560,84 @@ async def get_agent_today_stats(agent: Dict[str, Any] = Depends(require_agent)):
     except Exception as exc:
         print(f"Error: Get agent stats failed: {exc}")
         raise HTTPException(status_code=500, detail="Stats retrieval failed")
+
+
+# 头像存储目录
+AVATAR_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "assets", "avatars")
+ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+MAX_FILE_SIZE = 2 * 1024 * 1024  # 2MB
+
+
+@router.post("/avatar/upload")
+async def upload_avatar(
+    file: UploadFile = File(...),
+    agent: Dict[str, Any] = Depends(require_agent)
+):
+    """
+    Upload avatar image
+
+    Returns:
+        avatar_url: URL of the uploaded avatar
+    """
+    try:
+        # 验证文件类型
+        if not file.filename:
+            raise HTTPException(status_code=400, detail="No file provided")
+
+        ext = os.path.splitext(file.filename)[1].lower()
+        if ext not in ALLOWED_EXTENSIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid file type. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"
+            )
+
+        # 读取文件内容
+        content = await file.read()
+
+        # 验证文件大小
+        if len(content) > MAX_FILE_SIZE:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File too large. Max size: {MAX_FILE_SIZE // 1024 // 1024}MB"
+            )
+
+        # 确保目录存在
+        os.makedirs(AVATAR_DIR, exist_ok=True)
+
+        # 生成唯一文件名
+        username = agent.get("username", "unknown")
+        unique_id = uuid.uuid4().hex[:8]
+        filename = f"{username}_{unique_id}{ext}"
+        filepath = os.path.join(AVATAR_DIR, filename)
+
+        # 保存文件
+        with open(filepath, "wb") as f:
+            f.write(content)
+
+        # 返回访问 URL
+        avatar_url = f"/assets/avatars/{filename}"
+
+        # 自动更新用户头像
+        agent_manager = get_agent_manager()
+        current_agent = agent_manager.get_agent_by_username(username)
+        if current_agent:
+            current_agent.avatar_url = avatar_url
+            agent_manager.update_agent(current_agent)
+
+        print(f"Agent uploaded avatar: {username} -> {filename}")
+
+        return {
+            "success": True,
+            "avatar_url": avatar_url,
+            "filename": filename
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error: Upload avatar failed: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Upload failed: {str(e)}"
+        )
+
