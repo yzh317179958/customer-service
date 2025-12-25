@@ -36,7 +36,7 @@
 ```python
 # ✅ 依赖 infrastructure
 from infrastructure.database import get_redis_client
-from infrastructure.logging import logger
+from infrastructure.log import logger
 ```
 
 ### 3.2 禁止的依赖

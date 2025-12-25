@@ -104,7 +104,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 # ✅ 可以依赖同层其他组件
-from infrastructure.logging import logger
+from infrastructure.log import logger
 ```
 
 ### 4.2 禁止的依赖

@@ -42,7 +42,7 @@
 # ✅ 可以依赖 infrastructure 层
 from infrastructure.database import get_redis_client, get_async_session
 from infrastructure.database.models import Ticket, Agent
-from infrastructure.logging import logger
+from infrastructure.log import logger
 
 # ✅ 可以依赖同层其他服务（谨慎使用）
 from services.session import SessionService
