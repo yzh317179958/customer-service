@@ -111,7 +111,7 @@ Fiido 智能服务平台是面向跨境电商的一站式 AI 解决方案，采�
 │   ├── bootstrap/              # 启动引导（组件工厂、依赖注入）
 │   ├── database/               # 数据库（PostgreSQL + Redis 双写）
 │   ├── scheduler/              # 定时任务
-│   ├── logging/                # 日志系统
+│   ├── log/                    # 日志系统
 │   ├── monitoring/             # 监控告警
 │   └── security/               # 安全认证（JWT、坐席认证）
 │
@@ -327,7 +327,7 @@ rsync -avz products/ services/ infrastructure/ root@8.211.27.199:/opt/fiido-ai-s
 │   ├── shopify/
 │   └── ...
 ├── infrastructure/     # 基础设施层（在 infrastructure/ 子目录下）
-│   ├── logging/        # 不是 /opt/fiido-ai-service/logging/
+│   ├── log/            # 不是 /opt/fiido-ai-service/log/
 │   └── ...
 └── ...
 ```
@@ -503,6 +503,7 @@ products/xxx/
 
 | 版本 | 日期 | 变更内容 |
 |------|------|----------|
+| v6.2 | 2025-12-25 | 将 `infrastructure/logging/` 重命名为 `infrastructure/log/` 避免与 Python 标准库冲突；更新服务器密码 |
 | v6.1 | 2025-12-24 | 添加服务器登录凭证；修复 rsync 部署命令（必须分开同步目录）；新增 3.7 部署注意事项防止目录结构错误 |
 | v6.0 | 2025-12-23 | **重大更新**：移除全家桶模式，改为纯微服务架构；更新服务器部署配置（端口8000/8002）；更新nginx配置；添加systemd服务详情 |
 | v5.5 | 2025-12-22 | 拆分跨模块开发技能 |
