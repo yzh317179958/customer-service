@@ -51,46 +51,65 @@ class Track17Client:
     DEFAULT_BASE_URL = "https://api.17track.net/track/v2.4"
 
     # 承运商代码映射（常用）
+    # 来源: https://res.17track.net/asset/carrier/info/apicarrier.all.csv
     CARRIER_CODES = {
         # UK 承运商
-        "royal mail": 21051,
-        "royalmail": 21051,
-        "dpd": 100143,
-        "dpd uk": 100143,
-        "hermes": 21067,
-        "evri": 21067,  # Hermes 改名为 Evri
-        "yodel": 21068,
-        "parcelforce": 21052,
-        "uk mail": 21053,
-        "collect+": 21066,
+        "royal mail": 11031,
+        "royalmail": 11031,
+        "dpd": 100010,          # DPD (UK)
+        "dpd uk": 100010,
+        "hermes": 100018,       # Hermes
+        "evri": 100331,         # EVRi (Hermes 改名)
+        "yodel": 100017,
+        "parcelforce": 11033,
+        "uk mail": 100020,      # UK Mail
+        "collect+": 100142,     # CollectPlus
+        "collectplus": 100142,
         "dx freight": 100484,
         "dxfreight": 100484,
         "dx": 100484,
-        # 欧洲承运商
-        "dhl": 100001,
+        # 德国承运商
+        "dhl": 100001,          # DHL Express
         "dhl express": 100001,
-        "gls": 100063,
-        "dpd germany": 100047,
-        "deutsche post": 100049,
+        "dhl paket": 7041,      # DHL Paket (德国国内)
+        "dpd germany": 100007,  # DPD (DE)
+        "dpd de": 100007,
+        "hermes de": 100031,    # Hermes (DE)
+        "deutsche post": 7041,
+        # 法国承运商
         "chronopost": 100037,
         "colissimo": 100038,
+        "dpd france": 100072,   # DPD (FR)
+        "dpd fr": 100072,
+        # 其他欧洲
+        "gls": 100005,
+        "gls italy": 100024,    # GLS (IT)
+        "gls spain": 100189,    # GLS Spain
         "correos": 100053,
         "poste italiane": 100091,
-        "postnl": 100089,
+        "postnl": 100047,       # DHL Parcel (NL) / PostNL
         "bpost": 100015,
+        "dhl parcel uk": 100152,
+        "dhl parcel nl": 100047,
         # 国际承运商
         "ups": 100002,
         "fedex": 100003,
         "tnt": 100004,
-        "usps": 21041,
+        "usps": 21051,
         # 中国承运商
-        "yunexpress": 190012,
+        "yunexpress": 190008,   # YunExpress 云途物流
+        "yun express": 190008,
         "yanwen": 190001,
         "4px": 190004,
         "sf express": 3011,
         "cne express": 190122,
         "cainiao": 190011,
         "china post": 3001,
+        "yunda": 191197,        # 韵达快运
+        "yunda express": 191197,
+        # DHL 系列
+        "dhl ecommerce": 7047,  # DHL eCommerce US
+        "dhl ecommerce asia": 7048,
     }
 
     # 承运商名称标准化映射（Shopify 名称 -> 标准名称）
@@ -99,39 +118,75 @@ class Track17Client:
         "Royal Mail": "royal mail",
         "DPD": "dpd",
         "DPD UK": "dpd uk",
+        "DPD Local": "dpd uk",
         "Evri": "evri",
-        "Hermes": "evri",
-        "Hermes UK": "evri",
+        "EVRi": "evri",
+        "EVRI": "evri",
+        "Hermes": "hermes",
+        "Hermes UK": "hermes",
         "Yodel": "yodel",
         "Parcelforce": "parcelforce",
         "Parcelforce Worldwide": "parcelforce",
         "DX Freight": "dx freight",
         "DX FREIGHT": "dx freight",
         "DX": "dx",
-        # 欧洲
+        "UK Mail": "uk mail",
+        "CollectPlus": "collectplus",
+        "Collect+": "collectplus",
+        "DHL Parcel UK": "dhl parcel uk",
+        # 德国
         "DHL": "dhl",
         "DHL Express": "dhl express",
-        "GLS": "gls",
+        "DHL Paket": "dhl paket",
+        "DPD Germany": "dpd germany",
+        "DPD DE": "dpd de",
+        "Hermes DE": "hermes de",
         "Deutsche Post": "deutsche post",
+        # 法国
         "Chronopost": "chronopost",
         "Colissimo": "colissimo",
+        "DPD France": "dpd france",
+        "DPD FR": "dpd fr",
+        # 其他欧洲
+        "GLS": "gls",
+        "GLS Italy": "gls italy",
+        "GLS Spain": "gls spain",
         "Correos": "correos",
+        "Poste Italiane": "poste italiane",
         "PostNL": "postnl",
         "Bpost": "bpost",
+        "bpost": "bpost",
         # 国际
         "UPS": "ups",
         "FedEx": "fedex",
+        "FEDEX": "fedex",
         "TNT": "tnt",
         "USPS": "usps",
         # 中国
         "Yun Express": "yunexpress",
         "YunExpress": "yunexpress",
+        "YUNEXPRESS": "yunexpress",
+        "云途": "yunexpress",
         "Yanwen": "yanwen",
         "4PX": "4px",
         "SF Express": "sf express",
+        "顺丰": "sf express",
         "CNE Express": "cne express",
         "Cainiao": "cainiao",
+        "菜鸟": "cainiao",
         "China Post": "china post",
+        "中国邮政": "china post",
+        "Yunda": "yunda",
+        "韵达": "yunda",
+        # DHL 系列
+        "DHL eCommerce": "dhl ecommerce",
+        "DHL eCommerce Asia": "dhl ecommerce asia",
+    }
+
+    # 17track 不支持的承运商（提供官网链接供用户直接查询）
+    UNSUPPORTED_CARRIERS = {
+        "yunway": "https://www.yunway.com/",
+        "YUNWAY": "https://www.yunway.com/",
     }
 
     @classmethod
@@ -165,6 +220,41 @@ class Track17Client:
                 return cls.CARRIER_NAME_MAP[key]
 
         logger.debug(f"未知承运商: {carrier_name}")
+        return None
+
+    @classmethod
+    def is_unsupported_carrier(cls, carrier_name: str) -> bool:
+        """
+        检查是否为 17track 不支持的承运商
+
+        Args:
+            carrier_name: 承运商名称
+
+        Returns:
+            True 如果不支持
+        """
+        if not carrier_name:
+            return False
+        lower_name = carrier_name.lower().strip()
+        return lower_name in [k.lower() for k in cls.UNSUPPORTED_CARRIERS.keys()]
+
+    @classmethod
+    def get_unsupported_carrier_url(cls, carrier_name: str) -> Optional[str]:
+        """
+        获取不支持的承运商的官网链接
+
+        Args:
+            carrier_name: 承运商名称
+
+        Returns:
+            承运商官网 URL，如果支持或未知则返回 None
+        """
+        if not carrier_name:
+            return None
+        lower_name = carrier_name.lower().strip()
+        for key, url in cls.UNSUPPORTED_CARRIERS.items():
+            if key.lower() == lower_name:
+                return url
         return None
 
     @classmethod
