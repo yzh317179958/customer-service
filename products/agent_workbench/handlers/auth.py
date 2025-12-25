@@ -209,7 +209,7 @@ def _auto_adjust_agent_status(agent_obj: Agent) -> Agent:
 
 @router.post("/login")
 @limiter.limit(RATE_LIMIT_LOGIN)
-async def agent_login(request: LoginRequest, req: Request):
+async def agent_login(login_request: LoginRequest, request: Request):
     """
     Agent login endpoint
 
@@ -229,9 +229,9 @@ async def agent_login(request: LoginRequest, req: Request):
         # 登录保护：检查账户是否锁定
         # ========================================
         if login_protector:
-            is_locked = await login_protector.is_locked(request.username)
+            is_locked = await login_protector.is_locked(login_request.username)
             if is_locked:
-                remaining = await login_protector.get_lockout_remaining(request.username)
+                remaining = await login_protector.get_lockout_remaining(login_request.username)
                 raise HTTPException(
                     status_code=423,
                     detail={
@@ -244,8 +244,8 @@ async def agent_login(request: LoginRequest, req: Request):
 
         # Authenticate
         agent = agent_manager.authenticate(
-            username=request.username,
-            password=request.password
+            username=login_request.username,
+            password=login_request.password
         )
 
         if not agent:
@@ -253,7 +253,7 @@ async def agent_login(request: LoginRequest, req: Request):
             # 登录保护：记录失败次数
             # ========================================
             if login_protector:
-                failures = await login_protector.record_failure(request.username)
+                failures = await login_protector.record_failure(login_request.username)
                 max_failures = login_protector.max_failures
                 remaining_attempts = max(0, max_failures - failures)
 
@@ -287,7 +287,7 @@ async def agent_login(request: LoginRequest, req: Request):
         # 登录成功：重置失败计数
         # ========================================
         if login_protector:
-            await login_protector.reset(request.username)
+            await login_protector.reset(login_request.username)
 
         # Generate tokens
         access_token = agent_token_manager.create_access_token(agent)
@@ -390,7 +390,7 @@ async def get_agent_status(agent: Dict[str, Any] = Depends(require_agent)):
 
 @router.put("/status")
 async def update_agent_status_api(
-    request: UpdateAgentStatusRequest,
+    status_request: UpdateAgentStatusRequest,
     agent: Dict[str, Any] = Depends(require_agent)
 ):
     """Update agent status"""
@@ -399,8 +399,8 @@ async def update_agent_status_api(
         username = agent.get("username")
         updated_agent = agent_manager.update_status(
             username=username,
-            status=request.status,
-            status_note=request.status_note
+            status=status_request.status,
+            status_note=status_request.status_note
         )
 
         if not updated_agent:
@@ -420,7 +420,7 @@ async def update_agent_status_api(
 
 @router.post("/refresh")
 @limiter.limit(RATE_LIMIT_REFRESH)
-async def refresh_agent_token(request: RefreshTokenRequest, req: Request):
+async def refresh_agent_token(refresh_request: RefreshTokenRequest, request: Request):
     """
     Refresh access token
     """
@@ -429,7 +429,7 @@ async def refresh_agent_token(request: RefreshTokenRequest, req: Request):
         agent_token_manager = get_agent_token_manager()
 
         # Verify refresh token
-        payload = agent_token_manager.verify_token(request.refresh_token)
+        payload = agent_token_manager.verify_token(refresh_request.refresh_token)
 
         if not payload or payload.get("type") != "refresh":
             raise HTTPException(
@@ -468,7 +468,7 @@ async def refresh_agent_token(request: RefreshTokenRequest, req: Request):
 
 @router.post("/change-password")
 async def change_password(
-    request: ChangePasswordRequest,
+    password_request: ChangePasswordRequest,
     agent: Dict[str, Any] = Depends(require_agent)
 ):
     """
@@ -486,28 +486,28 @@ async def change_password(
             )
 
         # Verify old password
-        if not PasswordHasher.verify_password(request.old_password, current_agent.password_hash):
+        if not PasswordHasher.verify_password(password_request.old_password, current_agent.password_hash):
             raise HTTPException(
                 status_code=400,
                 detail="OLD_PASSWORD_INCORRECT: Old password incorrect"
             )
 
         # Validate new password strength
-        if not validate_password(request.new_password):
+        if not validate_password(password_request.new_password):
             raise HTTPException(
                 status_code=400,
                 detail="INVALID_PASSWORD: Password must be at least 8 characters with letters and numbers"
             )
 
         # Verify new password is different
-        if PasswordHasher.verify_password(request.new_password, current_agent.password_hash):
+        if PasswordHasher.verify_password(password_request.new_password, current_agent.password_hash):
             raise HTTPException(
                 status_code=400,
                 detail="PASSWORD_SAME: New password cannot be same as old password"
             )
 
         # Update password
-        current_agent.password_hash = PasswordHasher.hash_password(request.new_password)
+        current_agent.password_hash = PasswordHasher.hash_password(password_request.new_password)
         agent_manager.update_agent(current_agent)
 
         print(f"Agent changed password: {username}")
@@ -529,7 +529,7 @@ async def change_password(
 
 @router.put("/profile")
 async def update_profile(
-    request: UpdateProfileRequest,
+    profile_request: UpdateProfileRequest,
     agent: Dict[str, Any] = Depends(require_agent)
 ):
     """
@@ -547,18 +547,18 @@ async def update_profile(
             )
 
         # Check at least one field to update
-        if request.name is None and request.avatar_url is None:
+        if profile_request.name is None and profile_request.avatar_url is None:
             raise HTTPException(
                 status_code=400,
                 detail="NO_FIELDS_TO_UPDATE: At least one field required"
             )
 
         # Update allowed fields
-        if request.name is not None:
-            current_agent.name = request.name
+        if profile_request.name is not None:
+            current_agent.name = profile_request.name
 
-        if request.avatar_url is not None:
-            current_agent.avatar_url = request.avatar_url
+        if profile_request.avatar_url is not None:
+            current_agent.avatar_url = profile_request.avatar_url
 
         agent_manager.update_agent(current_agent)
 
