@@ -78,7 +78,7 @@ def generate_user_id(ip_address: str = None, user_agent: str = None) -> str:
 
 @router.post("/chat")
 @limiter.limit(RATE_LIMIT_CHAT)
-async def chat(request: ChatRequest, req: Request) -> ChatResponse:
+async def chat(chat_request: ChatRequest, request: Request) -> ChatResponse:
     """
     同步聊天接口（使用 Coze Workflow Chat API）
     通过 session_name + conversation_id 实现完整的会话隔离
@@ -95,7 +95,7 @@ async def chat(request: ChatRequest, req: Request) -> ChatResponse:
     # 安全校验：消息长度限制
     # ========================================
     max_message_length = int(os.getenv("MAX_MESSAGE_LENGTH", 2000))
-    validate_message_length(request.message, max_length=max_message_length)
+    validate_message_length(chat_request.message, max_length=max_message_length)
 
     # 获取依赖
     token_manager = get_token_manager()
@@ -106,13 +106,13 @@ async def chat(request: ChatRequest, req: Request) -> ChatResponse:
 
     try:
         # 获取会话标识（session_id），如果没有则生成
-        session_id = request.user_id or generate_user_id()
+        session_id = chat_request.user_id or generate_user_id()
 
         # 【P0-3 前置处理】检查会话状态 - 如果正在人工接管，拒绝AI对话
         if session_store and regulator:
             try:
                 # 获取或创建会话状态
-                conversation_id_for_state = request.conversation_id or conversation_cache.get(session_id)
+                conversation_id_for_state = chat_request.conversation_id or conversation_cache.get(session_id)
                 session_state = await session_store.get_or_create(
                     session_name=session_id,
                     conversation_id=conversation_id_for_state
@@ -137,7 +137,7 @@ async def chat(request: ChatRequest, req: Request) -> ChatResponse:
         print(f"🔐 会话隔离: session_name={session_id}")
 
         # 【会话隔离核心2】管理 conversation_id
-        conversation_id = request.conversation_id
+        conversation_id = chat_request.conversation_id
 
         if not conversation_id:
             conversation_id = conversation_cache.get(session_id)
@@ -156,11 +156,11 @@ async def chat(request: ChatRequest, req: Request) -> ChatResponse:
             "app_id": app_id,
             "session_name": session_id,
             "parameters": {
-                "USER_INPUT": request.message,
+                "USER_INPUT": chat_request.message,
             },
             "additional_messages": [
                 {
-                    "content": request.message,
+                    "content": chat_request.message,
                     "content_type": "text",
                     "role": "user",
                     "type": "question"
@@ -169,21 +169,21 @@ async def chat(request: ChatRequest, req: Request) -> ChatResponse:
         }
 
         # v7.7.0: 传递 intent 参数给 Coze
-        if request.intent:
-            payload["parameters"]["INTENT"] = request.intent.value
-            print(f"🎯 Intent: {request.intent.value}")
+        if chat_request.intent:
+            payload["parameters"]["INTENT"] = chat_request.intent.value
+            print(f"🎯 Intent: {chat_request.intent.value}")
 
         # v7.7.0: 传递订单号给 Coze（售后流程使用）
-        if request.order_number:
-            payload["parameters"]["ORDER_NUMBER"] = request.order_number
-            print(f"📦 Order Number: {request.order_number}")
+        if chat_request.order_number:
+            payload["parameters"]["ORDER_NUMBER"] = chat_request.order_number
+            print(f"📦 Order Number: {chat_request.order_number}")
 
         if conversation_id:
             payload["conversation_id"] = conversation_id
             print(f"💬 使用 Conversation: {conversation_id}")
 
-        if request.parameters:
-            payload["parameters"].update(request.parameters)
+        if chat_request.parameters:
+            payload["parameters"].update(chat_request.parameters)
 
         print(f"📤 发送请求到 Coze:")
         print(f"   URL: {url}")
@@ -255,7 +255,7 @@ async def chat(request: ChatRequest, req: Request) -> ChatResponse:
                     conversation_id=conversation_id_for_update
                 )
 
-                user_message = Message(role="user", content=request.message)
+                user_message = Message(role="user", content=chat_request.message)
                 session_state.add_message(user_message)
 
                 ai_message = Message(role="assistant", content=final_message)
@@ -263,7 +263,7 @@ async def chat(request: ChatRequest, req: Request) -> ChatResponse:
 
                 regulator_result = regulator.evaluate(
                     session=session_state,
-                    user_message=request.message,
+                    user_message=chat_request.message,
                     ai_response=final_message
                 )
 
@@ -305,9 +305,9 @@ async def chat(request: ChatRequest, req: Request) -> ChatResponse:
             if token_manager:
                 try:
                     print("🔄 检测到认证错误，清除token缓存...")
-                    session_id = request.user_id or generate_user_id()
+                    session_id = chat_request.user_id or generate_user_id()
                     token_manager.invalidate_token(session_name=session_id)
-                    return await chat(request)
+                    return await chat(chat_request, request)
                 except Exception as retry_error:
                     error_msg = f"Token 刷新后仍然失败: {str(retry_error)}"
 
@@ -315,7 +315,7 @@ async def chat(request: ChatRequest, req: Request) -> ChatResponse:
 
 @router.post("/chat/stream")
 @limiter.limit(RATE_LIMIT_CHAT)
-async def chat_stream(request: ChatRequest, req: Request):
+async def chat_stream(chat_request: ChatRequest, request: Request):
     """
     流式聊天接口 - 使用 Coze Workflow Chat API
     通过 session_name + conversation_id 实现完整的会话隔离
@@ -326,7 +326,7 @@ async def chat_stream(request: ChatRequest, req: Request):
     # 安全校验：消息长度限制
     # ========================================
     max_message_length = int(os.getenv("MAX_MESSAGE_LENGTH", 2000))
-    validate_message_length(request.message, max_length=max_message_length)
+    validate_message_length(chat_request.message, max_length=max_message_length)
 
     # 获取依赖
     token_manager = get_token_manager()
@@ -338,7 +338,7 @@ async def chat_stream(request: ChatRequest, req: Request):
     async def event_generator():
         """SSE 事件生成器"""
         try:
-            session_id = request.user_id or generate_user_id()
+            session_id = chat_request.user_id or generate_user_id()
 
             # 创建 SSE 消息队列
             if session_id not in sse_queues:
@@ -348,7 +348,7 @@ async def chat_stream(request: ChatRequest, req: Request):
             # 检查会话状态
             if session_store and regulator:
                 try:
-                    conversation_id_for_state = request.conversation_id or conversation_cache.get(session_id)
+                    conversation_id_for_state = chat_request.conversation_id or conversation_cache.get(session_id)
                     session_state = await session_store.get_or_create(
                         session_name=session_id,
                         conversation_id=conversation_id_for_state
@@ -370,7 +370,7 @@ async def chat_stream(request: ChatRequest, req: Request):
             access_token = token_manager.get_access_token(session_name=session_id)
             print(f"🔐 流式会话隔离: session_name={session_id}")
 
-            conversation_id = request.conversation_id
+            conversation_id = chat_request.conversation_id
             if not conversation_id:
                 conversation_id = conversation_cache.get(session_id)
                 if conversation_id:
@@ -386,11 +386,11 @@ async def chat_stream(request: ChatRequest, req: Request):
                 "app_id": app_id,
                 "session_name": session_id,
                 "parameters": {
-                    "USER_INPUT": request.message,
+                    "USER_INPUT": chat_request.message,
                 },
                 "additional_messages": [
                     {
-                        "content": request.message,
+                        "content": chat_request.message,
                         "content_type": "text",
                         "role": "user",
                         "type": "question"
@@ -399,21 +399,21 @@ async def chat_stream(request: ChatRequest, req: Request):
             }
 
             # v7.7.0: 传递 intent 参数给 Coze
-            if request.intent:
-                payload["parameters"]["INTENT"] = request.intent.value
-                print(f"🎯 流式 Intent: {request.intent.value}")
+            if chat_request.intent:
+                payload["parameters"]["INTENT"] = chat_request.intent.value
+                print(f"🎯 流式 Intent: {chat_request.intent.value}")
 
             # v7.7.0: 传递订单号给 Coze（售后流程使用）
-            if request.order_number:
-                payload["parameters"]["ORDER_NUMBER"] = request.order_number
-                print(f"📦 流式 Order Number: {request.order_number}")
+            if chat_request.order_number:
+                payload["parameters"]["ORDER_NUMBER"] = chat_request.order_number
+                print(f"📦 流式 Order Number: {chat_request.order_number}")
 
             if conversation_id:
                 payload["conversation_id"] = conversation_id
                 print(f"💬 流式接口使用 Conversation: {conversation_id}")
 
-            if request.parameters:
-                payload["parameters"].update(request.parameters)
+            if chat_request.parameters:
+                payload["parameters"].update(chat_request.parameters)
 
             print(f"📤 流式请求 - Session: {session_id}")
 
@@ -510,7 +510,7 @@ async def chat_stream(request: ChatRequest, req: Request):
                         conversation_id=conversation_id_for_update
                     )
 
-                    user_message = Message(role="user", content=request.message)
+                    user_message = Message(role="user", content=chat_request.message)
                     session_state.add_message(user_message)
 
                     ai_message = Message(role="assistant", content=final_ai_message)
@@ -518,7 +518,7 @@ async def chat_stream(request: ChatRequest, req: Request):
 
                     regulator_result = regulator.evaluate(
                         session=session_state,
-                        user_message=request.message,
+                        user_message=chat_request.message,
                         ai_response=final_ai_message
                     )
 
