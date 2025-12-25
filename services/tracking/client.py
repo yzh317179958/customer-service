@@ -322,7 +322,7 @@ class Track17Client:
     async def _request(
         self,
         endpoint: str,
-        data: Dict[str, Any],
+        data: Any,
     ) -> Dict[str, Any]:
         """
         发送 API 请求
@@ -345,7 +345,25 @@ class Track17Client:
 
         try:
             response = await client.post(url, json=data)
-            result = response.json()
+            # 17track 在鉴权/限流/风控等场景可能返回非 JSON（HTML/纯文本），这里做健壮处理
+            try:
+                result = response.json()
+            except Exception:
+                text_preview = ""
+                try:
+                    text_preview = (response.text or "")[:500]
+                except Exception:
+                    pass
+                raise Track17Error(
+                    code=-1,
+                    message=f"Non-JSON response from 17track (HTTP {response.status_code})",
+                    data={
+                        "endpoint": endpoint,
+                        "http_status": response.status_code,
+                        "content_type": response.headers.get("content-type"),
+                        "body_preview": text_preview,
+                    },
+                )
 
             # 检查响应状态
             code = result.get("code", -1)

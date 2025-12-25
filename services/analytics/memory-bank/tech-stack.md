@@ -1,6 +1,6 @@
-# 数据分析服务 - 技术栈
+# 数据埋点服务 - 技术栈
 
-> **版本**: v2.0
+> **版本**: v4.0
 > **创建日期**: 2025-12-25
 > **模块位置**: `services/analytics/`
 
@@ -10,558 +10,209 @@
 
 | 层级 | 技术 | 说明 |
 |------|------|------|
-| 服务层 | `services/analytics/` | 本模块位置 |
-| 数据存储 | Redis + PostgreSQL | 双写策略（实时 + 历史） |
-| 基础设施 | `infrastructure/bootstrap/` | 组件工厂、Redis/PG 客户端 |
-| 基础设施 | `infrastructure/database/` | 数据库连接池 |
-| 调度任务 | `infrastructure/scheduler/` | 定时聚合任务 |
+| 产品层 | FastAPI | products/ai_chatbot + agent_workbench（埋点调用方）|
+| 服务层 | Python 异步 | services/analytics（本模块）|
+| 基础设施层 | infrastructure/bootstrap | 组件工厂、依赖注入 |
+| 数据存储 | Redis + PostgreSQL | 双写策略 |
 
 ---
 
 ## 2. 新增依赖
 
-**无需新增 Python 依赖**
-
-理由：
-- 埋点采集：使用 Python 原生 `asyncio` 异步队列
-- 数据存储：复用现有 Redis + PostgreSQL
-- 数据聚合：使用 SQL 聚合函数
-- API 接口：复用 FastAPI
+**无需新增依赖**
 
 ---
 
-## 3. 架构设计
+## 3. 商业案例导向的数据设计
 
-### 3.1 服务与产品的关系
+### 3.1 核心商业指标（Case Study Anchors）
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         products/ 产品层                             │
-│                                                                      │
-│  ┌─────────────────────┐         ┌─────────────────────┐            │
-│  │   AI 智能客服        │         │    坐席工作台         │            │
-│  │   (ai_chatbot)      │         │ (agent_workbench)   │            │
-│  │                     │         │                     │            │
-│  │  埋点数据发送 ───────┼────────►  前端 UI 展示         │            │
-│  │                     │         │  ├── Monitoring     │            │
-│  │  ├── chat.py        │         │  ├── Dashboard      │            │
-│  │  └── 埋点调用        │         │  ├── QualityAudit   │            │
-│  │                     │         │  └── BillingPortal  │            │
-│  └──────────┬──────────┘         └──────────┬──────────┘            │
-│             │                               │                        │
-│             │ import                        │ import                 │
-│             ▼                               ▼                        │
-├─────────────────────────────────────────────────────────────────────┤
-│                      services/analytics/                             │
-│                        【本模块】                                     │
-│                                                                      │
-│  ┌─────────────────────────────────────────────────────────────┐    │
-│  │  tracker/     │  stats/      │  quality/    │  billing/     │    │
-│  │  (埋点采集)    │  (会话统计)   │  (质检分析)   │  (Token统计)  │    │
-│  └─────────────────────────────────────────────────────────────┘    │
-│                              │                                       │
-│                              ▼                                       │
-├─────────────────────────────────────────────────────────────────────┤
-│                    infrastructure/                                   │
-│                                                                      │
-│  ┌────────────┐  ┌────────────┐  ┌────────────┐                     │
-│  │  database  │  │ scheduler  │  │  bootstrap │                     │
-│  │ (PG+Redis) │  │ (定时任务)  │  │ (组件工厂)  │                     │
-│  └────────────┘  └────────────┘  └────────────┘                     │
-└─────────────────────────────────────────────────────────────────────┘
-```
+| 商业指标 | 计算方式 | 展示口径 |
+|----------|----------|----------|
+| **月度服务量** | 累计会话数 | "本月 AI 客服服务了 5,000+ 客户" |
+| **AI 自主解决率** | AI 独立解决 / 总会话 | "85% 的问题由 AI 独立解决" |
+| **AI 响应速度** | 总响应时间 / 回复数 | "平均 1.5 秒内响应" |
+| **坐席响应速度** | 接管后首次回复时间 | "人工接管后 30 秒内响应" |
+| **坐席处理效率** | 平均会话处理时长 | "人均处理时长 8 分钟" |
+| **工单解决效率** | 平均工单解决时长 | "工单平均 4 小时内解决" |
+| **工单 SLA 达标率** | 达标工单 / 总工单 | "SLA 达标率 95%" |
+| **人工成本节省** | AI 解决数 × 单次人工成本 | "月节省人工成本 ¥50,000" |
+| **查询成功率** | 成功查询 / 总查询 | "订单查询成功率 98%" |
 
-### 3.2 子模块职责
+### 3.2 Redis 结构（实时聚合）
 
-| 子模块 | 职责 | 数据流向 |
-|--------|------|----------|
-| **tracker** | 事件采集、缓冲、持久化 | 产品 → Redis → PostgreSQL |
-| **stats** | 会话/效能统计查询 | PostgreSQL/Redis → API |
-| **quality** | 质检评分记录和查询 | PostgreSQL → API |
-| **billing** | Token 消耗统计、ROI 计算 | Coze 回调 → PostgreSQL → API |
-
----
-
-## 4. 数据存储方案
-
-### 4.1 双写策略
-
-```
-埋点事件 ──► 异步队列 ──┬──► Redis (实时计数/状态)
-                        │
-                        └──► PostgreSQL (历史明细/汇总)
-```
-
-### 4.2 Redis 数据结构
-
-**实时统计 (stats 子模块使用)**
 ```redis
-# 实时大屏 - 核心指标
-HSET analytics:realtime:overview \
-  active_sessions 128 \
-  queue_count 14 \
-  online_agents 42 \
-  total_agents 50 \
-  sla_alerts 0
+# AI 客服指标聚合（按月）
+analytics:monthly:2025-12
+    ├── total_sessions          # 总服务量
+    ├── ai_resolved_sessions    # AI 独立解决
+    ├── escalated_sessions      # 转人工数
+    ├── total_messages          # 消息总数
+    ├── total_response_time_ms  # 响应时间累计
+    ├── order_queries_success   # 订单查询成功
+    ├── order_queries_failed    # 订单查询失败
+    ├── tracking_queries_success # 物流查询成功
+    └── tracking_queries_failed  # 物流查询失败
 
-# 实时大屏 - 渠道流量
-HSET analytics:realtime:channels:app \
-  online_users 1202 \
-  load_percent 88 \
-  trend "up"
+# 坐席工作台指标聚合（按月）
+analytics:agent:monthly:2025-12
+    ├── agent_logins            # 坐席登录次数
+    ├── total_work_minutes      # 累计工作时长（分钟）
+    ├── sessions_handled        # 处理会话数
+    ├── total_handle_time_sec   # 累计会话处理时长（秒）
+    ├── total_first_response_ms # 累计首次响应时间（毫秒）
+    ├── agent_messages_sent     # 坐席发送消息数
+    ├── sessions_transferred    # 转接会话数
+    ├── tickets_created         # 创建工单数
+    ├── tickets_closed          # 关闭工单数
+    ├── tickets_sla_met         # SLA 达标工单数
+    └── total_resolution_hours  # 累计工单解决时长（小时）
 
-HSET analytics:realtime:channels:web \
-  online_users 840 \
-  load_percent 56 \
-  trend "stable"
-
-# 实时大屏 - 坐席状态
-HSET analytics:realtime:agents:agent_001 \
-  name "李建国" \
-  status "serving" \
-  current_session_duration 720 \
-  load "high"
-
-# 今日统计计数器
-HINCRBY analytics:daily:2025-12-25 sessions 1
-HINCRBY analytics:daily:2025-12-25 ai_resolved 1
-HINCRBY analytics:daily:2025-12-25 transferred 1
-HINCRBY analytics:daily:2025-12-25 total_response_time 1500
+# 日统计（用于趋势）
+analytics:daily:2025-12-25
+    └── [同上字段]
 ```
 
-**事件缓冲 (tracker 子模块使用)**
-```redis
-# 待持久化的事件队列
-LPUSH analytics:event_buffer '{...event_json...}'
-```
+### 3.3 PostgreSQL 表结构
 
-**Token 使用量 (billing 子模块使用)**
-```redis
-# 当日 Token 消耗
-HINCRBY analytics:billing:2025-12-25 tokens_used 1500
-HINCRBY analytics:billing:2025-12-25 api_calls 1
-```
-
-### 4.3 PostgreSQL 表结构
-
-**事件明细表 (tracker)**
 ```sql
+-- 商业指标汇总表（核心）
+CREATE TABLE analytics_business_metrics (
+    id SERIAL PRIMARY KEY,
+    period_type VARCHAR(10) NOT NULL,  -- daily, monthly
+    period_value VARCHAR(10) NOT NULL, -- 2025-12-25 或 2025-12
+
+    -- AI 客服服务量指标
+    total_sessions INT DEFAULT 0,
+    ai_resolved_sessions INT DEFAULT 0,
+    escalated_sessions INT DEFAULT 0,
+
+    -- AI 效率指标
+    total_messages INT DEFAULT 0,
+    avg_response_time_ms INT DEFAULT 0,
+
+    -- 查询成功率
+    order_queries_success INT DEFAULT 0,
+    order_queries_failed INT DEFAULT 0,
+    tracking_queries_success INT DEFAULT 0,
+    tracking_queries_failed INT DEFAULT 0,
+
+    -- 坐席工作台指标
+    agent_logins INT DEFAULT 0,
+    total_work_minutes INT DEFAULT 0,
+    sessions_handled INT DEFAULT 0,
+    avg_handle_time_sec INT DEFAULT 0,
+    avg_first_response_ms INT DEFAULT 0,
+    agent_messages_sent INT DEFAULT 0,
+    sessions_transferred INT DEFAULT 0,
+
+    -- 工单指标
+    tickets_created INT DEFAULT 0,
+    tickets_closed INT DEFAULT 0,
+    tickets_sla_met INT DEFAULT 0,
+    avg_resolution_hours DECIMAL(5,2) DEFAULT 0,
+
+    -- 商业价值（计算字段）
+    ai_resolution_rate DECIMAL(5,2),     -- AI 解决率 %
+    sla_met_rate DECIMAL(5,2),           -- SLA 达标率 %
+    estimated_cost_saved DECIMAL(10,2),  -- 预估节省成本
+
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+
+    UNIQUE (period_type, period_value)
+);
+
+-- 事件明细表（追溯用）
 CREATE TABLE analytics_events (
     id BIGSERIAL PRIMARY KEY,
     event_name VARCHAR(50) NOT NULL,
+    session_id VARCHAR(64),
+    agent_id INT,                        -- 新增：坐席 ID
+    ticket_id INT,                       -- 新增：工单 ID
     event_data JSONB NOT NULL,
-    session_id VARCHAR(36),
-    product VARCHAR(30) NOT NULL,
-    tenant_id VARCHAR(36),
     created_at TIMESTAMP DEFAULT NOW()
 );
 
 CREATE INDEX idx_events_name ON analytics_events(event_name);
 CREATE INDEX idx_events_session ON analytics_events(session_id);
+CREATE INDEX idx_events_agent ON analytics_events(agent_id);
+CREATE INDEX idx_events_ticket ON analytics_events(ticket_id);
 CREATE INDEX idx_events_created ON analytics_events(created_at);
-CREATE INDEX idx_events_product ON analytics_events(product);
-```
-
-**日统计汇总表 (stats)**
-```sql
-CREATE TABLE analytics_daily_stats (
-    id SERIAL PRIMARY KEY,
-    stat_date DATE NOT NULL,
-    product VARCHAR(30) NOT NULL,
-    tenant_id VARCHAR(36),
-
-    -- 会话指标
-    total_sessions INT DEFAULT 0,
-    completed_sessions INT DEFAULT 0,
-    ai_resolved INT DEFAULT 0,
-    transferred INT DEFAULT 0,
-    avg_session_duration INT DEFAULT 0,
-
-    -- 响应指标
-    avg_response_time INT DEFAULT 0,
-    total_messages INT DEFAULT 0,
-
-    -- 满意度
-    avg_rating DECIMAL(3,2) DEFAULT 0,
-    rating_count INT DEFAULT 0,
-
-    created_at TIMESTAMP DEFAULT NOW(),
-    UNIQUE (stat_date, product, tenant_id)
-);
-```
-
-**质检记录表 (quality)**
-```sql
-CREATE TABLE analytics_quality_audits (
-    id SERIAL PRIMARY KEY,
-    session_id VARCHAR(36) NOT NULL,
-    agent_id VARCHAR(36),
-    customer_name VARCHAR(100),
-
-    -- 质检结果
-    score INT NOT NULL,
-    status VARCHAR(20) NOT NULL,  -- passed, failed, pending_review
-    audit_type VARCHAR(20) NOT NULL,  -- auto, manual
-    issues JSONB,  -- 问题列表
-
-    -- 元数据
-    session_type VARCHAR(50),  -- 会话场景
-    audited_at TIMESTAMP DEFAULT NOW(),
-    reviewed_by VARCHAR(36),
-    reviewed_at TIMESTAMP,
-
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
-CREATE INDEX idx_audits_session ON analytics_quality_audits(session_id);
-CREATE INDEX idx_audits_agent ON analytics_quality_audits(agent_id);
-CREATE INDEX idx_audits_status ON analytics_quality_audits(status);
-CREATE INDEX idx_audits_date ON analytics_quality_audits(audited_at);
-```
-
-**Token 消耗表 (billing)**
-```sql
-CREATE TABLE analytics_token_usage (
-    id SERIAL PRIMARY KEY,
-    session_id VARCHAR(36),
-    tenant_id VARCHAR(36),
-
-    -- Token 详情
-    tokens_used INT NOT NULL,
-    model VARCHAR(50),
-    api_type VARCHAR(30),  -- chat, workflow, etc.
-
-    -- 时间
-    used_at TIMESTAMP DEFAULT NOW()
-);
-
-CREATE INDEX idx_tokens_tenant ON analytics_token_usage(tenant_id);
-CREATE INDEX idx_tokens_date ON analytics_token_usage(used_at);
-
--- 日汇总表（定时聚合）
-CREATE TABLE analytics_billing_daily (
-    id SERIAL PRIMARY KEY,
-    stat_date DATE NOT NULL,
-    tenant_id VARCHAR(36),
-
-    total_tokens INT DEFAULT 0,
-    total_api_calls INT DEFAULT 0,
-    estimated_cost DECIMAL(10,2) DEFAULT 0,
-
-    created_at TIMESTAMP DEFAULT NOW(),
-    UNIQUE (stat_date, tenant_id)
-);
 ```
 
 ---
 
-## 5. 核心类设计
-
-### 5.1 tracker 子模块
+## 4. 核心类设计
 
 ```python
 # services/analytics/tracker.py
-
 class AnalyticsTracker:
-    """埋点追踪器（各产品使用）"""
+    """埋点追踪器"""
 
-    async def track(self, event_name: str, data: dict, session_id: str = None):
-        """记录埋点事件（异步非阻塞）"""
+    async def track(self, event_name: str, data: dict):
+        """记录事件（异步非阻塞）"""
 
     async def start(self):
-        """启动后台刷新任务"""
+        """启动后台任务"""
 
     async def stop(self):
-        """停止并刷新剩余事件"""
+        """停止并刷新"""
 
-    async def flush(self):
-        """批量写入数据库"""
-
-def get_tracker(product: str) -> AnalyticsTracker:
-    """获取追踪器单例"""
-
-def init_tracker(product: str, redis, pg) -> AnalyticsTracker:
-    """初始化追踪器"""
-```
-
-### 5.2 stats 子模块
-
-```python
 # services/analytics/stats.py
+class BusinessStats:
+    """商业指标统计"""
 
-class RealtimeStats:
-    """实时统计（供 Monitoring 页面使用）"""
+    async def get_monthly_summary(self, month: str) -> dict:
+        """获取月度商业摘要（用于 Case Study）"""
+        # 返回: AI服务量、解决率、响应速度、成本节省
+        #       坐席效率、工单处理、SLA达标率
 
-    async def get_overview(self) -> dict:
-        """获取核心指标概览"""
+    async def get_daily_trend(self, days: int = 30) -> list:
+        """获取日趋势数据"""
 
-    async def get_channels(self) -> list:
-        """获取渠道流量分布"""
+    async def get_query_success_rates(self) -> dict:
+        """获取查询成功率"""
 
-    async def get_agents(self) -> list:
-        """获取坐席状态列表"""
+    async def get_agent_performance(self, month: str) -> dict:
+        """获取坐席效能数据"""
 
-    async def update_agent_status(self, agent_id: str, status: str):
-        """更新坐席状态"""
-
-
-class DashboardStats:
-    """效能统计（供 Dashboard 页面使用）"""
-
-    async def get_today_stats(self) -> dict:
-        """获取今日统计"""
-
-    async def get_trend(self, days: int = 7) -> list:
-        """获取趋势数据"""
-
-    async def get_satisfaction(self) -> dict:
-        """获取满意度分布"""
-```
-
-### 5.3 quality 子模块
-
-```python
-# services/analytics/quality.py
-
-class QualityAuditService:
-    """质检服务（供 QualityAudit 页面使用）"""
-
-    async def get_summary(self) -> dict:
-        """获取质检汇总"""
-
-    async def get_records(self, page: int, size: int) -> list:
-        """获取质检记录列表"""
-
-    async def create_audit(self, session_id: str, score: int, issues: list):
-        """创建质检记录"""
-
-    async def review_audit(self, audit_id: int, reviewer_id: str, final_score: int):
-        """人工复核"""
-```
-
-### 5.4 billing 子模块
-
-```python
-# services/analytics/billing.py
-
-class BillingStats:
-    """计费统计（供 BillingPortal 页面使用）"""
-
-    async def get_usage(self, tenant_id: str = None) -> dict:
-        """获取 Token 使用量"""
-
-    async def get_roi(self, tenant_id: str = None) -> dict:
-        """获取 ROI 估算"""
-
-    async def get_quota(self, tenant_id: str = None) -> dict:
-        """获取套餐余量"""
-
-    async def record_token_usage(self, session_id: str, tokens: int, model: str):
-        """记录 Token 消耗（Coze 回调时调用）"""
+    async def get_ticket_metrics(self, month: str) -> dict:
+        """获取工单处理指标"""
 ```
 
 ---
 
-## 6. API 设计
+## 5. 商业案例输出示例
 
-### 6.1 实时大屏 API (Monitoring)
-
-```python
-# GET /api/analytics/realtime/overview
+```json
 {
-    "active_sessions": 128,
-    "queue_count": 14,
-    "online_agents": 42,
-    "total_agents": 50,
-    "sla_alerts": 0,
-    "system_load": "28.4%"
-}
-
-# GET /api/analytics/realtime/channels
-[
-    {"name": "Fiido App", "online_users": 1202, "load": 88, "trend": "up"},
-    {"name": "Fiido Global", "online_users": 840, "load": 56, "trend": "stable"},
-    {"name": "微信小程序", "online_users": 2100, "load": 74, "trend": "up"},
-    {"name": "电话呼叫中心", "online_users": 156, "load": 32, "trend": "down"}
-]
-
-# GET /api/analytics/realtime/agents
-[
-    {"agent_id": "001", "name": "李建国", "status": "serving", "duration": "12m", "load": "high"},
-    {"agent_id": "002", "name": "王小美", "status": "online", "duration": "4h", "load": "low"}
-]
-```
-
-### 6.2 效能报表 API (Dashboard)
-
-```python
-# GET /api/analytics/stats/today
-{
-    "total_sessions": 1582,
-    "avg_response_time": 28,
-    "satisfaction_rate": 98.5,
-    "quality_rating": "卓越",
-    "changes": {
-        "sessions": "+12%",
-        "response_time": "-4s",
-        "satisfaction": "+0.2%"
-    }
-}
-
-# GET /api/analytics/stats/trend?days=7
-[
-    {"date": "2025-12-19", "name": "周一", "sessions": 400},
-    {"date": "2025-12-20", "name": "周二", "sessions": 300},
-    ...
-]
-
-# GET /api/analytics/stats/satisfaction
-{
-    "distribution": [
-        {"label": "非常满意", "value": 88, "color": "#00a6a0"},
-        {"label": "满意", "value": 10, "color": "#ffffff"},
-        {"label": "待改进", "value": 2, "color": "#ef4444"}
-    ]
-}
-```
-
-### 6.3 智能质检 API (QualityAudit)
-
-```python
-# GET /api/analytics/quality/summary
-{
-    "pass_rate": 99.1,
-    "audited_count": 1204,
-    "pending_review": 12
-}
-
-# GET /api/analytics/quality/records?page=1&size=10
-{
-    "items": [
-        {
-            "id": "QA-001",
-            "agent": "李建国",
-            "customer": "John Doe",
-            "score": 98,
-            "status": "passed",
-            "type": "Titan续航疑虑回复",
-            "date": "2024-03-22"
-        }
-    ],
-    "total": 1204,
-    "page": 1
-}
-```
-
-### 6.4 计费统计 API (BillingPortal)
-
-```python
-# GET /api/analytics/billing/usage
-{
-    "tokens_used": 7420,
-    "tokens_total": 10000,
-    "usage_percent": 74.2,
-    "reset_date": "2025-04-20"
-}
-
-# GET /api/analytics/billing/roi
-{
-    "saved_cost": 4800,
-    "auto_resolve_rate": 78,
-    "equivalent_headcount": 1.1,
-    "period": "本月"
+  "period": "2025年12月",
+  "ai_chatbot": {
+    "total_customers_served": 5420,
+    "ai_resolution_rate": "85.3%",
+    "avg_response_time": "1.5秒",
+    "cost_saved": "¥54,200",
+    "order_query_success_rate": "98.2%",
+    "tracking_query_success_rate": "96.8%"
+  },
+  "agent_workbench": {
+    "sessions_handled": 812,
+    "avg_first_response": "30秒",
+    "avg_handle_time": "8分钟",
+    "tickets_resolved": 156,
+    "avg_resolution_time": "4小时",
+    "sla_met_rate": "95.2%"
+  },
+  "story": "本月 AI 客服共服务 5,420 位客户，其中 85.3% 的问题由 AI 独立解决，平均响应时间仅 1.5 秒。需人工介入的 812 个会话，坐席平均 30 秒内响应，8 分钟内解决。共处理 156 个工单，平均 4 小时解决，SLA 达标率 95.2%。预估节省人工成本 ¥54,200。"
 }
 ```
 
 ---
 
-## 7. 产品接入方式
-
-### 7.1 AI 客服接入（埋点发送方）
-
-```python
-# products/ai_chatbot/lifespan.py
-from services.analytics import init_tracker
-
-async def lifespan(app):
-    tracker = init_tracker("ai_chatbot", redis, pg)
-    await tracker.start()
-    yield
-    await tracker.stop()
-
-# products/ai_chatbot/handlers/chat.py
-from services.analytics import get_tracker
-
-@router.post("/chat/stream")
-async def chat_stream(request: ChatRequest):
-    tracker = get_tracker()
-    await tracker.track("session.start", {...})
-    # 业务逻辑
-    await tracker.track("message.ai", {"response_time": 150, "tokens": 500})
-```
-
-### 7.2 坐席工作台接入（API 调用方）
-
-```python
-# products/agent_workbench/handlers/analytics.py
-from services.analytics import (
-    RealtimeStats, DashboardStats, QualityAuditService, BillingStats
-)
-
-# 实时大屏
-@router.get("/api/analytics/realtime/overview")
-async def get_realtime_overview():
-    return await RealtimeStats().get_overview()
-
-# 效能报表
-@router.get("/api/analytics/stats/today")
-async def get_today_stats():
-    return await DashboardStats().get_today_stats()
-
-# 智能质检
-@router.get("/api/analytics/quality/summary")
-async def get_quality_summary():
-    return await QualityAuditService().get_summary()
-
-# 计费统计
-@router.get("/api/analytics/billing/usage")
-async def get_billing_usage():
-    return await BillingStats().get_usage()
-```
-
----
-
-## 8. 性能考虑
-
-### 8.1 异步非阻塞
-
-- 埋点使用 `asyncio.Queue` 缓冲
-- 后台任务批量写入数据库
-- 埋点失败不影响主流程
-
-### 8.2 数据聚合策略
-
-```
-实时数据（Redis）
-    │
-    ▼ 定时聚合（每 5 分钟）
-日统计表（PostgreSQL）
-    │
-    ▼ 定期清理（90 天）
-事件明细表（PostgreSQL）
-```
-
-### 8.3 查询优化
-
-- 实时查询走 Redis
-- 历史查询走 PostgreSQL 汇总表
-- 明细查询限制时间范围
-
----
-
-## 9. 文档更新记录
+## 6. 文档更新记录
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
-| v2.0 | 2025-12-25 | 基于 UI 组件分析，扩展为 4 个子模块；新增完整 API 响应示例；明确服务与产品的关系 |
-| v1.0 | 2025-12-25 | 初始版本 |
+| v4.0 | 2025-12-25 | 扩展坐席工作台指标：坐席效能、会话处理、工单 SLA |
+| v3.0 | 2025-12-25 | 重写：聚焦商业案例指标，删除 UI 相关内容 |

@@ -202,12 +202,7 @@ const handleQuickQuestion = (data: { text: string, guideReply: string, intent: U
   // 1. 设置当前意图
   chatStore.setIntent(data.intent)
 
-  // 2. 如果是售后意图，进入售后状态机
-  if (data.intent === 'after_sale') {
-    chatStore.setAfterSaleState('awaiting_order')
-  }
-
-  // 3. 添加用户点击的问题作为用户消息
+  // 2. 添加用户点击的问题作为用户消息
   chatStore.addMessage({
     id: Date.now().toString(),
     content: data.text,
@@ -216,7 +211,7 @@ const handleQuickQuestion = (data: { text: string, guideReply: string, intent: U
     sender: 'You'
   })
 
-  // 4. 本地直接回复引导语，不调用API
+  // 3. 本地直接回复引导语，不调用API
   setTimeout(() => {
     chatStore.addMessage({
       id: (Date.now() + 1).toString(),
@@ -229,7 +224,7 @@ const handleQuickQuestion = (data: { text: string, guideReply: string, intent: U
     scrollToBottom(true)
   }, 300) // 短暂延迟模拟回复
 
-  // 5. 标记已经不是首条消息（隐藏欢迎界面）
+  // 4. 标记已经不是首条消息（隐藏欢迎界面）
   chatStore.setFirstMessage(false)
 }
 
@@ -289,104 +284,6 @@ const sendMessage = async () => {
       return
     }
 
-    // v7.7.0: 售后状态机处理
-    if (chatStore.afterSaleState === 'awaiting_order') {
-      // 用户应该输入订单号，尝试提取订单号
-      const orderNumberMatch = message.match(/([A-Z]{2}\d{4,}|#?\d{5,}|FD-\w+)/i)
-
-      if (orderNumberMatch && orderNumberMatch[1]) {
-        const orderNumber = orderNumberMatch[1].replace('#', '')
-        chatStore.setAfterSaleState('validating')
-
-        // 验证订单（调用后端）
-        try {
-          const response = await fetch(`${API_BASE_URL.value}/api/orders/search?query=${encodeURIComponent(orderNumber)}`)
-          const data = await response.json()
-
-          if (data.success && data.data?.order) {
-            // 订单找到
-            chatStore.setValidatedOrderNumber(orderNumber)
-            chatStore.setAfterSaleState('awaiting_issue')
-
-            // 移除占位气泡
-            if (botPlaceholder) {
-              const idx = chatStore.messages.findIndex(m => m.id === botPlaceholder.id)
-              if (idx !== -1) chatStore.messages.splice(idx, 1)
-            }
-
-            chatStore.addMessage({
-              id: (Date.now() + 1).toString(),
-              content: `Great! I found your order **#${orderNumber}**. Now please describe the issue you're experiencing, and I'll help you resolve it.`,
-              role: 'assistant',
-              timestamp: new Date(),
-              sender: chatStore.botConfig.name
-            })
-            chatStore.setLoading(false)
-            scrollToBottom(true)
-            return
-          } else {
-            // 订单未找到
-            chatStore.setAfterSaleState('awaiting_order')
-
-            // 移除占位气泡
-            if (botPlaceholder) {
-              const idx = chatStore.messages.findIndex(m => m.id === botPlaceholder.id)
-              if (idx !== -1) chatStore.messages.splice(idx, 1)
-            }
-
-            chatStore.addMessage({
-              id: (Date.now() + 1).toString(),
-              content: `Sorry, I couldn't find order **${orderNumber}**. Please double-check and enter your order number again (e.g., #12345 or UK12345).`,
-              role: 'assistant',
-              timestamp: new Date(),
-              sender: chatStore.botConfig.name
-            })
-            chatStore.setLoading(false)
-            scrollToBottom(true)
-            return
-          }
-        } catch (error) {
-          console.error('订单验证失败:', error)
-          chatStore.setAfterSaleState('awaiting_order')
-
-          // 移除占位气泡
-          if (botPlaceholder) {
-            const idx = chatStore.messages.findIndex(m => m.id === botPlaceholder.id)
-            if (idx !== -1) chatStore.messages.splice(idx, 1)
-          }
-
-          chatStore.addMessage({
-            id: (Date.now() + 1).toString(),
-            content: 'Sorry, I had trouble looking up your order. Please try again or contact us at service@fiido.com.',
-            role: 'assistant',
-            timestamp: new Date(),
-            sender: chatStore.botConfig.name
-          })
-          chatStore.setLoading(false)
-          scrollToBottom(true)
-          return
-        }
-      } else {
-        // 未检测到订单号，提示用户
-        // 移除占位气泡
-        if (botPlaceholder) {
-          const idx = chatStore.messages.findIndex(m => m.id === botPlaceholder.id)
-          if (idx !== -1) chatStore.messages.splice(idx, 1)
-        }
-
-        chatStore.addMessage({
-          id: (Date.now() + 1).toString(),
-          content: 'I couldn\'t find an order number in your message. Please provide your order number (e.g., #12345 or UK12345). You can find it in your order confirmation email.',
-          role: 'assistant',
-          timestamp: new Date(),
-          sender: chatStore.botConfig.name
-        })
-        chatStore.setLoading(false)
-        scrollToBottom(true)
-        return
-      }
-    }
-
     // 🔴 P0-9.3: manual_live状态 - 调用人工消息接口
     if (status === 'manual_live') {
       const response = await fetch(`${API_BASE_URL.value}/api/manual/messages`, {
@@ -430,16 +327,10 @@ const sendMessage = async () => {
       console.log('💬 使用 Conversation ID:', chatStore.conversationId)
     }
 
-    // v7.7.0: 传递 intent 给后端
+    // v7.7.0: 传递 intent 给后端（可选，帮助 Coze 预识别）
     if (chatStore.currentIntent) {
       requestBody.intent = chatStore.currentIntent
       console.log('🎯 传递 Intent:', chatStore.currentIntent)
-    }
-
-    // v7.7.0: 传递已验证的订单号给后端
-    if (chatStore.validatedOrderNumber) {
-      requestBody.order_number = chatStore.validatedOrderNumber
-      console.log('📦 传递订单号:', chatStore.validatedOrderNumber)
     }
 
     const response = await fetch(`${API_BASE_URL.value}/api/chat/stream`, {

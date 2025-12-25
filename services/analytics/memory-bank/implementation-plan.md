@@ -1,11 +1,10 @@
-# 数据分析服务 - 实现计划
+# 数据埋点服务 - 实现计划
 
-> **版本**: v2.0
+> **版本**: v4.0
 > **创建日期**: 2025-12-25
 > **方法论**: Vibe Coding 分步骤开发
-> **预计步骤数**: 20 步
-> **核心功能步骤**: Step 1-12 (P0)
-> **扩展功能步骤**: Step 13-20 (P1)
+> **预计步骤数**: 15 步
+> **核心目标**: 为 AI 客服 + 坐席工作台添加埋点，收集商业案例数据
 
 ---
 
@@ -13,132 +12,169 @@
 
 1. **自底向上**: infrastructure → services → products 接入
 2. **增量开发**: 每步只做一件事，立即测试验证
-3. **频繁提交**: 每个功能点完成即提交
-4. **单次提交**: < 10 个文件，< 500 行代码
+3. **商业导向**: 数据采集服务于商业案例制作
+4. **异步非阻塞**: 埋点不影响业务性能
 
 ---
 
-## 二、模块依赖关系
+## 二、埋点位置分析（基于现有代码）
 
-```
-services/analytics/
-├── tracker/      # 埋点采集（基础，被其他模块依赖）
-├── stats/        # 会话/效能统计（依赖 tracker）
-├── quality/      # 质检分析（依赖 tracker）
-└── billing/      # Token 统计（依赖 tracker）
+### 2.1 AI 客服埋点位置
 
-products/agent_workbench/
-├── handlers/analytics.py  # API 路由（依赖 services/analytics）
-└── frontend/
-    ├── Monitoring.tsx     # 调用 stats API
-    ├── Dashboard.tsx      # 调用 stats API
-    ├── QualityAudit.tsx   # 调用 quality API
-    └── BillingPortal.tsx  # 调用 billing API
-```
+| 文件 | 埋点事件 | 商业价值 |
+|------|----------|----------|
+| `chat.py:79-296` 同步聊天 | session.start, session.message, session.end | 服务量、响应速度 |
+| `chat.py:316-571` 流式聊天 | 同上 | 同上 |
+| `chat.py:270-287` 转人工触发 | session.escalate | AI 解决率 |
+| `tracking.py` 物流查询 | query.tracking | 查询成功率 |
+| `services/shopify/` 订单查询 | query.order | 查询成功率 |
+
+### 2.2 坐席工作台埋点位置
+
+| 文件 | 埋点事件 | 商业价值 |
+|------|----------|----------|
+| `auth.py:agent_login` | agent.login | 工作时长统计 |
+| `auth.py:agent_logout` | agent.logout | 工作时长统计 |
+| `auth.py:update_agent_status` | agent.status_change | 在线状态分析 |
+| `sessions.py:takeover_session` | agent.session_takeover | 响应速度 |
+| `sessions.py:agent_send_message` | agent.session_message | 消息量统计 |
+| `sessions.py:release_session` | agent.session_release | 处理效率 |
+| `sessions.py:transfer_session` | agent.session_transfer | 转接分析 |
+| `tickets.py:create_ticket` | ticket.created | 工单来源 |
+| `tickets.py:assign_ticket` | ticket.assigned | 分配效率 |
+| `tickets.py:update_ticket` | ticket.status_changed | 状态流转 |
+| `tickets.py:close_ticket` | ticket.closed | SLA 达标率 |
 
 ---
 
-## 三、Phase 1 - P0 核心功能 (Step 1-12)
+## Step 1: 创建数据库表
 
-### Step 1: 创建数据库表
+**任务描述：**
+创建 PostgreSQL 表存储商业指标和事件明细
 
-**目标**: 创建所有分析相关的 PostgreSQL 表
-
-**涉及文件**:
+**涉及文件：**
 - `infrastructure/database/migrations/003_analytics_tables.sql`（新增）
 
-**改动**:
-- 创建 `analytics_events` 事件明细表
-- 创建 `analytics_daily_stats` 日统计汇总表
-- 创建 `analytics_quality_audits` 质检记录表
-- 创建 `analytics_token_usage` Token 消耗表
-- 创建 `analytics_billing_daily` 计费日汇总表
-- 添加必要索引
+**改动：**
+```sql
+-- 商业指标汇总表
+CREATE TABLE analytics_business_metrics (
+    id SERIAL PRIMARY KEY,
+    period_type VARCHAR(10) NOT NULL,
+    period_value VARCHAR(10) NOT NULL,
+    -- AI 客服指标
+    total_sessions INT DEFAULT 0,
+    ai_resolved_sessions INT DEFAULT 0,
+    escalated_sessions INT DEFAULT 0,
+    total_messages INT DEFAULT 0,
+    avg_response_time_ms INT DEFAULT 0,
+    order_queries_success INT DEFAULT 0,
+    order_queries_failed INT DEFAULT 0,
+    tracking_queries_success INT DEFAULT 0,
+    tracking_queries_failed INT DEFAULT 0,
+    -- 坐席工作台指标
+    agent_logins INT DEFAULT 0,
+    total_work_minutes INT DEFAULT 0,
+    sessions_handled INT DEFAULT 0,
+    avg_handle_time_sec INT DEFAULT 0,
+    avg_first_response_ms INT DEFAULT 0,
+    agent_messages_sent INT DEFAULT 0,
+    sessions_transferred INT DEFAULT 0,
+    -- 工单指标
+    tickets_created INT DEFAULT 0,
+    tickets_closed INT DEFAULT 0,
+    tickets_sla_met INT DEFAULT 0,
+    avg_resolution_hours DECIMAL(5,2) DEFAULT 0,
+    -- 商业价值
+    ai_resolution_rate DECIMAL(5,2),
+    sla_met_rate DECIMAL(5,2),
+    estimated_cost_saved DECIMAL(10,2),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE (period_type, period_value)
+);
 
-**验证**:
-```bash
-psql -U fiido -d fiido_db -f infrastructure/database/migrations/003_analytics_tables.sql
-psql -U fiido -d fiido_db -c "\\dt analytics_*"
+-- 事件明细表
+CREATE TABLE analytics_events (
+    id BIGSERIAL PRIMARY KEY,
+    event_name VARCHAR(50) NOT NULL,
+    session_id VARCHAR(64),
+    agent_id INT,
+    ticket_id INT,
+    event_data JSONB NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_events_name ON analytics_events(event_name);
+CREATE INDEX idx_events_session ON analytics_events(session_id);
+CREATE INDEX idx_events_agent ON analytics_events(agent_id);
+CREATE INDEX idx_events_ticket ON analytics_events(ticket_id);
+CREATE INDEX idx_events_created ON analytics_events(created_at);
 ```
 
-**预期结果**: 5 张表创建成功
+**测试方法：**
+```bash
+# 在服务器执行
+psql -U fiido -d fiido_db -f infrastructure/database/migrations/003_analytics_tables.sql
+psql -U fiido -d fiido_db -c "\dt analytics_*"
+```
 
-**状态**: ⬜ 待开发
+**预期结果：** 2 张表创建成功
+
+**状态：** ⬜ 待开发
 
 ---
 
-### Step 2: 创建配置模型
+## Step 2: 创建配置和模型
 
-**目标**: 创建埋点服务的配置数据类
+**任务描述：**
+创建埋点服务的配置类和数据模型
 
-**涉及文件**:
+**涉及文件：**
+- `services/analytics/__init__.py`（新增）
 - `services/analytics/config.py`（新增）
+- `services/analytics/models.py`（新增）
 
-**改动**:
-- 实现 `AnalyticsConfig` 数据类
-  - `buffer_size`: 事件缓冲区大小（默认 1000）
-  - `flush_interval`: 刷新间隔（默认 5 秒）
-  - `retention_days`: 事件明细保留天数（默认 90）
-- 支持从环境变量加载
+**改动：**
+- `AnalyticsConfig`: buffer_size, flush_interval, cost_per_manual_session
+- `AnalyticsEvent`: event_name, session_id, data, timestamp
+- `BusinessMetrics`: 商业指标数据类
 
-**验证**:
+**测试方法：**
 ```bash
 python3 -c "from services.analytics.config import AnalyticsConfig; print(AnalyticsConfig())"
 ```
 
-**预期结果**: 配置类实例化成功
+**预期结果：** 配置类实例化成功
 
-**状态**: ⬜ 待开发
-
----
-
-### Step 3: 定义事件模型
-
-**目标**: 定义埋点事件和统计结果的数据结构
-
-**涉及文件**:
-- `services/analytics/models.py`（新增）
-
-**改动**:
-- 实现 `AnalyticsEvent` 数据类（事件模型）
-- 实现 `RealtimeOverview` 数据类（实时概览）
-- 实现 `ChannelStats` 数据类（渠道统计）
-- 实现 `AgentStatus` 数据类（坐席状态）
-- 实现 `DailyStats` 数据类（日统计）
-- 实现 `QualityAuditRecord` 数据类（质检记录）
-- 实现 `BillingUsage` 数据类（计费统计）
-
-**验证**:
-```bash
-python3 -c "from services.analytics.models import AnalyticsEvent; print(AnalyticsEvent.__annotations__)"
-```
-
-**预期结果**: 所有模型类定义成功
-
-**状态**: ⬜ 待开发
+**状态：** ⬜ 待开发
 
 ---
 
-### Step 4: 实现埋点追踪器 (tracker)
+## Step 3: 实现埋点追踪器
 
-**目标**: 创建核心埋点 SDK，支持异步非阻塞
+**任务描述：**
+实现异步埋点追踪器，支持批量写入
 
-**依赖**: Step 2, 3
-
-**涉及文件**:
+**涉及文件：**
 - `services/analytics/tracker.py`（新增）
 
-**改动**:
-- 实现 `AnalyticsTracker` 类
-  - `track(event_name, data, session_id)` - 记录事件（入队列）
-  - `start()` - 启动后台刷新任务
-  - `stop()` - 停止并刷新剩余事件
-  - `flush()` - 批量写入数据库
-  - `update_realtime()` - 更新 Redis 实时计数
-- 实现 `get_tracker(product)` 单例获取函数
-- 实现 `init_tracker(product, redis, pg)` 初始化函数
+**改动：**
+```python
+class AnalyticsTracker:
+    async def track(self, event_name: str, data: dict)
+    async def start(self)
+    async def stop(self)
+    async def _flush(self)
+    async def _update_redis_counters(self, event_name: str, data: dict)
 
-**验证**:
+_tracker_instance: AnalyticsTracker = None
+
+def get_tracker() -> AnalyticsTracker
+def init_tracker(redis, pg_pool, config) -> AnalyticsTracker
+```
+
+**测试方法：**
 ```bash
 python3 -c "
 import asyncio
@@ -146,7 +182,7 @@ from services.analytics.tracker import AnalyticsTracker
 from services.analytics.config import AnalyticsConfig
 
 async def test():
-    tracker = AnalyticsTracker('test', config=AnalyticsConfig())
+    tracker = AnalyticsTracker(redis=None, pg_pool=None, config=AnalyticsConfig())
     await tracker.track('test.event', {'key': 'value'})
     print(f'Buffer size: {tracker.buffer.qsize()}')
 
@@ -154,499 +190,579 @@ asyncio.run(test())
 "
 ```
 
-**预期结果**: 事件成功入队，缓冲区大小为 1
+**预期结果：** 事件成功入队
 
-**状态**: ⬜ 待开发
+**状态：** ⬜ 待开发
 
 ---
 
-### Step 5: 实现实时统计 (stats - RealtimeStats)
+## Step 4: 实现商业指标统计
 
-**目标**: 实现实时大屏的数据查询接口
+**任务描述：**
+实现商业案例数据查询接口
 
-**依赖**: Step 4
-
-**涉及文件**:
+**涉及文件：**
 - `services/analytics/stats.py`（新增）
 
-**改动**:
-- 实现 `RealtimeStats` 类
-  - `get_overview()` - 获取核心指标概览
-  - `get_channels()` - 获取渠道流量分布
-  - `get_agents()` - 获取坐席状态列表
-  - `update_agent_status(agent_id, status)` - 更新坐席状态
+**改动：**
+```python
+class BusinessStats:
+    async def get_monthly_summary(self, month: str) -> dict
+        # 返回: 总服务量、AI解决率、响应速度、成本节省
 
-**验证**:
-```bash
-python3 -c "
-from services.analytics.stats import RealtimeStats
-stats = RealtimeStats(redis=None)
-print('RealtimeStats created successfully')
-"
+    async def get_case_study_data(self, start_date: str, end_date: str) -> dict
+        # 返回: 商业案例完整数据包
+
+    async def get_query_success_rates(self) -> dict
+        # 返回: 订单/物流查询成功率
 ```
 
-**预期结果**: 类创建成功
+**测试方法：**
+```bash
+python3 -c "from services.analytics.stats import BusinessStats; print('OK')"
+```
 
-**状态**: ⬜ 待开发
+**预期结果：** 类创建成功
+
+**状态：** ⬜ 待开发
 
 ---
 
-### Step 6: 实现效能统计 (stats - DashboardStats)
+## Step 5: 更新模块导出
 
-**目标**: 实现效能报表的数据查询接口
+**任务描述：**
+创建 `__init__.py`，统一导出公开接口
 
-**依赖**: Step 1, 4
+**涉及文件：**
+- `services/analytics/__init__.py`（修改）
 
-**涉及文件**:
-- `services/analytics/stats.py`（修改）
+**改动：**
+```python
+from .config import AnalyticsConfig
+from .models import AnalyticsEvent, BusinessMetrics
+from .tracker import AnalyticsTracker, get_tracker, init_tracker
+from .stats import BusinessStats
 
-**改动**:
-- 实现 `DashboardStats` 类
-  - `get_today_stats()` - 获取今日统计
-  - `get_trend(days=7)` - 获取趋势数据
-  - `get_satisfaction()` - 获取满意度分布
-
-**验证**:
-```bash
-python3 -c "
-from services.analytics.stats import DashboardStats
-stats = DashboardStats(redis=None, pg=None)
-print('DashboardStats created successfully')
-"
+__all__ = [
+    'AnalyticsConfig',
+    'AnalyticsEvent',
+    'BusinessMetrics',
+    'AnalyticsTracker',
+    'get_tracker',
+    'init_tracker',
+    'BusinessStats',
+]
 ```
 
-**预期结果**: 类创建成功
+**测试方法：**
+```bash
+python3 -c "from services.analytics import get_tracker, BusinessStats; print('All exports OK')"
+```
 
-**状态**: ⬜ 待开发
+**预期结果：** 所有导入成功
+
+**状态：** ⬜ 待开发
 
 ---
 
-### Step 7: 实现质检服务 (quality)
+## Step 6: AI 客服 - 初始化埋点
 
-**目标**: 实现智能质检的数据查询和记录接口
+**任务描述：**
+在 AI 客服启动时初始化埋点追踪器
 
-**依赖**: Step 1, 3
-
-**涉及文件**:
-- `services/analytics/quality.py`（新增）
-
-**改动**:
-- 实现 `QualityAuditService` 类
-  - `get_summary()` - 获取质检汇总
-  - `get_records(page, size)` - 获取质检记录列表
-  - `create_audit(session_id, score, issues)` - 创建质检记录
-  - `review_audit(audit_id, reviewer_id, final_score)` - 人工复核
-
-**验证**:
-```bash
-python3 -c "
-from services.analytics.quality import QualityAuditService
-service = QualityAuditService(pg=None)
-print('QualityAuditService created successfully')
-"
-```
-
-**预期结果**: 类创建成功
-
-**状态**: ⬜ 待开发
-
----
-
-### Step 8: 实现计费统计 (billing)
-
-**目标**: 实现 Token 消耗和 ROI 计算接口
-
-**依赖**: Step 1, 3
-
-**涉及文件**:
-- `services/analytics/billing.py`（新增）
-
-**改动**:
-- 实现 `BillingStats` 类
-  - `get_usage(tenant_id)` - 获取 Token 使用量
-  - `get_roi(tenant_id)` - 获取 ROI 估算
-  - `get_quota(tenant_id)` - 获取套餐余量
-  - `record_token_usage(session_id, tokens, model)` - 记录 Token 消耗
-
-**验证**:
-```bash
-python3 -c "
-from services.analytics.billing import BillingStats
-billing = BillingStats(redis=None, pg=None)
-print('BillingStats created successfully')
-"
-```
-
-**预期结果**: 类创建成功
-
-**状态**: ⬜ 待开发
-
----
-
-### Step 9: 更新模块导出
-
-**目标**: 创建 `__init__.py`，统一导出公开接口
-
-**依赖**: Step 2-8
-
-**涉及文件**:
-- `services/analytics/__init__.py`（新增）
-
-**改动**:
-- 导出配置: `AnalyticsConfig`
-- 导出模型: `AnalyticsEvent`, `RealtimeOverview`, `DailyStats`, 等
-- 导出追踪器: `AnalyticsTracker`, `get_tracker`, `init_tracker`
-- 导出统计: `RealtimeStats`, `DashboardStats`
-- 导出质检: `QualityAuditService`
-- 导出计费: `BillingStats`
-
-**验证**:
-```bash
-python3 -c "
-from services.analytics import (
-    AnalyticsConfig,
-    AnalyticsEvent,
-    AnalyticsTracker,
-    RealtimeStats,
-    DashboardStats,
-    QualityAuditService,
-    BillingStats,
-    get_tracker,
-)
-print('All exports working!')
-"
-```
-
-**预期结果**: 所有导入成功
-
-**状态**: ⬜ 待开发
-
----
-
-### Step 10: 创建坐席工作台 API 路由
-
-**目标**: 在坐席工作台添加 analytics API 路由
-
-**依赖**: Step 9
-
-**涉及文件**:
-- `products/agent_workbench/handlers/analytics.py`（新增）
-- `products/agent_workbench/routes.py`（修改）
-
-**改动**:
-- 创建 `analytics.py` 路由文件
-  - `GET /api/analytics/realtime/overview`
-  - `GET /api/analytics/realtime/channels`
-  - `GET /api/analytics/realtime/agents`
-  - `GET /api/analytics/stats/today`
-  - `GET /api/analytics/stats/trend`
-  - `GET /api/analytics/stats/satisfaction`
-  - `GET /api/analytics/quality/summary`
-  - `GET /api/analytics/quality/records`
-  - `GET /api/analytics/billing/usage`
-  - `GET /api/analytics/billing/roi`
-- 在 `routes.py` 注册路由
-
-**验证**:
-```bash
-curl http://localhost:8002/api/analytics/realtime/overview
-curl http://localhost:8002/api/analytics/stats/today
-```
-
-**预期结果**: API 返回 JSON 数据
-
-**状态**: ⬜ 待开发
-
----
-
-### Step 11: AI 客服接入埋点
-
-**目标**: AI 客服集成埋点 SDK
-
-**依赖**: Step 9
-
-**涉及文件**:
+**涉及文件：**
 - `products/ai_chatbot/lifespan.py`（修改）
+- `products/ai_chatbot/dependencies.py`（修改，添加 get_tracker）
+
+**改动：**
+```python
+# lifespan.py
+from services.analytics import init_tracker
+
+async def lifespan(app):
+    # ... 现有初始化 ...
+
+    # 初始化埋点
+    tracker = init_tracker(
+        redis=app.state.redis,
+        pg_pool=app.state.pg_pool,
+        config=AnalyticsConfig()
+    )
+    await tracker.start()
+    app.state.tracker = tracker
+
+    yield
+
+    await tracker.stop()
+```
+
+**测试方法：**
+```bash
+# 启动服务，检查日志
+uvicorn products.ai_chatbot.main:app --port 8000
+# 应看到 "Analytics tracker started" 日志
+```
+
+**预期结果：** 服务启动时埋点初始化成功
+
+**状态：** ⬜ 待开发
+
+---
+
+## Step 7: AI 客服 - 聊天埋点
+
+**任务描述：**
+在聊天接口添加埋点
+
+**涉及文件：**
 - `products/ai_chatbot/handlers/chat.py`（修改）
 
-**改动**:
-- lifespan.py 初始化埋点追踪器
-- chat.py 添加埋点：
-  - `session.start` - 会话开始
-  - `message.user` - 用户消息
-  - `message.ai` - AI 回复（含响应时间、Token）
-  - `session.end` - 会话结束
-  - `order.query` - 订单查询
-  - `tracking.query` - 物流查询
+**埋点位置：**
 
-**验证**:
+```python
+# 同步聊天接口 chat() - 约 line 81
+@router.post("/chat")
+async def chat(chat_request: ChatRequest, request: Request):
+    tracker = get_tracker()
+    start_time = time.time()
+
+    # 【埋点】会话开始
+    await tracker.track("session.start", {
+        "session_id": session_id,
+        "channel": "api",
+    })
+
+    # ... 现有业务逻辑 ...
+
+    # 【埋点】AI 回复（约 line 296 之前）
+    response_time = int((time.time() - start_time) * 1000)
+    await tracker.track("session.message", {
+        "session_id": session_id,
+        "role": "ai",
+        "message_length": len(final_message),
+        "response_time_ms": response_time,
+    })
+
+    # 【埋点】转人工（在 regulator_result.should_escalate 块内，约 line 270）
+    if regulator_result.should_escalate:
+        await tracker.track("session.escalate", {
+            "session_id": session_id,
+            "reason": regulator_result.reason,
+            "severity": regulator_result.severity,
+        })
+```
+
+**测试方法：**
 ```bash
 # 发送测试消息
 curl -X POST http://localhost:8000/api/chat \
   -H "Content-Type: application/json" \
-  -d '{"message":"hello","session_id":"test-123"}'
+  -d '{"message":"hello","user_id":"test-123"}'
 
-# 检查 Redis 计数
+# 检查 Redis
 redis-cli HGETALL analytics:daily:$(date +%Y-%m-%d)
 ```
 
-**预期结果**: Redis 中有埋点计数
+**预期结果：** Redis 中有 total_sessions、total_messages 计数
 
-**状态**: ⬜ 待开发
+**状态：** ⬜ 待开发
 
 ---
 
-### Step 12: 坐席工作台接入埋点
+## Step 8: AI 客服 - 物流查询埋点
 
-**目标**: 坐席工作台集成埋点 SDK
+**任务描述：**
+在物流查询接口添加埋点
 
-**依赖**: Step 9
+**涉及文件：**
+- `products/ai_chatbot/handlers/tracking.py`（修改）
 
-**涉及文件**:
-- `products/agent_workbench/lifespan.py`（修改）
-- `products/agent_workbench/handlers/auth.py`（修改）
-- `products/agent_workbench/handlers/session.py`（修改）
+**埋点位置：**
+```python
+# 在查询结果返回处
+await tracker.track("query.tracking", {
+    "session_id": session_id,
+    "tracking_number": tracking_number,
+    "carrier": carrier_code,
+    "success": True/False,
+    "status": tracking_status,
+})
+```
 
-**改动**:
-- lifespan.py 初始化埋点追踪器
-- 添加埋点：
-  - `agent.login` - 坐席登录
-  - `agent.logout` - 坐席登出
-  - `agent.status_change` - 状态切换
-  - `session.transfer` - 会话转接
-  - `message.agent` - 坐席回复
-
-**验证**:
+**测试方法：**
 ```bash
-# 登录测试
-curl -X POST http://localhost:8002/api/agent/login \
+curl http://localhost:8000/api/tracking/TEST123456
+
+redis-cli HGETALL analytics:daily:$(date +%Y-%m-%d)
+# 应看到 tracking_queries_success 或 tracking_queries_failed
+```
+
+**预期结果：** 物流查询埋点正常记录
+
+**状态：** ⬜ 待开发
+
+---
+
+## Step 9: 订单查询埋点
+
+**任务描述：**
+在 Shopify 订单查询服务添加埋点
+
+**涉及文件：**
+- `services/shopify/client.py`（修改）
+
+**埋点位置：**
+```python
+# 在 query_order() 方法返回处
+await tracker.track("query.order", {
+    "session_id": session_id,
+    "order_number": order_number,
+    "site": site_name,
+    "success": True/False,
+    "response_time_ms": response_time,
+})
+```
+
+**测试方法：**
+```bash
+# 通过聊天触发订单查询
+curl -X POST http://localhost:8000/api/chat \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"test"}'
+  -d '{"message":"查询订单 FD12345","user_id":"test-123"}'
+
+redis-cli HGETALL analytics:daily:$(date +%Y-%m-%d)
+```
+
+**预期结果：** 订单查询埋点正常记录
+
+**状态：** ⬜ 待开发
+
+---
+
+## Step 10: 商业案例 API 接口
+
+**任务描述：**
+添加商业案例数据查询 API
+
+**涉及文件：**
+- `products/ai_chatbot/handlers/analytics.py`（新增）
+- `products/ai_chatbot/routes.py`（修改）
+
+**API 设计：**
+```python
+# GET /api/analytics/case-study?month=2025-12
+{
+    "period": "2025年12月",
+    "highlights": {
+        "total_customers_served": 5420,
+        "ai_resolution_rate": "85.3%",
+        "avg_response_time": "1.5秒",
+        "cost_saved": "¥54,200",
+        "order_query_success_rate": "98.2%",
+        "tracking_query_success_rate": "96.8%"
+    },
+    "story": "本月 AI 客服共服务 5,420 位客户..."
+}
+```
+
+**测试方法：**
+```bash
+curl http://localhost:8000/api/analytics/case-study?month=2025-12
+```
+
+**预期结果：** 返回格式化的商业案例数据
+
+**状态：** ⬜ 待开发
+
+---
+
+## Step 11: 坐席工作台 - 初始化埋点
+
+**任务描述：**
+在坐席工作台启动时初始化埋点追踪器
+
+**涉及文件：**
+- `products/agent_workbench/lifespan.py`（修改）
+- `products/agent_workbench/dependencies.py`（修改，添加 get_tracker）
+
+**改动：**
+```python
+# lifespan.py
+from services.analytics import init_tracker, AnalyticsConfig
+
+async def lifespan(app):
+    # ... 现有初始化 ...
+
+    # 初始化埋点
+    tracker = init_tracker(
+        redis=app.state.redis,
+        pg_pool=app.state.pg_pool,
+        config=AnalyticsConfig()
+    )
+    await tracker.start()
+    app.state.tracker = tracker
+
+    yield
+
+    await tracker.stop()
+```
+
+**测试方法：**
+```bash
+# 启动服务，检查日志
+uvicorn products.agent_workbench.main:app --port 8002
+# 应看到 "Analytics tracker started" 日志
+```
+
+**预期结果：** 坐席工作台启动时埋点初始化成功
+
+**状态：** ⬜ 待开发
+
+---
+
+## Step 12: 坐席工作台 - 认证埋点
+
+**任务描述：**
+在坐席登录/登出/状态切换时添加埋点
+
+**涉及文件：**
+- `products/agent_workbench/handlers/auth.py`（修改）
+
+**埋点位置：**
+```python
+# 在 agent_login() 成功后
+await tracker.track("agent.login", {
+    "agent_id": agent.id,
+    "agent_name": agent.name,
+})
+
+# 在 agent_logout() 成功后
+await tracker.track("agent.logout", {
+    "agent_id": agent.id,
+    "work_duration_minutes": work_duration,
+    "sessions_handled": sessions_count,
+})
+
+# 在 update_agent_status_api() 成功后
+await tracker.track("agent.status_change", {
+    "agent_id": agent.id,
+    "from_status": old_status,
+    "to_status": new_status,
+})
+```
+
+**测试方法：**
+```bash
+# 登录坐席
+curl -X POST http://localhost:8002/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"agent1","password":"xxx"}'
 
 # 检查 Redis
-redis-cli HGETALL analytics:realtime:overview
+redis-cli HGETALL analytics:agent:daily:$(date +%Y-%m-%d)
 ```
 
-**预期结果**: Redis 中有坐席相关数据
+**预期结果：** agent_logins 计数增加
 
-**状态**: ⬜ 待开发
+**状态：** ⬜ 待开发
 
 ---
 
-## 四、Phase 2 - P1 扩展功能 (Step 13-20)
+## Step 13: 坐席工作台 - 会话服务埋点
 
-### Step 13: 实现定时聚合任务
+**任务描述：**
+在会话接管/释放/转接/发消息时添加埋点
 
-**目标**: 添加定时任务，定期聚合数据
+**涉及文件：**
+- `products/agent_workbench/handlers/sessions.py`（修改）
 
-**依赖**: Step 4
+**埋点位置：**
+```python
+# 在 takeover_session() 成功后
+await tracker.track("agent.session_takeover", {
+    "agent_id": agent_id,
+    "session_id": session_id,
+    "wait_duration_seconds": wait_time,
+})
 
-**涉及文件**:
-- `infrastructure/scheduler/tasks/analytics_tasks.py`（新增）
+# 在 agent_send_message() 成功后
+await tracker.track("agent.session_message", {
+    "agent_id": agent_id,
+    "session_id": session_id,
+    "message_length": len(message),
+})
 
-**改动**:
-- 实现 `aggregate_daily_stats` 任务（每日凌晨执行）
-- 实现 `sync_realtime_stats` 任务（每 5 分钟执行）
-- 实现 `cleanup_old_events` 任务（每周执行）
-- 注册到调度器
+# 在 release_session() 成功后
+await tracker.track("agent.session_release", {
+    "agent_id": agent_id,
+    "session_id": session_id,
+    "handle_duration_seconds": handle_time,
+    "message_count": msg_count,
+})
 
-**验证**:
+# 在 transfer_session() 成功后
+await tracker.track("agent.session_transfer", {
+    "agent_id": agent_id,
+    "session_id": session_id,
+    "target_agent_id": target_id,
+    "reason": transfer_reason,
+})
+```
+
+**测试方法：**
 ```bash
-python3 -c "
-from infrastructure.scheduler.tasks.analytics_tasks import aggregate_daily_stats
-print('Task function loaded successfully')
-"
+# 接管会话
+curl -X POST http://localhost:8002/api/sessions/{session_id}/takeover \
+  -H "Authorization: Bearer xxx"
+
+# 检查 Redis
+redis-cli HGETALL analytics:agent:daily:$(date +%Y-%m-%d)
 ```
 
-**预期结果**: 任务函数加载成功
+**预期结果：** sessions_handled 计数增加
 
-**状态**: ⬜ 待开发
-
----
-
-### Step 14: 前端 Monitoring 页面对接
-
-**目标**: 实时大屏页面调用真实 API
-
-**依赖**: Step 10
-
-**涉及文件**:
-- `products/agent_workbench/frontend/components/Monitoring.tsx`（修改）
-- `products/agent_workbench/frontend/src/api.ts`（修改）
-
-**改动**:
-- 添加 analyticsApi 方法
-- Monitoring.tsx 替换硬编码数据为 API 调用
-- 添加自动刷新（每 30 秒）
-
-**验证**:
-- 打开 /monitoring 页面
-- 检查数据是否来自 API
-- 确认自动刷新正常
-
-**预期结果**: 页面显示真实数据
-
-**状态**: ⬜ 待开发
+**状态：** ⬜ 待开发
 
 ---
 
-### Step 15: 前端 Dashboard 页面对接
+## Step 14: 坐席工作台 - 工单埋点
 
-**目标**: 效能报表页面调用真实 API
+**任务描述：**
+在工单创建/分配/状态变更/关闭时添加埋点
 
-**依赖**: Step 10
+**涉及文件：**
+- `products/agent_workbench/handlers/tickets.py`（修改）
 
-**涉及文件**:
-- `products/agent_workbench/frontend/components/Dashboard.tsx`（修改）
+**埋点位置：**
+```python
+# 在 create_ticket_endpoint() 成功后
+await tracker.track("ticket.created", {
+    "ticket_id": ticket.id,
+    "source": ticket.source,
+    "type": ticket.type,
+    "priority": ticket.priority,
+    "agent_id": current_agent.id,
+})
 
-**改动**:
-- 替换 mockTrendData 为 API 调用
-- 替换 mockSatisfactionData 为 API 调用
-- 保留自动刷新逻辑
+# 在 assign_ticket_endpoint() 成功后
+await tracker.track("ticket.assigned", {
+    "ticket_id": ticket_id,
+    "from_agent_id": old_assignee,
+    "to_agent_id": new_assignee,
+})
 
-**验证**:
-- 打开 /dashboard 页面
-- 检查趋势图和满意度图数据
-- 确认同比变化计算正确
+# 在 update_ticket_endpoint() 状态变更时
+if old_status != new_status:
+    await tracker.track("ticket.status_changed", {
+        "ticket_id": ticket_id,
+        "from_status": old_status,
+        "to_status": new_status,
+        "agent_id": current_agent.id,
+    })
 
-**预期结果**: 页面显示真实数据
+# 在工单关闭时
+await tracker.track("ticket.closed", {
+    "ticket_id": ticket_id,
+    "resolution_duration_hours": resolution_hours,
+    "sla_met": is_sla_met,
+})
+```
 
-**状态**: ⬜ 待开发
-
----
-
-### Step 16: 前端 QualityAudit 页面对接
-
-**目标**: 智能质检页面调用真实 API
-
-**依赖**: Step 10
-
-**涉及文件**:
-- `products/agent_workbench/frontend/components/QualityAudit.tsx`（修改）
-
-**改动**:
-- 替换 auditRecords 为 API 调用
-- 添加分页加载
-- 添加搜索过滤
-
-**验证**:
-- 打开 /audit 页面
-- 检查质检汇总和记录列表
-- 测试分页和搜索
-
-**预期结果**: 页面显示真实数据
-
-**状态**: ⬜ 待开发
-
----
-
-### Step 17: 前端 BillingPortal 页面对接
-
-**目标**: 计费管理页面调用真实 API
-
-**依赖**: Step 10
-
-**涉及文件**:
-- `products/agent_workbench/frontend/components/BillingPortal.tsx`（修改）
-
-**改动**:
-- 算力余量调用 API
-- ROI 面板调用 API
-- 保留套餐选择 UI（Mock 数据）
-
-**验证**:
-- 打开 /billing 页面
-- 检查算力余量和 ROI 数据
-
-**预期结果**: 关键指标显示真实数据
-
-**状态**: ⬜ 待开发
-
----
-
-### Step 18: Coze Token 回调集成
-
-**目标**: 集成 Coze Token 使用量回调
-
-**依赖**: Step 8
-
-**涉及文件**:
-- `services/coze/client.py`（修改）
-- `products/ai_chatbot/handlers/chat.py`（修改）
-
-**改动**:
-- Coze 调用后记录 Token 消耗
-- 调用 `BillingStats.record_token_usage()`
-
-**验证**:
+**测试方法：**
 ```bash
-# 发送消息后检查 Token 记录
-curl -X POST http://localhost:8000/api/chat/stream ...
-redis-cli HGETALL analytics:billing:$(date +%Y-%m-%d)
+# 创建工单
+curl -X POST http://localhost:8002/api/tickets \
+  -H "Authorization: Bearer xxx" \
+  -d '{"subject":"test","type":"inquiry"}'
+
+# 检查 Redis
+redis-cli HGETALL analytics:agent:daily:$(date +%Y-%m-%d)
 ```
 
-**预期结果**: Token 使用量被记录
+**预期结果：** tickets_created 计数增加
 
-**状态**: ⬜ 待开发
-
----
-
-### Step 19: 创建 README 文档
-
-**目标**: 编写模块使用说明
-
-**依赖**: Step 9
-
-**涉及文件**:
-- `services/analytics/README.md`（新增）
-
-**改动**:
-- 模块职责说明
-- 快速开始示例
-- API 接口文档
-- 埋点事件规范
-- 配置说明
-
-**验证**:
-- 文档格式正确
-- 示例代码可运行
-
-**状态**: ⬜ 待开发
+**状态：** ⬜ 待开发
 
 ---
 
-### Step 20: 数据验证与上线
+## Step 15: 扩展商业案例 API
 
-**目标**: 全面测试并部署上线
+**任务描述：**
+扩展商业案例 API，包含坐席工作台指标
 
-**依赖**: Step 1-19
+**涉及文件：**
+- `products/ai_chatbot/handlers/analytics.py`（修改）
+- `services/analytics/stats.py`（修改）
 
-**涉及文件**:
-- 无新增文件
+**API 扩展：**
+```python
+# GET /api/analytics/case-study?month=2025-12
+{
+    "period": "2025年12月",
+    "ai_chatbot": {
+        "total_customers_served": 5420,
+        "ai_resolution_rate": "85.3%",
+        "avg_response_time": "1.5秒",
+        "cost_saved": "¥54,200",
+        "order_query_success_rate": "98.2%",
+        "tracking_query_success_rate": "96.8%"
+    },
+    "agent_workbench": {
+        "sessions_handled": 812,
+        "avg_first_response": "30秒",
+        "avg_handle_time": "8分钟",
+        "tickets_resolved": 156,
+        "avg_resolution_time": "4小时",
+        "sla_met_rate": "95.2%"
+    },
+    "story": "本月 AI 客服共服务 5,420 位客户..."
+}
+```
 
-**改动**:
-- 验证所有 API 响应正确
-- 验证前端所有页面显示正常
-- 验证埋点数据完整性
-- 部署到生产环境
-
-**验证**:
+**测试方法：**
 ```bash
-# 部署到服务器
-rsync -avz services/analytics/ root@8.211.27.199:/opt/fiido-ai-service/services/analytics/
-ssh root@8.211.27.199 "systemctl restart fiido-ai-chatbot fiido-agent-workbench"
-
-# 验证生产环境
-curl https://ai.fiido.com/workbench-api/analytics/realtime/overview
+curl http://localhost:8000/api/analytics/case-study?month=2025-12
 ```
 
-**预期结果**: 生产环境正常运行
+**预期结果：** 返回包含坐席工作台指标的完整商业案例数据
 
-**状态**: ⬜ 待开发
+**状态：** ⬜ 待开发
 
 ---
 
-## 五、开发检查清单
+## 三、商业指标计算公式
+
+### 3.1 AI 客服指标
+
+| 指标 | 公式 | 说明 |
+|------|------|------|
+| AI 解决率 | `ai_resolved / total_sessions × 100` | 越高越好 |
+| 转人工率 | `escalated / total_sessions × 100` | 越低越好 |
+| 平均响应时间 | `total_response_time / total_messages` | 单位 ms |
+| 成本节省 | `ai_resolved × ¥10` | 假设单次人工成本 ¥10 |
+| 订单查询成功率 | `order_success / (order_success + order_failed) × 100` | |
+| 物流查询成功率 | `tracking_success / (tracking_success + tracking_failed) × 100` | |
+
+### 3.2 坐席工作台指标
+
+| 指标 | 公式 | 说明 |
+|------|------|------|
+| 平均首次响应时间 | `total_first_response_ms / sessions_handled` | 越短越好 |
+| 平均会话处理时长 | `total_handle_time_sec / sessions_handled` | 效率指标 |
+| 坐席人均消息数 | `agent_messages_sent / sessions_handled` | 服务深度 |
+| 转接率 | `sessions_transferred / sessions_handled × 100` | 越低越好 |
+
+### 3.3 工单指标
+
+| 指标 | 公式 | 说明 |
+|------|------|------|
+| 工单解决率 | `tickets_closed / tickets_created × 100` | |
+| 平均解决时长 | `total_resolution_hours / tickets_closed` | 小时 |
+| SLA 达标率 | `tickets_sla_met / tickets_closed × 100` | 越高越好 |
+
+---
+
+## 四、开发检查清单
 
 每个 Step 完成后：
 
@@ -654,13 +770,13 @@ curl https://ai.fiido.com/workbench-api/analytics/realtime/overview
 - [ ] 按验证方法测试通过
 - [ ] 不破坏现有功能
 - [ ] 更新 `progress.md` 状态
-- [ ] Git 提交（message 包含 Step 编号）
+- [ ] Git 提交
 
 ---
 
-## 六、文档更新记录
+## 五、文档更新记录
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
-| v2.0 | 2025-12-25 | 基于 UI 组件分析，扩展为 20 步；新增 quality/billing 子模块；新增前端对接步骤 |
-| v1.0 | 2025-12-25 | 初始版本，12 个步骤 |
+| v4.0 | 2025-12-25 | 扩展坐席工作台埋点：Step 11-15，共 15 步 |
+| v3.0 | 2025-12-25 | 完全重写：10 步聚焦现有功能埋点，删除坐席工作台 UI 内容 |

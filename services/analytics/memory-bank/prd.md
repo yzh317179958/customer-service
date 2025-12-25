@@ -1,10 +1,10 @@
-# 数据分析服务 - PRD
+# 数据埋点服务 - PRD
 
-> **版本**: v2.0
+> **版本**: v4.0
 > **创建日期**: 2025-12-25
 > **更新日期**: 2025-12-25
 > **模块位置**: `services/analytics/`
-> **模块类型**: 独立服务模块（被多产品复用）
+> **模块类型**: 独立服务模块（被 AI 客服 + 坐席工作台调用）
 
 ---
 
@@ -12,303 +12,262 @@
 
 ### 产品名称
 
-数据分析服务 (Analytics Service)
+数据埋点服务 (Analytics Tracking Service)
 
 ### 目标用户
 
-| 用户类型 | 使用场景 | 对应 UI 页面 |
-|----------|----------|--------------|
-| 平台运营 | 实时监控系统状态、流量分布 | 实时大屏 (Monitoring) |
-| 产品经理 | 分析效能指标、评估优化效果 | 效能报表 (Dashboard) |
-| 质检主管 | 审核服务质量、识别违规行为 | 智能质检 (QualityAudit) |
-| 财务/管理 | 监控 AI 消耗、成本核算 | 计费管理 (BillingPortal) |
-| 客户 | 查看自己店铺的服务数据 | 客户门户 (规划中) |
+| 用户类型 | 使用场景 |
+|----------|----------|
+| 产品运营 | 分析 AI 客服使用情况，制作商业案例 |
+| 销售团队 | 展示 AI 客服价值，说服潜在客户 |
+| 技术团队 | 监控系统健康度，优化性能 |
 
 ### 核心价值
 
-1. **数据驱动决策**：用真实数据证明产品价值，替代 Mock 数据
-2. **商业闭环支撑**：为获客→转化→交付→续费提供数据依据
-3. **产品优化指导**：发现瓶颈、验证假设、持续改进
-4. **客户价值展示**：向客户证明 AI 客服的 ROI
+1. **数据驱动商业案例**：收集真实数据证明 AI 客服 + 人工协作的价值
+2. **量化 AI 效能**：统计 AI 处理了多少会话、解决了多少问题
+3. **量化人工效能**：统计坐席响应速度、工单处理效率
+4. **成本节省证明**：计算 AI 替代人工节省的成本
+5. **服务质量追踪**：监控人工接管后的处理质量
+6. **持续优化依据**：发现瓶颈，指导产品改进
 
 ### 业务背景
 
-**现状分析**（基于前端代码审查）：
-- `Dashboard.tsx` 使用 `mockTrendData`、`mockSatisfactionData` 假数据
-- `Monitoring.tsx` 全部硬编码展示数据
-- `QualityAudit.tsx` 使用 `auditRecords` Mock 数组
-- 后端缺少统计 API，前端 UI 已就绪但无真实数据
+**现状**：
+- AI 客服已上线运行，但缺少数据采集
+- 坐席工作台已上线，人工服务数据未统计
+- 无法证明 AI 客服 + 人工协作的实际价值
+- 销售缺少商业案例数据支撑
 
 **目标**：
-- 为坐席工作台 4 个数据页面提供真实数据 API
-- 为 AI 客服提供运营指标采集
+- 为 AI 客服和坐席工作台添加数据埋点
+- 收集完整的客服服务链路数据
+- 输出可用于商业案例的业务指标
 
 ---
 
-## 2. 功能模块
+## 2. 埋点范围（基于现有功能）
 
-### 2.1 模块划分
+### 2.1 AI 客服功能清单
 
-| 子模块 | 职责 | 对应 UI | 优先级 |
-|--------|------|---------|--------|
-| **tracker** | 事件埋点采集 | (后端基础) | P0 |
-| **stats** | 会话/效能统计 | Monitoring + Dashboard | P0 |
-| **quality** | 质检评分分析 | QualityAudit | P1 |
-| **billing** | Token 消耗统计 | BillingPortal | P1 |
+| 功能模块 | 文件位置 | 核心功能 |
+|----------|----------|----------|
+| 聊天接口 | `products/ai_chatbot/handlers/chat.py` | 同步聊天、流式聊天、会话隔离 |
+| 物流查询 | `products/ai_chatbot/handlers/tracking.py` | 17track 物流轨迹查询 |
+| 订单查询 | `services/shopify/` | Shopify 多站点订单查询 |
+| 会话管理 | `services/session/` | 会话状态、人工接管 |
+| 监管触发 | `services/session/regulator.py` | 敏感词检测、情绪识别 |
 
-### 2.2 功能列表
+### 2.2 坐席工作台功能清单
 
-#### Phase 1: 核心统计 (P0)
+| 功能模块 | 文件位置 | 核心功能 |
+|----------|----------|----------|
+| 坐席认证 | `products/agent_workbench/handlers/auth.py` | 登录、登出、状态切换、心跳 |
+| 会话服务 | `products/agent_workbench/handlers/sessions.py` | 接管、释放、转接、发消息、添加备注 |
+| 工单系统 | `products/agent_workbench/handlers/tickets.py` | 创建、分配、更新、关闭、SLA 追踪 |
 
-| 功能 | 说明 | 对应 UI 组件 |
-|------|------|--------------|
-| 事件埋点 SDK | 统一埋点接口，异步非阻塞 | - |
-| 实时会话统计 | 活跃会话、排队人数、坐席状态 | Monitoring.tsx 核心指标 |
-| 渠道流量分布 | App/Web/微信/电话各渠道流量 | Monitoring.tsx 流量矩阵 |
-| 坐席健康度 | 坐席在线状态、服务时长、负载 | Monitoring.tsx 坐席看板 |
-| 今日会话统计 | 总数、响应时长、满意度 | Dashboard.tsx 核心卡片 |
-| 会话趋势图 | 近 7 日会话量趋势 | Dashboard.tsx 趋势图 |
-| 满意度分析 | 评分分布、合格率 | Dashboard.tsx 满意度图 |
+### 2.3 埋点目标
 
-#### Phase 2: 质检与计费 (P1)
-
-| 功能 | 说明 | 对应 UI 组件 |
-|------|------|--------------|
-| 质检评分记录 | 会话质检分数、合格/不合格 | QualityAudit.tsx 质检流水 |
-| 质检汇总统计 | 本月合格率、已质检数、待复核数 | QualityAudit.tsx 概览卡片 |
-| Token 消耗统计 | Coze 平台 Token 使用量 | BillingPortal.tsx 算力余量 |
-| ROI 估算 | AI 节省的人工成本 | BillingPortal.tsx ROI 面板 |
-| 套餐用量跟踪 | 坐席数、功能使用情况 | BillingPortal.tsx 订阅状态 |
-
-#### Phase 3: 高级分析 (P2)
-
-| 功能 | 说明 | 优先级 |
-|------|------|--------|
-| 多租户数据隔离 | 按 tenant_id 隔离统计 | P2 |
-| 数据导出 | CSV/Excel 报表导出 | P2 |
-| 智能告警 | 异常指标自动告警 | P2 |
-| 预测分析 | 基于历史数据预测趋势 | P2 |
+| 目标 | 说明 | 商业价值 |
+|------|------|----------|
+| 会话量统计 | 每日/每周/每月会话数 | 展示使用规模 |
+| AI 解决率 | AI 独立解决 vs 转人工 | 证明 AI 能力 |
+| AI 响应时长 | AI 回复速度 | 证明效率优势 |
+| 坐席响应时长 | 人工接管后首次响应时间 | 服务质量指标 |
+| 坐席处理效率 | 平均会话处理时长 | 人效评估 |
+| 工单处理效率 | 工单平均解决时长 | 服务能力证明 |
+| 查询成功率 | 订单/物流查询成功率 | 证明功能可靠性 |
+| 成本节省 | AI 替代人工节省成本 | ROI 证明 |
 
 ---
 
-## 3. 核心指标定义
+## 3. 功能列表
 
-### 3.1 实时大屏指标 (Monitoring)
+### Phase 1: AI 客服埋点 (P0)
 
-| 指标 | 定义 | 对应 UI 位置 |
-|------|------|--------------|
-| 系统并发负载 | 当前处理中请求 / 最大并发 | 核心集群指标卡片 |
-| 全球实时排队 | 等待人工的会话数 | 核心集群指标卡片 |
-| 坐席活跃率 | 在线坐席数 / 总坐席数 | 核心集群指标卡片 |
-| SLA 告警事件 | 超时/异常事件数 | 核心集群指标卡片 |
-| 渠道在线人数 | 各渠道当前在线用户 | 流量分布图 |
-| 渠道负载率 | 各渠道流量占比 | 流量分布图 |
-| 坐席服务状态 | 在线/服务中/小休 | 坐席健康度看板 |
-| 坐席服务时长 | 当前会话持续时间 | 坐席健康度看板 |
-
-### 3.2 效能报表指标 (Dashboard)
-
-| 指标 | 定义 | 计算方式 |
+| 功能 | 说明 | 埋点位置 |
 |------|------|----------|
-| 今日会话总数 | 当日会话数量 | COUNT(session_id) WHERE date=today |
-| 平均响应时长 | AI/坐席平均响应时间 | AVG(response_time) |
-| 全渠道满意度 | 用户评分平均值 | AVG(rating) |
-| 服务质检评级 | 综合质检等级 | 根据合格率映射 |
-| 近 7 日趋势 | 每日会话量变化 | GROUP BY date |
-| 满意度分布 | 各评分段占比 | GROUP BY rating_level |
+| 会话生命周期 | 会话开始、结束、时长 | chat.py |
+| 消息统计 | 用户消息数、AI 回复数 | chat.py |
+| AI 响应时间 | Coze API 调用耗时 | chat.py |
+| 转人工事件 | 触发原因、等待时长 | chat.py + regulator |
+| 订单查询 | 查询次数、成功/失败 | shopify 服务 |
+| 物流查询 | 查询次数、运营商分布 | tracking.py |
 
-### 3.3 智能质检指标 (QualityAudit)
+### Phase 2: 坐席工作台埋点 (P0)
 
-| 指标 | 定义 | 计算方式 |
+| 功能 | 说明 | 埋点位置 |
 |------|------|----------|
-| 本月合格率 | 合格会话 / 已质检会话 | passed / total * 100 |
-| 已质检会话数 | 本月完成质检的会话 | COUNT(audited=true) |
-| 待人工复核 | 不合格需复核的数量 | COUNT(status='pending_review') |
-| 质检评分 | 单次会话质检分数 | 0-100 分 |
+| 坐席登录/登出 | 工作时长、在线状态 | auth.py |
+| 会话接管 | 接管时间、等待时长 | sessions.py |
+| 会话处理 | 消息数、处理时长 | sessions.py |
+| 会话转接/释放 | 转接原因、目标坐席 | sessions.py |
+| 工单创建 | 来源、类型、优先级 | tickets.py |
+| 工单处理 | 状态变更、处理时长 | tickets.py |
+| 工单 SLA | 响应时效、解决时效 | tickets.py |
 
-### 3.4 计费管理指标 (BillingPortal)
+### Phase 3: 扩展埋点 (P1)
 
-| 指标 | 定义 | 数据来源 |
+| 功能 | 说明 | 依赖条件 |
 |------|------|----------|
-| AI 节省成本 | AI 处理会话 × 单次人工成本 | 计算公式 |
-| 算力余量 | 已用 Token / 套餐 Token | Coze API 回调 |
-| 自动完成率 | AI 独立解决的会话比例 | stats 模块 |
-| 当前订阅 | 套餐类型、到期时间 | 订阅表 |
+| Token 消耗 | Coze API Token 用量 | Coze 回调接口 |
+| 意图分布 | 用户问题意图分类 | Intent 识别数据 |
+| 满意度评分 | 用户评价数据 | 前端评价功能 |
 
 ---
 
-## 4. 用户故事
+## 4. 埋点事件设计
 
-### 4.1 实时大屏场景
+### 4.1 AI 客服会话事件
+
+| 事件名 | 触发时机 | 携带数据 |
+|--------|----------|----------|
+| `session.start` | 用户首次发消息 | session_id, channel, user_agent, timestamp |
+| `session.message` | 每轮对话 | session_id, role(user/ai), message_length, response_time_ms |
+| `session.escalate` | 转人工触发 | session_id, reason, severity, trigger_keyword |
+| `session.end` | 会话结束 | session_id, duration_seconds, message_count, resolved_by(ai/human) |
+
+### 4.2 业务查询事件
+
+| 事件名 | 触发时机 | 携带数据 |
+|--------|----------|----------|
+| `query.order` | 订单查询 | session_id, order_number, site, success, response_time_ms |
+| `query.tracking` | 物流查询 | session_id, tracking_number, carrier, success, status |
+
+### 4.3 坐席工作事件
+
+| 事件名 | 触发时机 | 携带数据 |
+|--------|----------|----------|
+| `agent.login` | 坐席登录 | agent_id, agent_name, timestamp |
+| `agent.logout` | 坐席登出 | agent_id, work_duration_minutes, sessions_handled |
+| `agent.status_change` | 状态切换 | agent_id, from_status, to_status |
+
+### 4.4 坐席会话事件
+
+| 事件名 | 触发时机 | 携带数据 |
+|--------|----------|----------|
+| `agent.session_takeover` | 接管会话 | agent_id, session_id, wait_duration_seconds |
+| `agent.session_message` | 发送消息 | agent_id, session_id, message_length |
+| `agent.session_release` | 释放会话 | agent_id, session_id, handle_duration_seconds, message_count |
+| `agent.session_transfer` | 转接会话 | agent_id, session_id, target_agent_id, reason |
+
+### 4.5 工单事件
+
+| 事件名 | 触发时机 | 携带数据 |
+|--------|----------|----------|
+| `ticket.created` | 创建工单 | ticket_id, source, type, priority, agent_id |
+| `ticket.assigned` | 分配工单 | ticket_id, from_agent_id, to_agent_id |
+| `ticket.status_changed` | 状态变更 | ticket_id, from_status, to_status, agent_id |
+| `ticket.closed` | 关闭工单 | ticket_id, resolution_duration_hours, sla_met |
+
+### 4.6 系统事件
+
+| 事件名 | 触发时机 | 携带数据 |
+|--------|----------|----------|
+| `api.coze_call` | Coze API 调用 | session_id, workflow_id, response_time_ms, success |
+| `api.error` | 任何 API 错误 | session_id, endpoint, error_type, error_message |
+
+---
+
+## 5. 用户故事
+
+### 5.1 销售展示场景
 
 ```
-作为值班主管，
-我希望在实时大屏上看到当前系统负载和排队人数，
-以便及时调配坐席资源应对高峰。
+作为销售人员，
+我希望能够展示"上月 AI 客服共处理 5000 个会话，其中 85% 由 AI 独立解决"，
+以便向潜在客户证明 AI 客服的价值。
 ```
 
-### 4.2 效能报表场景
-
-```
-作为产品经理，
-我希望查看近 7 日会话趋势和响应时长变化，
-以便评估最近一次提示词优化的效果。
-```
-
-### 4.3 智能质检场景
-
-```
-作为质检主管，
-我希望查看本月质检合格率和待复核列表，
-以便安排人工复核并发现服务问题。
-```
-
-### 4.4 计费管理场景
+### 5.2 成本核算场景
 
 ```
 作为运营负责人，
-我希望看到 AI 本月节省的人工成本和 Token 消耗，
+我希望能够计算"本月 AI 客服节省了约 ¥50,000 人工成本"，
 以便评估投资回报率并决定是否续费。
+```
+
+### 5.3 性能优化场景
+
+```
+作为技术负责人，
+我希望能够查看"平均 AI 响应时间为 1.5 秒，物流查询成功率为 98%"，
+以便发现性能瓶颈并针对性优化。
+```
+
+### 5.4 坐席效能场景
+
+```
+作为客服主管，
+我希望能够查看"本月坐席平均响应时间 30 秒，会话处理时长 8 分钟"，
+以便评估团队服务质量并指导培训。
+```
+
+### 5.5 工单效率场景
+
+```
+作为运营负责人，
+我希望能够查看"工单平均解决时长 4 小时，SLA 达标率 95%"，
+以便向客户展示售后服务能力。
 ```
 
 ---
 
-## 5. 埋点事件设计
+## 6. 成功标准
 
-### 5.1 会话生命周期事件
+### 6.1 AI 客服功能验收
 
-| 事件名 | 触发时机 | 携带数据 |
-|--------|----------|----------|
-| `session.start` | 用户开始对话 | session_id, product, channel, tenant_id, user_agent |
-| `session.end` | 会话结束 | session_id, duration, message_count, resolved, rating |
-| `session.transfer` | 转接人工 | session_id, reason, wait_time, from_ai |
-| `session.queue` | 进入排队 | session_id, queue_position |
+- [ ] 会话开始/结束事件正确记录
+- [ ] 每轮消息的响应时间被记录
+- [ ] 转人工事件包含完整原因
+- [ ] 订单/物流查询成功率可统计
 
-### 5.2 消息事件
+### 6.2 坐席工作台功能验收
 
-| 事件名 | 触发时机 | 携带数据 |
-|--------|----------|----------|
-| `message.user` | 用户发送消息 | session_id, length, intent |
-| `message.ai` | AI 回复消息 | session_id, response_time, tokens, model |
-| `message.agent` | 坐席回复消息 | session_id, agent_id, response_time |
+- [ ] 坐席登录/登出事件正确记录
+- [ ] 会话接管/释放/转接事件完整
+- [ ] 工单生命周期事件可追溯
+- [ ] SLA 达标率可统计
 
-### 5.3 坐席状态事件
+### 6.3 数据质量
 
-| 事件名 | 触发时机 | 携带数据 |
-|--------|----------|----------|
-| `agent.login` | 坐席登录 | agent_id, timestamp |
-| `agent.logout` | 坐席登出 | agent_id, duration, sessions_handled |
-| `agent.status_change` | 状态切换 | agent_id, from_status, to_status |
-| `agent.session_accept` | 接待会话 | agent_id, session_id |
+- [ ] 事件丢失率 < 0.1%
+- [ ] 埋点不影响业务响应时间（异步处理）
+- [ ] 数据可追溯到具体会话
 
-### 5.4 质检事件
+### 6.4 商业案例数据
 
-| 事件名 | 触发时机 | 携带数据 |
-|--------|----------|----------|
-| `audit.auto` | AI 自动质检完成 | session_id, score, issues[] |
-| `audit.manual` | 人工复核完成 | session_id, agent_id, final_score |
-
-### 5.5 业务事件（用于商业案例数据收集）
-
-| 事件名 | 触发时机 | 携带数据 | 商业价值 |
-|--------|----------|----------|----------|
-| `order.query` | 查询订单 | session_id, order_id, success | 统计订单查询频次 |
-| `tracking.query` | 查询物流 | session_id, tracking_number, carrier | 统计物流查询频次 |
-| `feedback.submit` | 用户评价 | session_id, rating, comment | 客户满意度分析 |
-| `issue.resolved` | 问题解决 | session_id, issue_type, resolution_time | AI 解决能力证明 |
-| `cost.saved` | 成本节省 | session_id, saved_amount, method | ROI 计算依据 |
-
-### 5.6 计费事件
-
-| 事件名 | 触发时机 | 携带数据 |
-|--------|----------|----------|
-| `billing.token_usage` | Coze 调用完成 | session_id, tokens_used, model |
-| `billing.quota_alert` | 额度预警 | tenant_id, usage_percent |
+- [ ] 可生成"月度会话量报告"
+- [ ] 可计算"AI 解决率"
+- [ ] 可估算"人工成本节省"
+- [ ] 可展示"坐席响应效率"
+- [ ] 可统计"工单 SLA 达标率"
 
 ---
 
-## 6. API 设计
-
-### 6.1 实时大屏 API
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | /api/analytics/realtime/overview | 核心指标概览 |
-| GET | /api/analytics/realtime/channels | 渠道流量分布 |
-| GET | /api/analytics/realtime/agents | 坐席状态列表 |
-
-### 6.2 效能报表 API
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | /api/analytics/stats/today | 今日统计 |
-| GET | /api/analytics/stats/trend?days=7 | 趋势数据 |
-| GET | /api/analytics/stats/satisfaction | 满意度分布 |
-
-### 6.3 智能质检 API
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | /api/analytics/quality/summary | 质检汇总 |
-| GET | /api/analytics/quality/records | 质检记录列表 |
-| POST | /api/analytics/quality/audit | 执行质检 |
-
-### 6.4 计费统计 API
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | /api/analytics/billing/usage | Token 使用量 |
-| GET | /api/analytics/billing/roi | ROI 估算 |
-| GET | /api/analytics/billing/quota | 套餐余量 |
-
----
-
-## 7. 成功标准
-
-### 7.1 功能验收标准
-
-- [ ] 实时大屏 4 个核心指标卡片显示真实数据
-- [ ] 效能报表近 7 日趋势图显示真实数据
-- [ ] 智能质检合格率和质检记录显示真实数据
-- [ ] 计费管理 Token 余量和 ROI 显示真实数据
-- [ ] 所有 API 响应时间 < 200ms
-
-### 7.2 业务验收标准
-
-- [ ] 能够替换前端所有 Mock 数据
-- [ ] 数据准确率 > 99%（与实际日志对比）
-- [ ] 支持按天/周/月聚合查询
-
-### 7.3 技术验收标准
-
-- [ ] 埋点不影响主流程性能（异步处理）
-- [ ] 数据丢失率 < 0.1%
-- [ ] 支持高并发埋点（1000 QPS）
-
----
-
-## 8. 约束与假设
+## 7. 约束与假设
 
 ### 约束
 
 1. 必须遵循三层架构，放在 `services/analytics/`
 2. 使用现有的 Redis 和 PostgreSQL
-3. 不引入额外的数据分析引擎
-4. 埋点必须异步，不能阻塞业务流程
-5. Token 消耗数据需从 Coze 回调获取
+3. 埋点必须异步，不能阻塞业务流程
+4. 只针对现有功能埋点，不涉及新功能开发
 
 ### 假设
 
-1. 当前数据量不大（日均 < 10 万事件），PostgreSQL 足够
-2. 无需实时流处理，秒级/分钟级延迟可接受
-3. Coze 平台提供 Token 使用量回调
-4. 多租户场景在 Phase 3 实现
+1. Coze Token 消耗数据暂时不可获取，先预留接口
+2. 用户满意度评分暂时无数据源，先预留接口
+3. 当前数据量不大（日均 < 1 万事件），PostgreSQL 足够
+4. 单次人工成本假设为 ¥10/次（可配置）
 
 ---
 
-## 9. 文档更新记录
+## 8. 文档更新记录
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
-| v2.0 | 2025-12-25 | 基于前端 UI 组件分析，扩展为 4 个子模块（stats/quality/billing）；新增完整 API 设计和指标定义 |
+| v4.0 | 2025-12-25 | 扩展坐席工作台埋点：坐席认证、会话服务、工单系统 |
+| v3.0 | 2025-12-25 | 完全重写：删除坐席工作台 UI 功能，聚焦现有 AI 客服功能埋点 |
+| v2.0 | 2025-12-25 | 扩展为 4 个子模块（已废弃）|
 | v1.0 | 2025-12-25 | 初始版本 |

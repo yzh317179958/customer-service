@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 from services.tracking import get_tracking_service, TrackingStatus
 from services.shopify.sites import get_all_configured_sites
 from services.shopify import get_shopify_service
+from services.shopify.sites import detect_site_from_order_number
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +87,8 @@ def _generate_friendly_message(
     info,
     carrier: Optional[str] = None,
     is_pending: bool = False,
+    shopify_fulfillment_status: Optional[str] = None,
+    shopify_shipment_status: Optional[str] = None,
 ) -> tuple:
     """
     生成友好提示信息
@@ -96,6 +99,7 @@ def _generate_friendly_message(
         info: 物流信息对象
         carrier: 承运商名称
         is_pending: 是否正在追踪中
+        shopify_fulfillment_status: Shopify 订单的发货状态（可选，用于辅助判断）
 
     Returns:
         (message, tracking_url) 元组
@@ -104,6 +108,13 @@ def _generate_friendly_message(
 
     # 场景 1: 正在后台注册追踪中
     if is_pending:
+        # Shopify 已标记运输状态时，避免误导性“24-48 小时”
+        shipment = (shopify_shipment_status or "").strip().lower()
+        if shipment == "received":
+            return (
+                "Shipment has been received by the carrier. Tracking events may take some time to sync. Please refresh later.",
+                tracking_url,
+            )
         return (
             "Fetching tracking info, please refresh in 1-2 minutes.",
             tracking_url
@@ -160,18 +171,36 @@ def _generate_friendly_message(
             tracking_url
         )
 
-    # 场景 8: NotFound - 区分新运单和不支持的承运商
+    # 场景 8: NotFound - 根据 Shopify 状态区分
     if info.status == TrackingStatus.NOT_FOUND:
-        if _is_minor_carrier(carrier):
-            return (
-                "This carrier doesn't support online tracking. Click 'Track' to check carrier website.",
-                tracking_url
-            )
-        else:
-            return (
-                "Tracking info syncing. New shipments usually take 24-48 hours to update.",
-                tracking_url
-            )
+        # 如果 Shopify 显示已发货/已签收，说明是历史运单，17track 可能没有数据
+        # 支持多种状态格式：fulfilled, delivered, success, Received, 已收货, 已送达, shipped, 已发货 等
+        if shopify_fulfillment_status:
+            status_lower = shopify_fulfillment_status.lower()
+            # 已签收/已收货状态
+            is_delivered = any(keyword in status_lower for keyword in [
+                'fulfilled', 'delivered', 'success', 'received', '已收货', '已送达', '已签收'
+            ])
+            # 已发货/运输中状态
+            is_shipped = any(keyword in status_lower for keyword in [
+                'shipped', 'in_transit', 'in transit', 'out_for_delivery', 'out for delivery',
+                '已发货', '运输中', '派送中'
+            ])
+            if is_delivered:
+                return (
+                    "Detailed tracking history is not available. The package may have been delivered.",
+                    tracking_url
+                )
+            if is_shipped:
+                return (
+                    "Tracking info not available from 17track. Please check carrier website for updates.",
+                    tracking_url
+                )
+        # 无状态或新运单，等待物流信息同步
+        return (
+            "Tracking info syncing. New shipments usually take 24-48 hours to update.",
+            tracking_url
+        )
 
     # 其他情况：有轨迹数据，无需特殊提示
     return ("", tracking_url)
@@ -248,6 +277,10 @@ async def get_tracking(
     order_id: Optional[str] = None,
     order_number: Optional[str] = None,
     postal_code: Optional[str] = None,
+    fulfillment_status: Optional[str] = Query(
+        None,
+        description="Shopify 订单发货状态（fulfilled/unfulfilled），用于辅助判断",
+    ),
     refresh: bool = False,
     debug: Optional[str] = Query(
         None,
@@ -263,6 +296,7 @@ async def get_tracking(
         order_id: 订单 ID（可选，用于自动注册）
         order_number: 订单号（可选，用于从 Shopify 获取邮编）
         postal_code: 目的地邮编（可选，某些承运商如 DX FREIGHT 需要）
+        fulfillment_status: Shopify 发货状态（可选，用于优化提示信息）
         refresh: 是否强制刷新缓存
 
     Returns:
@@ -274,12 +308,19 @@ async def get_tracking(
         service = get_tracking_service()
 
         postal_code_source = "query" if postal_code else None
+        derived_fulfillment_status = None
+        derived_shipment_status = None
         # 如果有订单号但没有邮编，尝试从 Shopify 获取
-        if order_number and not postal_code:
-            postal_code = await _get_postal_code_from_order(order_number)
-            if postal_code:
-                postal_code_source = "shopify"
-                logger.info(f"从订单 {order_number} 获取到邮编: {postal_code}")
+        if order_number:
+            order_aux = await _get_order_aux_info_from_order(order_number)
+            if order_aux:
+                derived_fulfillment_status = order_aux.get("fulfillment_status")
+                derived_shipment_status = order_aux.get("shipment_status")
+                if not postal_code:
+                    postal_code = order_aux.get("postal_code")
+                    if postal_code:
+                        postal_code_source = "shopify"
+                        logger.info(f"从订单 {order_number} 获取到邮编: {postal_code}")
 
         if refresh:
             await service.clear_cache(tracking_number)
@@ -317,6 +358,8 @@ async def get_tracking(
                 "order_number": order_number,
                 "postal_code": postal_code,
                 "postal_code_source": postal_code_source,
+                "shopify_fulfillment_status": fulfillment_status or derived_fulfillment_status,
+                "shopify_shipment_status": derived_shipment_status,
                 "refresh": refresh,
                 "has_track17_api_key": has_track17_api_key,
                 "configured_shopify_sites": configured_shopify_sites,
@@ -386,6 +429,8 @@ async def get_tracking(
                 info,
                 carrier=carrier,
                 is_pending=True,
+                shopify_fulfillment_status=fulfillment_status or derived_fulfillment_status,
+                shopify_shipment_status=derived_shipment_status,
             )
             return TrackingResponse(
                 tracking_number=info.tracking_number,
@@ -456,6 +501,8 @@ async def get_tracking(
             info,
             carrier=carrier_name or carrier,
             is_pending=False,
+            shopify_fulfillment_status=fulfillment_status or derived_fulfillment_status,
+            shopify_shipment_status=derived_shipment_status,
         )
 
         return TrackingResponse(
@@ -570,4 +617,50 @@ async def _get_postal_code_from_order(order_number: str) -> Optional[str]:
 
     except Exception as e:
         logger.error(f"从订单获取邮编失败: {order_number}, 错误: {e}")
+        return None
+
+
+async def _get_order_aux_info_from_order(order_number: str) -> Optional[dict]:
+    """
+    从 Shopify 订单中获取物流辅助信息（站点/邮编/发货状态/运输状态）
+
+    Returns:
+        {"site": str, "postal_code": str|None, "fulfillment_status": str|None, "shipment_status": str|None}
+    """
+    try:
+        site = detect_site_from_order_number(order_number)
+        if not site:
+            logger.warning(f"无法从订单号识别站点: {order_number}")
+            return None
+
+        shopify = get_shopify_service(site)
+        result = await shopify.search_order_by_number(order_number)
+        if not result or not result.get("order"):
+            logger.warning(f"订单 {order_number} 未找到")
+            return {"site": site, "postal_code": None, "fulfillment_status": None, "shipment_status": None}
+
+        order = result["order"]
+        shipping_address = order.get("shipping_address", {}) or {}
+        postal_code = shipping_address.get("zip") or shipping_address.get("postal_code")
+        if isinstance(postal_code, str):
+            postal_code = postal_code.strip() or None
+
+        fulfillment_status = order.get("fulfillment_status")
+
+        shipment_status = None
+        fulfillments = order.get("fulfillments") or []
+        for f in fulfillments:
+            status = f.get("shipment_status")
+            if status:
+                shipment_status = status
+                break
+
+        return {
+            "site": site,
+            "postal_code": postal_code,
+            "fulfillment_status": fulfillment_status,
+            "shipment_status": shipment_status,
+        }
+    except Exception as e:
+        logger.error(f"从订单获取辅助信息失败: {order_number}, 错误: {e}")
         return None
