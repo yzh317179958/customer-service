@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { marked } from 'marked'
 import type { Message } from '@/types'
 import { useChatStore } from '@/stores/chatStore'
@@ -113,20 +113,79 @@ async function fetchTrackingData(
   }
 }
 
+/**
+ * 预加载物流数据 - 在订单卡片渲染时调用
+ * 静默加载，不显示 loading 状态，用户点击时直接展示
+ */
+function prefetchTrackingData(
+  trackingNumber: string,
+  carrier?: string,
+  orderNumber?: string,
+  shipmentStatus?: string
+): void {
+  // 如果已有数据且不是错误/pending 状态，跳过
+  const existing = trackingDataMap.value.get(trackingNumber)
+  if (existing && !existing.error && !existing.is_pending && existing.events.length > 0) {
+    return
+  }
+
+  // 静默预加载（不设置 loading 状态，避免 UI 闪烁）
+  const params = new URLSearchParams()
+  if (carrier) params.set('carrier', carrier)
+  if (orderNumber) params.set('order_number', orderNumber)
+  if (shipmentStatus) {
+    params.set('shipment_status', shipmentStatus)
+  }
+  const query = params.toString() ? `?${params.toString()}` : ''
+  const url = `${API_BASE}/api/tracking/${encodeURIComponent(trackingNumber)}${query}`
+
+  // 使用 fetch 静默请求，不阻塞 UI
+  fetch(url)
+    .then(response => {
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      return response.json()
+    })
+    .then(data => {
+      trackingDataMap.value.set(trackingNumber, {
+        tracking_number: data.tracking_number,
+        current_status: data.current_status || '',
+        current_status_zh: data.current_status_zh || '',
+        is_delivered: data.is_delivered || false,
+        is_exception: data.is_exception || false,
+        is_pending: data.is_pending || false,
+        events: data.events || [],
+        loading: false,
+        error: null,
+        message: data.message || null,
+        tracking_url: data.tracking_url || null
+      })
+    })
+    .catch(() => {
+      // 预加载失败静默处理，用户点击时会重试
+    })
+}
+
 // 切换时间线展开/收起
-function toggleTracking(trackingNumber: string, carrier?: string, orderNumber?: string): void {
+function toggleTracking(trackingNumber: string, carrier?: string, orderNumber?: string, shipmentStatus?: string): void {
   if (expandedTrackings.value.has(trackingNumber)) {
     expandedTrackings.value.delete(trackingNumber)
     updateTimelineDOM(trackingNumber, false)
   } else {
     expandedTrackings.value.add(trackingNumber)
     const existing = trackingDataMap.value.get(trackingNumber)
-    const force = !!existing && (existing.error !== null || existing.is_pending)
-    fetchTrackingData(trackingNumber, carrier, orderNumber, { force }).then(() => {
+
+    // 如果已有预加载数据且有效（有轨迹或明确状态），直接展示
+    if (existing && !existing.loading && !existing.error && (existing.events.length > 0 || existing.is_pending || existing.message)) {
       updateTimelineDOM(trackingNumber, true)
-    })
-    // 先显示加载状态
-    updateTimelineDOM(trackingNumber, true)
+    } else {
+      // 否则重新请求
+      const force = !!existing && (existing.error !== null || existing.is_pending)
+      // 先显示加载状态
+      updateTimelineDOM(trackingNumber, true)
+      fetchTrackingData(trackingNumber, carrier, orderNumber, { force }).then(() => {
+        updateTimelineDOM(trackingNumber, true)
+      })
+    }
   }
   // 触发响应式更新
   expandedTrackings.value = new Set(expandedTrackings.value)
@@ -579,6 +638,51 @@ const senderName = computed(() => {
   }
   return chatStore.botConfig.name
 })
+
+/**
+ * 从消息内容中提取所有运单信息并预加载
+ * 在消息渲染后自动调用，静默加载物流数据
+ */
+function prefetchAllTrackingInMessage(): void {
+  const content = props.message.content
+  if (!content || isUser.value) return
+
+  // 提取所有 [PRODUCT] 标记中的运单号
+  const productRegex = /\[PRODUCT\](.*?)\[\/PRODUCT\]/g
+  let match: RegExpExecArray | null
+
+  // 提取订单号用于物流查询
+  const orderNumber = extractOrderNumber(content) || extractLatestOrderNumberFromChat()
+
+  while ((match = productRegex.exec(content)) !== null) {
+    const productData = match[1]
+    if (!productData) continue
+    const fields = productData.split('|')
+    // 字段顺序：图片URL|商品名称|数量|价格|状态|承运商|运单号|追踪链接
+    const [, , , , status, carrier, trackingNumber] = fields
+
+    if (trackingNumber && trackingNumber.trim()) {
+      // 静默预加载该运单的物流数据
+      prefetchTrackingData(
+        trackingNumber.trim(),
+        carrier?.trim(),
+        orderNumber || undefined,
+        status?.trim()
+      )
+    }
+  }
+}
+
+// 消息渲染后自动预加载物流数据
+watch(
+  () => props.message.content,
+  () => {
+    nextTick(() => {
+      prefetchAllTrackingInMessage()
+    })
+  },
+  { immediate: true }
+)
 </script>
 
 <template>
