@@ -153,12 +153,17 @@ async def search_shopify_site_order(
         订单详情
     """
     try:
-        # 参数验证
-        if len(q) < 3:
-            raise HTTPException(
-                status_code=400,
-                detail="INVALID_QUERY: 订单号至少需要3个字符"
-            )
+        # 参数验证 - 返回友好提示而不是抛错，避免 Coze 工作流阻塞
+        if not q or len(q) < 3:
+            return {
+                "success": True,
+                "data": {
+                    "order": None,
+                    "query": q or "",
+                    "site_code": site,
+                    "message": "INVALID_QUERY: Please provide a valid order number (at least 3 characters)"
+                }
+            }
 
         # 调用服务
         service = get_shopify_service(site)
@@ -224,12 +229,16 @@ async def search_shopify_order_global(q: str):
         订单详情（包含站点信息）
     """
     try:
-        # 参数验证
-        if len(q) < 3:
-            raise HTTPException(
-                status_code=400,
-                detail="INVALID_QUERY: 订单号至少需要3个字符"
-            )
+        # 参数验证 - 返回友好提示而不是抛错，避免 Coze 工作流阻塞
+        if not q or len(q) < 3:
+            return {
+                "success": True,
+                "data": {
+                    "order": None,
+                    "query": q or "",
+                    "message": "INVALID_QUERY: Please provide a valid order number (at least 3 characters)"
+                }
+            }
 
         # 调用跨站点搜索
         result = await search_order_across_sites(q)
@@ -694,12 +703,16 @@ async def search_shopify_order(q: str):
         订单详情
     """
     try:
-        # 参数验证
-        if len(q) < 3:
-            raise HTTPException(
-                status_code=400,
-                detail="INVALID_QUERY: 订单号至少需要3个字符"
-            )
+        # 参数验证 - 返回友好提示而不是抛错，避免 Coze 工作流阻塞
+        if not q or len(q) < 3:
+            return {
+                "success": True,
+                "data": {
+                    "order": None,
+                    "query": q or "",
+                    "message": "INVALID_QUERY: Please provide a valid order number (at least 3 characters)"
+                }
+            }
 
         # 调用服务
         service = get_shopify_service('uk')
