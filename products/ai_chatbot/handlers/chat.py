@@ -15,7 +15,7 @@ import uuid
 import hashlib
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 import httpx
 
@@ -40,6 +40,13 @@ from services.session.state import (
     Message,
     EscalationInfo
 )
+
+# 安全组件
+from infrastructure.security import (
+    validate_message_length,
+    sanitize_input,
+)
+from products.ai_chatbot.security import RATE_LIMIT_CHAT, limiter
 
 router = APIRouter()
 
@@ -69,9 +76,9 @@ def generate_user_id(ip_address: str = None, user_agent: str = None) -> str:
     hash_object = hashlib.md5(identifier.encode())
     return f"user_{hash_object.hexdigest()[:16]}"
 
-
 @router.post("/chat")
-async def chat(request: ChatRequest) -> ChatResponse:
+@limiter.limit(RATE_LIMIT_CHAT)
+async def chat(request: ChatRequest, req: Request) -> ChatResponse:
     """
     同步聊天接口（使用 Coze Workflow Chat API）
     通过 session_name + conversation_id 实现完整的会话隔离
@@ -83,6 +90,12 @@ async def chat(request: ChatRequest) -> ChatResponse:
     4. 后续对话传入相同的 conversation_id 以保持上下文
     """
     global conversation_cache
+
+    # ========================================
+    # 安全校验：消息长度限制
+    # ========================================
+    max_message_length = int(os.getenv("MAX_MESSAGE_LENGTH", 2000))
+    validate_message_length(request.message, max_length=max_message_length)
 
     # 获取依赖
     token_manager = get_token_manager()
@@ -300,14 +313,20 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
         return ChatResponse(success=False, error=error_msg)
 
-
 @router.post("/chat/stream")
-async def chat_stream(request: ChatRequest):
+@limiter.limit(RATE_LIMIT_CHAT)
+async def chat_stream(request: ChatRequest, req: Request):
     """
     流式聊天接口 - 使用 Coze Workflow Chat API
     通过 session_name + conversation_id 实现完整的会话隔离
     """
     global conversation_cache, sse_queues
+
+    # ========================================
+    # 安全校验：消息长度限制
+    # ========================================
+    max_message_length = int(os.getenv("MAX_MESSAGE_LENGTH", 2000))
+    validate_message_length(request.message, max_length=max_message_length)
 
     # 获取依赖
     token_manager = get_token_manager()

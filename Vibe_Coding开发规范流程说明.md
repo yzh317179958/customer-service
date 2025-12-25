@@ -32,13 +32,14 @@ mkdir -p memory-bank
 
 **需要创建的文件清单：**
 
-| 文件名 | 用途 | 初始状态 |
-|--------|------|----------|
-| `prd.md` | 产品需求文档 | 需生成 |
-| `tech-stack.md` | 技术栈说明 | 需生成 |
-| `implementation-plan.md` | 分步实现计划 | 需生成 |
-| `progress.md` | 进度追踪 | 空文件 |
-| `architecture.md` | 架构说明 | 空文件 |
+
+| 文件名                   | 用途         | 初始状态 |
+| ------------------------ | ------------ | -------- |
+| `prd.md`                 | 产品需求文档 | 需生成   |
+| `tech-stack.md`          | 技术栈说明   | 需生成   |
+| `implementation-plan.md` | 分步实现计划 | 需生成   |
+| `progress.md`            | 进度追踪     | 空文件   |
+| `architecture.md`        | 架构说明     | 空文件   |
 
 ---
 
@@ -182,10 +183,12 @@ satisfaction:stats:daily:{date} = {
 
 ## API 设计
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | /api/satisfaction/rate | 提交评分 |
-| GET | /api/satisfaction/stats | 获取统计 |
+
+| 方法 | 路径                    | 说明     |
+| ---- | ----------------------- | -------- |
+| POST | /api/satisfaction/rate  | 提交评分 |
+| GET  | /api/satisfaction/stats | 获取统计 |
+
 ```
 
 ---
@@ -197,6 +200,7 @@ satisfaction:stats:daily:{date} = {
 **生成提示词：**
 
 ```
+
 请根据以下文档生成详细的实现计划：
 
 【PRD 文档】
@@ -214,11 +218,14 @@ satisfaction:stats:daily:{date} = {
 5. 步骤之间有明确的依赖关系
 
 格式要求：
+
 ## Step N: 步骤标题
+
 - 任务描述（做什么）
 - 涉及文件（改哪里）
 - 测试方法（如何验证）
 - 预期结果（通过标准）
+
 ```
 
 **示例输出：**
@@ -258,6 +265,7 @@ POST /api/satisfaction/rate
 ```
 
 **测试方法：**
+
 ```bash
 curl -X POST http://localhost:8000/api/satisfaction/rate \
   -H "Content-Type: application/json" \
@@ -265,6 +273,7 @@ curl -X POST http://localhost:8000/api/satisfaction/rate \
 ```
 
 **预期结果：**
+
 - 返回状态码 200
 - 返回 `{"success": true}`
 - Redis 中已存储数据
@@ -277,9 +286,11 @@ curl -X POST http://localhost:8000/api/satisfaction/rate \
 创建 GET /api/satisfaction/stats 端点，返回评分统计
 
 **涉及文件：**
+
 - `backend.py` 或 `src/satisfaction.py`
 
 **接口规格：**
+
 ```json
 // 响应
 {
@@ -296,11 +307,13 @@ curl -X POST http://localhost:8000/api/satisfaction/rate \
 ```
 
 **测试方法：**
+
 ```bash
 curl http://localhost:8000/api/satisfaction/stats
 ```
 
 **预期结果：**
+
 - 返回状态码 200
 - 返回正确的统计数据结构
 
@@ -312,21 +325,25 @@ curl http://localhost:8000/api/satisfaction/stats
 创建 5 星评分组件，支持点击选择和可选评论
 
 **涉及文件：**
+
 - `frontend/src/components/SatisfactionRating.vue`（新建）
 
 **组件功能：**
+
 - 显示 5 个可点击的星星
 - 点击星星选择评分
 - 可选的评论输入框
 - 提交按钮
 
 **测试方法：**
+
 1. 启动前端 `npm run dev`
 2. 在页面中引入组件
 3. 点击星星验证选中效果
 4. 提交验证 API 调用
 
 **预期结果：**
+
 - 星星可点击且有视觉反馈
 - 提交后调用 API 成功
 
@@ -338,18 +355,22 @@ curl http://localhost:8000/api/satisfaction/stats
 在对话结束时自动弹出评分组件
 
 **涉及文件：**
+
 - `frontend/src/views/Chat.vue` 或相关聊天组件
 
 **触发条件：**
+
 - 用户点击"结束对话"按钮
 - 或收到会话结束事件
 
 **测试方法：**
+
 1. 进行一次完整对话
 2. 点击结束对话
 3. 验证评分弹窗出现
 
 **预期结果：**
+
 - 对话结束后弹窗出现
 - 评分提交后弹窗关闭
 
@@ -361,14 +382,17 @@ curl http://localhost:8000/api/satisfaction/stats
 在坐席工作台展示满意度统计数据
 
 **涉及文件：**
+
 - `agent-workbench/src/views/Dashboard.vue` 或新建统计页面
 
 **测试方法：**
+
 1. 登录坐席工作台
 2. 查看统计页面
 3. 验证数据正确显示
 
 **预期结果：**
+
 - 显示总评分数、平均分
 - 显示评分分布图表
 
@@ -380,17 +404,21 @@ curl http://localhost:8000/api/satisfaction/stats
 将满意度功能测试集成到回归测试脚本
 
 **涉及文件：**
+
 - `tests/test_satisfaction.sh`（新建）
 - `tests/regression_test.sh`（追加）
 
 **测试方法：**
+
 ```bash
 ./tests/regression_test.sh
 ```
 
 **预期结果：**
+
 - 所有测试通过
 - 包含满意度功能测试
+
 ```
 
 ---
@@ -471,6 +499,7 @@ implementation-plan.md 清晰吗？
 ```
 
 **预期结果：**
+
 - AI 会问 5-10 个澄清问题
 - 回答问题后，让 AI 更新 implementation-plan.md
 
@@ -795,29 +824,29 @@ think < think hard < think harder < ultrathink
 
 ### 开始新功能前
 
-- [ ] 创建 `memory-bank/` 文件夹
-- [ ] 生成 `prd.md`
-- [ ] 生成 `tech-stack.md`
-- [ ] 生成 `implementation-plan.md`
-- [ ] 创建空白 `progress.md`
-- [ ] 创建空白 `architecture.md`
-- [ ] 让 AI 确认计划清晰
+- [ ]  创建 `memory-bank/` 文件夹
+- [ ]  生成 `prd.md`
+- [ ]  生成 `tech-stack.md`
+- [ ]  生成 `implementation-plan.md`
+- [ ]  创建空白 `progress.md`
+- [ ]  创建空白 `architecture.md`
+- [ ]  让 AI 确认计划清晰
 
 ### 每个步骤完成后
 
-- [ ] 测试验证通过
-- [ ] 更新 `progress.md`
-- [ ] 更新 `architecture.md`
-- [ ] Git commit
-- [ ] Git tag
-- [ ] `/clear` 开始新对话
+- [ ]  测试验证通过
+- [ ]  更新 `progress.md`
+- [ ]  更新 `architecture.md`
+- [ ]  Git commit
+- [ ]  Git tag
+- [ ]  `/clear` 开始新对话
 
 ### 功能完成后
 
-- [ ] 所有步骤完成
-- [ ] 回归测试通过
-- [ ] 文档更新完整
-- [ ] Git push
+- [ ]  所有步骤完成
+- [ ]  回归测试通过
+- [ ]  文档更新完整
+- [ ]  Git push
 
 ---
 

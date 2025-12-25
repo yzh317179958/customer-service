@@ -29,12 +29,19 @@ project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi.errors import RateLimitExceeded
 
 from products.agent_workbench.config import get_config
 from products.agent_workbench.lifespan import lifespan
 from products.agent_workbench.routes import router
+
+# 安全组件
+from infrastructure.security import get_rate_limit_handler, get_metrics_response
+from products.agent_workbench.security import limiter
 
 
 def create_app() -> FastAPI:
@@ -50,6 +57,16 @@ def create_app() -> FastAPI:
 
     # 保存配置到 app.state
     app.state.config = config
+
+    # ========================================
+    # 安全组件初始化
+    # ========================================
+
+    # 限流器（在 products.agent_workbench.security 中创建，确保 handlers 复用同一个实例）
+    app.state.limiter = limiter
+
+    # 限流异常处理
+    app.add_exception_handler(RateLimitExceeded, get_rate_limit_handler())
 
     # CORS 中间件
     app.add_middleware(
@@ -72,6 +89,11 @@ def create_app() -> FastAPI:
             "status": "running",
             "mode": "standalone",
         }
+
+    # Prometheus 监控指标端点
+    @app.get("/metrics")
+    async def metrics():
+        return get_metrics_response()
 
     return app
 

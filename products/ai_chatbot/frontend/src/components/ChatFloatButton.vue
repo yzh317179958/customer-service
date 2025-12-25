@@ -7,6 +7,9 @@ const showTooltip = ref(false)
 const isHovered = ref(false)
 const isPressed = ref(false)
 
+// 悬浮按钮图标路径
+const floatIconSrc = import.meta.env.BASE_URL + 'customer-service.jpg'
+
 const handleClick = () => {
   chatStore.openChat()
 }
@@ -38,7 +41,7 @@ const handleMouseUp = () => {
     <!-- Main Button -->
     <div class="button-inner">
       <div class="icon-wrapper">
-        <img src="/fiido2.png" alt="Fiido" class="fiido-logo" />
+        <img :src="floatIconSrc" alt="Fiido" class="fiido-logo" />
       </div>
     </div>
 
@@ -149,8 +152,8 @@ const handleMouseUp = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
   background: transparent;
   transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
@@ -158,9 +161,10 @@ const handleMouseUp = () => {
 
 /* Fiido Logo */
 .fiido-logo {
-  width: 32px;
-  height: 32px;
-  object-fit: contain;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
   transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.08));
 }

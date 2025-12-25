@@ -23,6 +23,159 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/tracking", tags=["物流追踪"])
 
+# ============ 承运商配置 ============
+
+# 小众承运商列表（通常不支持或更新慢）
+MINOR_CARRIERS = {"yunway", "yunexpress", "yun express", "cne express", "cneexpress", "4px", "yanwen"}
+
+# 承运商官网追踪链接模板
+CARRIER_TRACKING_URL_TEMPLATES = {
+    "fedex": "https://www.fedex.com/fedextrack/?trknbr={tracking_number}",
+    "ups": "https://www.ups.com/track?tracknum={tracking_number}",
+    "dhl": "https://www.dhl.com/en/express/tracking.html?AWB={tracking_number}",
+    "dhl express": "https://www.dhl.com/en/express/tracking.html?AWB={tracking_number}",
+    "royal mail": "https://www.royalmail.com/track-your-item#{tracking_number}",
+    "royalmail": "https://www.royalmail.com/track-your-item#{tracking_number}",
+    "dpd": "https://www.dpd.co.uk/tracking?parcel={tracking_number}",
+    "dpd uk": "https://www.dpd.co.uk/tracking?parcel={tracking_number}",
+    "evri": "https://www.evri.com/track/parcel/{tracking_number}",
+    "hermes": "https://www.evri.com/track/parcel/{tracking_number}",
+    "dx": "https://my.dxdelivery.com/",
+    "dx freight": "https://my.dxdelivery.com/",
+    "gls": "https://gls-group.eu/track/{tracking_number}",
+    "yodel": "https://www.yodel.co.uk/tracking/{tracking_number}",
+    "parcelforce": "https://www.parcelforce.com/track-trace?trackNumber={tracking_number}",
+    "usps": "https://tools.usps.com/go/TrackConfirmAction?tLabels={tracking_number}",
+    "tnt": "https://www.tnt.com/express/en_gb/site/shipping-tools/track.html?searchType=con&cons={tracking_number}",
+}
+
+
+def _get_carrier_tracking_url(tracking_number: str, carrier: Optional[str]) -> str:
+    """
+    获取承运商官网追踪链接
+
+    Args:
+        tracking_number: 运单号
+        carrier: 承运商名称
+
+    Returns:
+        承运商官网追踪链接，未找到时返回 17track 链接
+    """
+    if carrier:
+        carrier_lower = carrier.lower().strip()
+        # 精确匹配
+        if carrier_lower in CARRIER_TRACKING_URL_TEMPLATES:
+            return CARRIER_TRACKING_URL_TEMPLATES[carrier_lower].format(tracking_number=tracking_number)
+        # 模糊匹配
+        for key, template in CARRIER_TRACKING_URL_TEMPLATES.items():
+            if key in carrier_lower or carrier_lower in key:
+                return template.format(tracking_number=tracking_number)
+
+    # 默认返回 17track 查询页面
+    return f"https://t.17track.net/en#nums={tracking_number}"
+
+
+def _is_minor_carrier(carrier: Optional[str]) -> bool:
+    """判断是否为小众承运商"""
+    if not carrier:
+        return False
+    return carrier.lower().strip() in MINOR_CARRIERS
+
+
+def _generate_friendly_message(
+    info,
+    carrier: Optional[str] = None,
+    is_pending: bool = False,
+) -> tuple:
+    """
+    生成友好提示信息
+
+    根据不同的物流状态生成对应的友好英文提示，帮助用户理解当前情况。
+
+    Args:
+        info: 物流信息对象
+        carrier: 承运商名称
+        is_pending: 是否正在追踪中
+
+    Returns:
+        (message, tracking_url) 元组
+    """
+    tracking_url = _get_carrier_tracking_url(info.tracking_number, carrier)
+
+    # 场景 1: 正在后台注册追踪中
+    if is_pending:
+        return (
+            "Fetching tracking info, please refresh in 1-2 minutes.",
+            tracking_url
+        )
+
+    # 场景 2: 运单过期
+    if info.status == TrackingStatus.EXPIRED:
+        return (
+            "This tracking record has expired (over 90 days).",
+            tracking_url
+        )
+
+    # 场景 3: 异常状态 - 根据子状态细分
+    if info.status == TrackingStatus.ALERT:
+        sub_status = getattr(info, 'sub_status', None) or ''
+        alert_messages = {
+            "Alert_AddressIssue": "Address issue detected. Please verify your address and contact seller.",
+            "Alert_CustomsIssue": "Package held at customs. Additional documents may be required.",
+            "Alert_Damaged": "Package damaged in transit. Please contact seller.",
+            "Alert_Lost": "Package may be lost. Please contact seller or carrier for claim.",
+            "Alert_Returned": "Package returned to sender. Please contact seller.",
+        }
+        message = alert_messages.get(sub_status, "Shipping exception occurred. Please contact seller or carrier.")
+        return (message, tracking_url)
+
+    # 场景 4: 未送达状态
+    if info.status == TrackingStatus.UNDELIVERED:
+        sub_status = getattr(info, 'sub_status', None) or ''
+        undelivered_messages = {
+            "Undelivered_NoOneHome": "No one home during delivery. Carrier will retry or leave a notice.",
+            "Undelivered_Refused": "Delivery refused. Package will be returned. Please contact seller.",
+        }
+        message = undelivered_messages.get(sub_status, "Delivery unsuccessful. Carrier will reschedule.")
+        return (message, tracking_url)
+
+    # 场景 5: 待取件
+    if info.status == TrackingStatus.PICK_UP:
+        return (
+            "Package ready for pickup at collection point.",
+            tracking_url
+        )
+
+    # 场景 6: 派送中
+    if info.status == TrackingStatus.OUT_FOR_DELIVERY:
+        return (
+            "Package out for delivery. Expected to arrive today.",
+            tracking_url
+        )
+
+    # 场景 7: 已签收但无轨迹详情
+    if info.status == TrackingStatus.DELIVERED and len(info.events) == 0:
+        return (
+            "Package delivered, but detailed tracking is not available.",
+            tracking_url
+        )
+
+    # 场景 8: NotFound - 区分新运单和不支持的承运商
+    if info.status == TrackingStatus.NOT_FOUND:
+        if _is_minor_carrier(carrier):
+            return (
+                "This carrier doesn't support online tracking. Click 'Track' to check carrier website.",
+                tracking_url
+            )
+        else:
+            return (
+                "Tracking info syncing. New shipments usually take 24-48 hours to update.",
+                tracking_url
+            )
+
+    # 其他情况：有轨迹数据，无需特殊提示
+    return ("", tracking_url)
+
 def _status_text_en(status: Optional[TrackingStatus], *, is_pending: bool = False) -> str:
     if is_pending:
         return "Tracking"
@@ -229,6 +382,11 @@ async def get_tracking(
 
         # 如果是 pending 状态，直接返回
         if info.is_pending:
+            pending_message, pending_tracking_url = _generate_friendly_message(
+                info,
+                carrier=carrier,
+                is_pending=True,
+            )
             return TrackingResponse(
                 tracking_number=info.tracking_number,
                 current_status="NotFound",
@@ -239,6 +397,8 @@ async def get_tracking(
                 event_count=0,
                 events=[],
                 order_id=info.order_id,
+                message=pending_message,
+                tracking_url=pending_tracking_url,
                 debug=debug_info,
             )
 
@@ -291,35 +451,12 @@ async def get_tracking(
         elif info.events and info.events[0].timestamp:
             last_updated = info.events[0].timestamp.isoformat()
 
-        # 生成友好提示信息（当轨迹为空时）
-        message = None
-        message_zh = None
-        tracking_url = None
-
-        if len(info.events) == 0:
-            # 轨迹为空，根据不同情况生成提示
-            if info.status == TrackingStatus.NOT_FOUND:
-                # 17track 未找到该运单
-                if carrier_name:
-                    message = f"No tracking data available. This shipment is handled by {carrier_name}. The tracking info may have expired or this carrier doesn't support online tracking. Please check the carrier's website."
-                    message_zh = f"暂无物流轨迹数据。该运单由 {carrier_name} 承运，轨迹信息可能已过期或该承运商暂不支持在线追踪。请访问承运商官网查询。"
-                else:
-                    message = "No tracking data available. The tracking info may have expired or this carrier doesn't support online tracking."
-                    message_zh = "暂无物流轨迹数据。轨迹信息可能已过期或该承运商暂不支持在线追踪。"
-                tracking_url = carrier_url
-            elif info.status == TrackingStatus.DELIVERED:
-                # 已签收但无轨迹详情
-                message = "Package delivered, but detailed tracking data is not available."
-                message_zh = "包裹已签收，但详细轨迹数据不可用。"
-            elif info.status == TrackingStatus.EXPIRED:
-                # 轨迹已过期
-                message = "This tracking record has expired and historical data is no longer available."
-                message_zh = "该运单轨迹已过期，无法查询历史记录。"
-            else:
-                # 其他情况
-                message = "No detailed tracking data available. Please try again later or check the carrier's website."
-                message_zh = "暂无详细轨迹数据，请稍后再试或访问承运商官网查询。"
-                tracking_url = carrier_url
+        # 生成友好提示信息
+        message, tracking_url = _generate_friendly_message(
+            info,
+            carrier=carrier_name or carrier,
+            is_pending=False,
+        )
 
         return TrackingResponse(
             tracking_number=info.tracking_number,
@@ -333,9 +470,8 @@ async def get_tracking(
             events=events_resp,
             last_updated=last_updated,
             order_id=info.order_id,
-            message=message,
-            message_zh=message_zh,
-            tracking_url=tracking_url,
+            message=message if message else None,
+            tracking_url=tracking_url if tracking_url else None,
             debug=debug_info,
         )
 

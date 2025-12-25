@@ -31,6 +31,8 @@ interface TrackingData {
   events: TrackingEvent[]
   loading: boolean
   error: string | null
+  message: string | null        // 友好提示信息
+  tracking_url: string | null   // 承运商官网链接
 }
 
 // 存储每个运单的时间线数据和展开状态
@@ -60,7 +62,9 @@ async function fetchTrackingData(
     is_pending: existing?.is_pending ?? false,
     events: existing?.events ?? [],
     loading: true,
-    error: null
+    error: null,
+    message: existing?.message ?? null,
+    tracking_url: existing?.tracking_url ?? null
   })
 
   try {
@@ -88,7 +92,9 @@ async function fetchTrackingData(
       is_pending: data.is_pending || false,
       events: data.events || [],
       loading: false,
-      error: null
+      error: null,
+      message: data.message || null,
+      tracking_url: data.tracking_url || null
     })
   } catch (error) {
     trackingDataMap.value.set(trackingNumber, {
@@ -100,7 +106,9 @@ async function fetchTrackingData(
       is_pending: false,
       events: [],
       loading: false,
-      error: error instanceof Error ? error.message : 'Failed to load'
+      error: error instanceof Error ? error.message : 'Failed to load',
+      message: null,
+      tracking_url: null
     })
   }
 }
@@ -177,21 +185,28 @@ function updateTimelineDOM(trackingNumber: string, expanded: boolean): void {
         `
       } else if (data.is_pending) {
         // 运单正在追踪中（后台注册中），显示友好提示
+        const pendingMessage = data.message || 'Fetching tracking info, please refresh in 1-2 minutes.'
+        const trackUrl = data.tracking_url
         container.innerHTML = `
           <div class="tracking-timeline pending">
             <div class="timeline-pending">
               <span class="pending-icon">⏳</span>
-              <span>Tracking info updating, please refresh later</span>
+              <span class="pending-message">${pendingMessage}</span>
             </div>
+            ${trackUrl ? `<a href="${trackUrl}" target="_blank" class="carrier-link">Check carrier website →</a>` : ''}
           </div>
         `
       } else if (data.events.length === 0) {
+        // 轨迹为空，显示友好提示和承运商链接
+        const emptyMessage = data.message || 'No tracking events available.'
+        const trackUrl = data.tracking_url
         container.innerHTML = `
           <div class="tracking-timeline empty">
             <div class="timeline-empty">
               <span class="empty-icon">📦</span>
-              <span>No tracking events, click Track to check carrier website</span>
+              <span class="empty-message">${emptyMessage}</span>
             </div>
+            ${trackUrl ? `<a href="${trackUrl}" target="_blank" class="carrier-link">Check carrier website →</a>` : ''}
           </div>
         `
       } else {
@@ -1818,12 +1833,20 @@ const senderName = computed(() => {
 .message-content :deep(.timeline-empty),
 .message-content :deep(.timeline-pending) {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 8px;
   padding: 16px;
   color: #94a3b8;
   font-size: 12px;
+}
+
+.message-content :deep(.timeline-empty > div),
+.message-content :deep(.timeline-pending > div) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .message-content :deep(.timeline-pending) {
@@ -1836,6 +1859,37 @@ const senderName = computed(() => {
 .message-content :deep(.empty-icon),
 .message-content :deep(.pending-icon) {
   font-size: 16px;
+}
+
+/* 友好提示消息样式 */
+.message-content :deep(.pending-message),
+.message-content :deep(.empty-message) {
+  line-height: 1.5;
+  text-align: center;
+}
+
+/* 承运商官网链接 */
+.message-content :deep(.carrier-link) {
+  display: block;
+  margin-top: 10px;
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #0891b2;
+  text-decoration: none;
+  background: linear-gradient(135deg, #f0fdfa 0%, #e0f7f6 100%);
+  border-radius: 8px;
+  border: 1px solid #99f6e4;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  text-align: center;
+}
+
+.message-content :deep(.carrier-link:hover) {
+  background: linear-gradient(135deg, #ccfbf1 0%, #a7f3d0 100%);
+  color: #0e7490;
+  border-color: #5eead4;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(20, 184, 166, 0.2);
 }
 
 /* 时间线滚动条美化 */

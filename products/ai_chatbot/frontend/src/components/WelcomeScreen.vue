@@ -6,31 +6,34 @@ const chatStore = useChatStore()
 // 快捷问题列表 - 包含引导回复和意图
 const quickQuestions = [
   {
-    icon: '🚚',
+    icon: import.meta.env.BASE_URL + 'icons/icon-order-status.png',
     text: "Where's my package?",
     intent: 'order_status' as UserIntent,
     // 本地引导回复，不调用API
     guideReply: 'To help you check your order status, please provide your **order number** (e.g., #12345 or FD-XXXXX). You can find it in your order confirmation email.'
   },
   {
-    icon: '🔧',
+    icon: import.meta.env.BASE_URL + 'icons/icon-product-help.png',
     text: 'Product help',
     intent: 'presale' as UserIntent,
     guideReply: 'I\'d be happy to help with your Fiido e-bike! Please describe the issue you\'re experiencing, or let me know which product model you have (e.g., D11, X3, etc.).'
   },
   {
-    icon: '↩️',
+    icon: import.meta.env.BASE_URL + 'icons/icon-return.png',
     text: 'Running into a little issue',
     intent: 'after_sale' as UserIntent,
     guideReply: 'For returns or refunds, please provide your **order number** so I can look up your order details.'
   },
   {
-    icon: '📞',
+    icon: import.meta.env.BASE_URL + 'icons/icon-contact-us.png',
     text: 'Contact us',
     intent: 'contact_agent' as UserIntent,
     guideReply: 'I can connect you with our support team. Before I do, could you briefly describe your issue so we can direct you to the right specialist?'
   }
 ]
+
+// 客服主图标路径
+const avatarSrc = import.meta.env.BASE_URL + 'customer-service.jpg'
 
 const emit = defineEmits<{
   (e: 'quick-question', data: { text: string, guideReply: string, intent: UserIntent }): void
@@ -46,7 +49,7 @@ const handleQuickQuestion = (item: typeof quickQuestions[0]) => {
     <!-- Logo - 居中 -->
     <div class="welcome-avatar">
       <img
-        src="/fiido2.png"
+        :src="avatarSrc"
         :alt="chatStore.botConfig.name"
       >
     </div>
@@ -66,7 +69,7 @@ const handleQuickQuestion = (item: typeof quickQuestions[0]) => {
           class="quick-btn"
           @click="handleQuickQuestion(item)"
         >
-          <span class="quick-icon">{{ item.icon }}</span>
+          <img class="quick-icon" :src="item.icon" :alt="item.text" />
           <span class="quick-text">{{ item.text }}</span>
         </button>
       </div>
@@ -126,7 +129,8 @@ const handleQuickQuestion = (item: typeof quickQuestions[0]) => {
 .welcome-avatar img {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
+  border-radius: 50%;
 }
 
 /* Welcome Message - 紧凑 */
@@ -189,8 +193,10 @@ const handleQuickQuestion = (item: typeof quickQuestions[0]) => {
 }
 
 .quick-icon {
-  font-size: 15px;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
+  object-fit: contain;
 }
 
 .quick-text {

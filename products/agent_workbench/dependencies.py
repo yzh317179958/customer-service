@@ -12,6 +12,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 # 类型导入
 from infrastructure.security.agent_auth import AgentManager, AgentTokenManager
+from infrastructure.security import LoginProtector
 from services.session.state import SessionStateStore
 from services.ticket.store import TicketStore
 from services.session.quick_reply_store import QuickReplyStore
@@ -24,6 +25,7 @@ from services.ticket.audit import AuditLogStore
 
 _agent_manager: Optional[AgentManager] = None
 _agent_token_manager: Optional[AgentTokenManager] = None
+_login_protector: Optional[LoginProtector] = None
 _session_store: Optional[SessionStateStore] = None
 _ticket_store: Optional[TicketStore] = None
 _quick_reply_store: Optional[QuickReplyStore] = None
@@ -43,6 +45,11 @@ def set_agent_manager(manager: AgentManager) -> None:
 def set_agent_token_manager(manager: AgentTokenManager) -> None:
     global _agent_token_manager
     _agent_token_manager = manager
+
+
+def set_login_protector(protector: LoginProtector) -> None:
+    global _login_protector
+    _login_protector = protector
 
 
 def set_session_store(store: SessionStateStore) -> None:
@@ -84,6 +91,11 @@ def get_agent_token_manager() -> AgentTokenManager:
     if _agent_token_manager is None:
         raise RuntimeError("AgentTokenManager not initialized")
     return _agent_token_manager
+
+
+def get_login_protector() -> Optional[LoginProtector]:
+    """登录保护器可能为 None（未配置 Redis 时）"""
+    return _login_protector
 
 
 def get_session_store() -> SessionStateStore:

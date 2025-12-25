@@ -63,6 +63,12 @@ cryptography==44.0.0
 # bcrypt - 密码哈希
 bcrypt>=4.0.0
 
+# slowapi - API 请求限流（基于 limits 库）
+slowapi==0.1.9
+
+# prometheus-client - 监控指标采集
+prometheus-client==0.19.0
+
 # =====================
 # Web 功能
 # =====================

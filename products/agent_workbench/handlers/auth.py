@@ -19,7 +19,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
 from pydantic import BaseModel, Field
 
 from infrastructure.security.agent_auth import (
@@ -39,8 +39,15 @@ from services.session.state import SessionStatus
 
 from products.agent_workbench.dependencies import (
     get_agent_manager, get_agent_token_manager, get_session_store,
-    require_agent
+    require_agent, get_login_protector
 )
+
+# 安全组件 - 登录保护
+from infrastructure.security import (
+    LoginProtector,
+    validate_username,
+)
+from products.agent_workbench.security import RATE_LIMIT_LOGIN, RATE_LIMIT_REFRESH, limiter
 
 
 # ============================================================================
@@ -201,16 +208,39 @@ def _auto_adjust_agent_status(agent_obj: Agent) -> Agent:
 # ============================================================================
 
 @router.post("/login")
-async def agent_login(request: LoginRequest):
+@limiter.limit(RATE_LIMIT_LOGIN)
+async def agent_login(request: LoginRequest, req: Request):
     """
     Agent login endpoint
 
     Returns:
         LoginResponse with token, refresh_token, expires_in, agent info
+
+    Security:
+        - 账户锁定保护：连续 5 次失败后锁定 15 分钟
+        - 限流保护：5/minute（在 main.py 配置）
     """
     try:
         agent_manager = get_agent_manager()
         agent_token_manager = get_agent_token_manager()
+        login_protector = get_login_protector()
+
+        # ========================================
+        # 登录保护：检查账户是否锁定
+        # ========================================
+        if login_protector:
+            is_locked = await login_protector.is_locked(request.username)
+            if is_locked:
+                remaining = await login_protector.get_lockout_remaining(request.username)
+                raise HTTPException(
+                    status_code=423,
+                    detail={
+                        "success": False,
+                        "error": f"Account locked. Please try again in {remaining} seconds.",
+                        "code": "ACCOUNT_LOCKED",
+                        "remaining_seconds": remaining
+                    }
+                )
 
         # Authenticate
         agent = agent_manager.authenticate(
@@ -219,10 +249,45 @@ async def agent_login(request: LoginRequest):
         )
 
         if not agent:
+            # ========================================
+            # 登录保护：记录失败次数
+            # ========================================
+            if login_protector:
+                failures = await login_protector.record_failure(request.username)
+                max_failures = login_protector.max_failures
+                remaining_attempts = max(0, max_failures - failures)
+
+                if remaining_attempts == 0:
+                    raise HTTPException(
+                        status_code=423,
+                        detail={
+                            "success": False,
+                            "error": "Account locked due to too many failed attempts.",
+                            "code": "ACCOUNT_LOCKED",
+                            "remaining_seconds": login_protector.lockout_duration
+                        }
+                    )
+
+                raise HTTPException(
+                    status_code=401,
+                    detail={
+                        "success": False,
+                        "error": f"Invalid username or password. {remaining_attempts} attempts remaining.",
+                        "code": "INVALID_CREDENTIALS",
+                        "remaining_attempts": remaining_attempts
+                    }
+                )
+
             raise HTTPException(
                 status_code=401,
                 detail="Invalid username or password"
             )
+
+        # ========================================
+        # 登录成功：重置失败计数
+        # ========================================
+        if login_protector:
+            await login_protector.reset(request.username)
 
         # Generate tokens
         access_token = agent_token_manager.create_access_token(agent)
@@ -354,7 +419,8 @@ async def update_agent_status_api(
 
 
 @router.post("/refresh")
-async def refresh_agent_token(request: RefreshTokenRequest):
+@limiter.limit(RATE_LIMIT_REFRESH)
+async def refresh_agent_token(request: RefreshTokenRequest, req: Request):
     """
     Refresh access token
     """
@@ -640,4 +706,3 @@ async def upload_avatar(
             status_code=500,
             detail=f"Upload failed: {str(e)}"
         )
-

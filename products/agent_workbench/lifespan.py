@@ -27,6 +27,7 @@ from infrastructure.bootstrap import (
     get_sse_queues,
     start_background_tasks,
 )
+from infrastructure.security import init_login_protector
 import services.bootstrap  # noqa: F401  # 注册服务层组件
 from products.agent_workbench.config import AgentWorkbenchConfig
 
@@ -76,6 +77,15 @@ async def lifespan(app: FastAPI):
     deps.set_audit_log_store(get_audit_log_store())
     deps.set_quick_reply_store(get_quick_reply_store())
     deps.set_sse_queues(get_sse_queues())
+
+    # 初始化登录保护器
+    redis_client = get_redis_client()
+    if redis_client:
+        login_protector = init_login_protector(redis_client)
+        deps.set_login_protector(login_protector)
+        print("   ✅ 登录保护已启用")
+    else:
+        print("   ⚠️ 登录保护未启用（Redis 未初始化）")
 
     # 启动后台任务
     if config.enable_sla_alerts or config.enable_heartbeat_monitor:

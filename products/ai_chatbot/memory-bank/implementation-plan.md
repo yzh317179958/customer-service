@@ -26,9 +26,12 @@ Step 1.2 ─┘
 
 Step 1.5 ─→ Step 1.6 ─→ Step 1.7.1 ─→ Step 1.7.2 ─→ Step 1.7.3
 
-Phase 2 扩展功能 (依赖 Phase 1 全部完成):
+Phase 2 安全防护 (已迁移至 infrastructure/security 模块):
 
-Step 2.1 ─→ Step 2.2 ─→ Step 2.3 ─→ Step 2.4
+  ┌─────────────────────────────────────────────────────┐
+  │  参见: infrastructure/security/memory-bank/         │
+  │        implementation-plan.md Step 9               │
+  └─────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -234,92 +237,49 @@ curl -X POST http://localhost:8000/api/chat/stream \
 
 ---
 
-## 四、Phase 2 - P1 重要功能
+## 四、Phase 2 - 安全防护（由 infrastructure/security 模块统一实现）
 
-### Step 2.1: 添加 slowapi 依赖
+> **重要**: 本 Phase 已迁移至 `infrastructure/security/` 模块统一实现
+>
+> **参见**: [infrastructure/security/memory-bank/implementation-plan.md](../../../infrastructure/security/memory-bank/implementation-plan.md)
 
-**目标**: `requirements.txt` 添加限流依赖
+### 迁移说明
 
-**依赖**: Phase 1 完成
+安全防护功能（限流、监控指标等）属于基础设施层能力，应由 `infrastructure/security/` 统一提供，所有产品共享复用。
 
-**改动**:
-- `requirements.txt` 添加 `slowapi==0.1.9`
-- 服务器执行 `pip install slowapi`
+**原 Step 2.1-2.4 已迁移至安全模块：**
 
-**验证**:
-```bash
-python3 -c "import slowapi; print(slowapi.__version__)"
+| 原 AI 客服 Step | 迁移至安全模块 Step | 说明 |
+|-----------------|---------------------|------|
+| Step 2.1 添加 slowapi 依赖 | Step 1 | 依赖统一管理 |
+| Step 2.2 集成限流中间件 | Step 2, 7 | 限流器工厂 + 模块导出 |
+| Step 2.3 chat 端点限流 | **Step 9** | AI 客服接入限流 |
+| Step 2.4 监控指标端点 | Step 11, 12 | Prometheus 指标 |
+
+### AI 客服安全接入
+
+安全模块 **Step 9** 将为 AI 客服完成以下配置：
+
+```yaml
+ai_chatbot:
+  rate_limits:
+    "/api/chat/stream": "10/minute"
+    "/api/chat": "10/minute"
+    "/api/tracking/*": "30/minute"
+    "/api/shopify/*": "20/minute"
+    default: "60/minute"
+
+  message_limits:
+    max_length: 1000  # 单条消息最大字符数
 ```
 
-**状态**: ⬜ 待开发
+### 开发顺序
 
----
-
-### Step 2.2: main.py 集成限流中间件
-
-**目标**: `products/ai_chatbot/main.py` 集成 SlowAPI
-
-**依赖**: Step 2.1
-
-**改动**:
-- 初始化 `Limiter` 实例
-- 添加 `RateLimitExceeded` 异常处理器
-- 将 limiter 挂载到 app.state
-
-**验证**:
-```bash
-# 快速发送 11 次请求
-for i in {1..11}; do curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8000/api/health; done
-# 期望: 前 10 次 200，第 11 次 429
 ```
-
-**状态**: ⬜ 待开发
-
----
-
-### Step 2.3: chat 端点添加限流装饰器
-
-**目标**: `/api/chat/stream` 端点添加限流
-
-**依赖**: Step 2.2
-
-**改动**:
-- `handlers/chat.py` 的 `chat_stream` 函数添加 `@limiter.limit("10/minute")`
-
-**验证**:
-```bash
-# 对 chat/stream 端点快速发 11 次
-for i in {1..11}; do
-  curl -s -o /dev/null -w "%{http_code}\n" \
-    -X POST http://localhost:8000/api/chat/stream \
-    -H "Content-Type: application/json" \
-    -d '{"message":"test"}'
-done
-# 期望: 第 11 次返回 429
+1. 完成 AI 客服 Phase 1（业务功能）
+2. 完成 infrastructure/security Phase 1（安全组件）
+3. 执行 infrastructure/security Step 9（AI 客服接入）
 ```
-
-**状态**: ⬜ 待开发
-
----
-
-### Step 2.4: 监控指标端点
-
-**目标**: 暴露 `/metrics` 端点
-
-**依赖**: Step 2.3
-
-**改动**:
-- `requirements.txt` 添加 `prometheus-client==0.19.0`
-- `infrastructure/monitoring/metrics.py` 定义指标
-- `main.py` 添加 `/metrics` 路由
-
-**验证**:
-```bash
-curl http://localhost:8000/metrics
-# 期望: 返回 Prometheus 格式文本
-```
-
-**状态**: ⬜ 待开发
 
 ---
 
@@ -349,6 +309,7 @@ curl http://localhost:8000/metrics
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| v7.7.0-r4 | 2025-12-24 | Phase 2 安全防护迁移至 infrastructure/security 模块统一实现 |
 | v7.7.0-r3 | 2025-12-24 | 精简格式：移除代码示例，只保留指令；拆分大步骤为小步骤 |
 | v7.7.0-r2 | 2025-12-24 | 增加依赖关系、代码示例、具体改动说明 |
 | v7.7.0 | 2025-12-24 | 初始版本 |
