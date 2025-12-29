@@ -3,32 +3,36 @@ import { useChatStore, type UserIntent } from '@/stores/chatStore'
 
 const chatStore = useChatStore()
 
-// 快捷问题列表 - 包含引导回复和意图
+// 快捷问题列表 - 三个业务分支 + 联系客服
+// v7.8.0: 简化为 presale（售前）、tracking（物流）、after_sale（售后）三大分支
 const quickQuestions = [
+  {
+    icon: import.meta.env.BASE_URL + 'icons/icon-product-help.png',
+    text: 'Pre-sales inquiry',
+    intent: 'presale' as UserIntent,
+    // 售前咨询（购车相关）
+    guideReply: 'Welcome! I\'m here to help you find the perfect Fiido e-bike. What would you like to know? You can ask about:\n\n• Product features & specifications\n• Price & promotions\n• Which model suits your needs\n• Availability & shipping'
+  },
   {
     icon: import.meta.env.BASE_URL + 'icons/icon-order-status.png',
     text: "Where's my package?",
-    intent: 'order_status' as UserIntent,
-    // 本地引导回复，不调用API
-    guideReply: 'To help you check your order status, please provide your **order number** (e.g., #12345 or FD-XXXXX). You can find it in your order confirmation email.'
-  },
-  {
-    icon: import.meta.env.BASE_URL + 'icons/icon-product-help.png',
-    text: 'Product help',
-    intent: 'presale' as UserIntent,
-    guideReply: 'I\'d be happy to help with your Fiido e-bike! Please describe the issue you\'re experiencing, or let me know which product model you have (e.g., D11, X3, etc.).'
+    intent: 'tracking' as UserIntent,
+    // 物流查询
+    guideReply: 'I\'d be happy to help track your order! Please provide your **order number** (e.g., UK22080, NL16479). You can find it in your order confirmation email.'
   },
   {
     icon: import.meta.env.BASE_URL + 'icons/icon-return.png',
-    text: 'Running into a little issue',
+    text: 'After-sales support',
     intent: 'after_sale' as UserIntent,
-    guideReply: 'For returns or refunds, please provide your **order number** so I can look up your order details.'
+    // 售后问题（退换货、维修、投诉等）
+    guideReply: 'I\'m here to help with any after-sales issues. Please describe your problem, such as:\n\n• Returns & refunds\n• Product repairs\n• Warranty claims\n• Other issues\n\nIf you have an order number, please provide it for faster assistance.'
   },
   {
     icon: import.meta.env.BASE_URL + 'icons/icon-contact-us.png',
-    text: 'Contact us',
+    text: 'Contact support team',
     intent: 'contact_agent' as UserIntent,
-    guideReply: 'I can connect you with our support team. Before I do, could you briefly describe your issue so we can direct you to the right specialist?'
+    // 联系售后团队
+    guideReply: 'I\'ll connect you with our support team. Before I do, could you briefly describe your issue so we can direct you to the right specialist?'
   }
 ]
 

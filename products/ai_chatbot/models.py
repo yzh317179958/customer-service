@@ -8,16 +8,18 @@ from pydantic import BaseModel
 
 
 class UserIntent(str, Enum):
-    """用户意图枚举 (v7.7.0)
+    """用户意图枚举 (v7.8.0)
 
-    用于前端快捷回复按钮预识别用户意图，
-    后端根据意图选择不同的处理流程。
+    简化为三个业务分支 + 联系客服：
+    - presale: 售前咨询（购车相关）
+    - tracking: 物流查询（订单/包裹追踪）
+    - after_sale: 售后问题（退换货、维修、投诉）
+    - contact_agent: 联系售后团队
     """
-    PRESALE = "presale"              # 售前咨询 (Product Help)
-    ORDER_STATUS = "order_status"    # 订单状态查询 (Where's my package?)
-    AFTER_SALE = "after_sale"        # 售后问题 (Running into a little issue)
-    CONTACT_AGENT = "contact_agent"  # 联系人工客服
-    GENERAL = "general"              # 通用问题
+    PRESALE = "presale"              # 售前咨询 (Pre-sales inquiry)
+    TRACKING = "tracking"            # 物流查询 (Where's my package?)
+    AFTER_SALE = "after_sale"        # 售后问题 (After-sales support)
+    CONTACT_AGENT = "contact_agent"  # 联系售后团队 (Contact support team)
 
 
 class ChatRequest(BaseModel):

@@ -9,8 +9,8 @@ import type {
   EscalationReason
 } from '@/types'
 
-// v7.7.0: 用户意图类型
-export type UserIntent = 'presale' | 'order_status' | 'after_sale' | 'contact_agent' | 'general'
+// v7.8.0: 用户意图类型 - 三个业务分支 + 联系客服
+export type UserIntent = 'presale' | 'tracking' | 'after_sale' | 'contact_agent'
 
 export const useChatStore = defineStore('chat', () => {
   // ============ 原有状态 ============
