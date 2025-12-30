@@ -1,0 +1,8 @@
+{
+  "name": "CrossBorder AI Solutions",
+  "description": "专为跨境电商独立站打造的 AI 智能客服操作系统，降本增效专家。",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ]
+}
