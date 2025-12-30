@@ -3,7 +3,20 @@ import Button from './ui/Button';
 import ParticleBackground from './ui/ParticleBackground';
 import { ShoppingBag, MapPin, Zap, Globe, Sparkles } from 'lucide-react';
 
-const Hero: React.FC = () => {
+interface HeroProps {
+  onNavigate?: (route: any) => void;
+}
+
+const Hero: React.FC<HeroProps> = ({ onNavigate }) => {
+  const scrollToPricing = () => {
+    const pricingSection = document.getElementById('pricing');
+    if (pricingSection) {
+      pricingSection.scrollIntoView({ behavior: 'smooth' });
+    } else if (onNavigate) {
+      onNavigate({ type: 'pricing' });
+    }
+  };
+
   return (
     <section className="relative pt-24 pb-16 lg:pt-40 lg:pb-32 overflow-hidden bg-white">
       <ParticleBackground />
@@ -27,9 +40,9 @@ const Hero: React.FC = () => {
 
         {/* 快速决策入口 */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-20 animate-fade-in-up [animation-delay:200ms]">
-          <Button size="lg" className="h-16 px-12 text-lg font-black shadow-2xl shadow-brand-600/30">立即开启免费试用</Button>
-          <Button size="lg" variant="secondary" className="h-16 px-10 text-lg font-bold bg-white border-bg-200">
-            预约演示
+          <Button size="lg" className="h-16 px-12 text-lg font-black shadow-2xl shadow-brand-600/30" onClick={scrollToPricing}>立即开启免费试用</Button>
+          <Button size="lg" variant="secondary" className="h-16 px-10 text-lg font-bold bg-white border-bg-200" onClick={scrollToPricing}>
+            查看价格方案
           </Button>
         </div>
 

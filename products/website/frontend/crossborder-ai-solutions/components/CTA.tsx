@@ -1,8 +1,21 @@
 import React from 'react';
 import Button from './ui/Button';
-import { MessageCircle, Mail, TrendingUp, Clock, Zap, ShieldCheck, Sparkles } from 'lucide-react';
+import { MessageCircle, Mail, TrendingUp, Zap, ShieldCheck, Sparkles } from 'lucide-react';
 
-const CTA: React.FC = () => {
+interface CTAProps {
+  onNavigate?: (route: any) => void;
+}
+
+const CTA: React.FC<CTAProps> = ({ onNavigate }) => {
+  const scrollToPricing = () => {
+    const pricingSection = document.getElementById('pricing');
+    if (pricingSection) {
+      pricingSection.scrollIntoView({ behavior: 'smooth' });
+    } else if (onNavigate) {
+      onNavigate({ type: 'pricing' });
+    }
+  };
+
   return (
     <section className="py-24 bg-white relative overflow-hidden">
       {/* 极简背景装饰 */}
@@ -46,9 +59,9 @@ const CTA: React.FC = () => {
             </div>
             
             <div className="flex flex-col sm:flex-row gap-6 justify-center w-full sm:w-auto">
-              <Button size="lg" className="h-16 px-14 text-lg font-black shadow-2xl shadow-brand-600/20">立即开启 AI 转型诊断</Button>
-              <Button size="lg" variant="secondary" className="h-16 px-12 text-lg font-bold bg-white border-bg-200">
-                获取深度绑定方案
+              <Button size="lg" className="h-16 px-14 text-lg font-black shadow-2xl shadow-brand-600/20" onClick={scrollToPricing}>立即开启免费试用</Button>
+              <Button size="lg" variant="secondary" className="h-16 px-12 text-lg font-bold bg-white border-bg-200" onClick={scrollToPricing}>
+                查看价格方案
               </Button>
             </div>
           </div>

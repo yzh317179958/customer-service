@@ -297,8 +297,8 @@ const ProductDetail: React.FC<ProductDetailProps> = ({ id, navigate }) => {
                  ))}
               </div>
               <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-                <Button size="lg" className="h-16 px-12 font-black shadow-xl shadow-brand-600/20">立即开始试用</Button>
-                <Button size="lg" variant="secondary" className="h-16 px-12 font-bold bg-white border-bg-200">预约演示</Button>
+                <Button size="lg" className="h-16 px-12 font-black shadow-xl shadow-brand-600/20" onClick={() => navigate({ type: 'pricing' })}>立即开始试用</Button>
+                <Button size="lg" variant="secondary" className="h-16 px-12 font-bold bg-white border-bg-200" onClick={() => navigate({ type: 'pricing' })}>查看价格方案</Button>
               </div>
             </div>
             
@@ -339,7 +339,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({ id, navigate }) => {
          <div className="max-w-5xl mx-auto px-4 text-center">
             <h2 className="text-4xl font-black mb-16 tracking-tight">立即开启 AI 驱动的业务增长之旅</h2>
             <div className="mt-10">
-               <Button size="lg" className="h-20 px-20 text-xl font-black shadow-2xl shadow-brand-600/30">立即开启免费试用</Button>
+               <Button size="lg" className="h-20 px-20 text-xl font-black shadow-2xl shadow-brand-600/30" onClick={() => navigate({ type: 'pricing' })}>立即开启免费试用</Button>
             </div>
          </div>
       </section>

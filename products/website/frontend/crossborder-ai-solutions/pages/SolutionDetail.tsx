@@ -23,7 +23,7 @@ const SolutionDetail: React.FC<SolutionDetailProps> = ({ id, navigate }) => {
           <p className="text-xl text-brand-100 max-w-3xl mx-auto mb-10">
             针对 {id} 生态深度优化，无缝集成您的现有工作流。无需懂代码，一键部署 AI 增长引擎。
           </p>
-          <Button size="lg" className="bg-white text-brand-900 hover:bg-brand-50">获取定制方案</Button>
+          <Button size="lg" className="bg-white text-brand-900 hover:bg-brand-50" onClick={() => navigate({ type: 'pricing' })}>查看价格方案</Button>
         </div>
       </section>
       

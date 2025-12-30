@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Check, Zap, Bot, BarChart, Sparkles } from 'lucide-react';
 import Button from './ui/Button';
+import PaymentModal from './PaymentModal';
 
 export const PRICING_PLANS = [
   {
@@ -64,7 +65,8 @@ export const PRICING_PLANS = [
 const PricingCard: React.FC<{
   plan: typeof PRICING_PLANS[0];
   period: 'monthly' | 'yearly';
-}> = ({ plan, period }) => {
+  onSelect: (plan: typeof PRICING_PLANS[0]) => void;
+}> = ({ plan, period, onSelect }) => {
   const price = period === 'monthly' ? plan.priceMonthly : plan.priceYearly;
   
   return (
@@ -112,12 +114,13 @@ const PricingCard: React.FC<{
         ))}
       </ul>
 
-      <Button 
-        variant={plan.recommended ? 'primary' : 'secondary'} 
+      <Button
+        variant={plan.recommended ? 'primary' : 'secondary'}
         className={`w-full h-16 font-black shadow-lg ${plan.recommended ? 'shadow-brand-600/30' : ''}`}
         withArrow={plan.recommended}
+        onClick={() => onSelect(plan)}
       >
-        {typeof price === 'string' ? '咨询深度绑定方案' : '开启 14 天免费 AI 转型之旅'}
+        {price === 0 ? '免费开始' : '立即订阅'}
       </Button>
     </div>
   );
@@ -125,9 +128,21 @@ const PricingCard: React.FC<{
 
 const Pricing: React.FC = () => {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('yearly');
+  const [selectedPlan, setSelectedPlan] = useState<typeof PRICING_PLANS[0] | null>(null);
+
+  const handleSelectPlan = (plan: typeof PRICING_PLANS[0]) => {
+    setSelectedPlan(plan);
+  };
 
   return (
     <section id="pricing" className="py-32 bg-bg-50 relative overflow-hidden">
+      <PaymentModal
+        isOpen={!!selectedPlan}
+        onClose={() => setSelectedPlan(null)}
+        planName={selectedPlan?.name || ''}
+        price={billingCycle === 'yearly' ? (selectedPlan?.priceYearly || 0) : (selectedPlan?.priceMonthly || 0)}
+        isYearly={billingCycle === 'yearly'}
+      />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <div className="text-center max-w-3xl mx-auto mb-24">
           <h2 className="text-4xl md:text-5xl font-black text-text-primary mb-8 tracking-tight">业务驱动的透明定价</h2>
@@ -151,7 +166,7 @@ const Pricing: React.FC = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch max-w-6xl mx-auto">
           {PRICING_PLANS.map(plan => (
-            <PricingCard key={plan.id} plan={plan} period={billingCycle} />
+            <PricingCard key={plan.id} plan={plan} period={billingCycle} onSelect={handleSelectPlan} />
           ))}
         </div>
         

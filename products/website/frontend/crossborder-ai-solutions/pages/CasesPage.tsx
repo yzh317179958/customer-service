@@ -445,10 +445,10 @@ const CasesPage: React.FC<CasesPageProps> = ({ navigate }) => {
           </p>
           <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
             <Button size="lg" className="h-20 px-16 text-xl font-black shadow-2xl shadow-brand-600/20" onClick={() => navigate({ type: 'pricing' })} withArrow>
-              立即开启定制方案
+              立即开启免费试用
             </Button>
-            <Button size="lg" variant="secondary" className="h-20 px-12 text-lg font-bold bg-white border-slate-200">
-              获取业务对标白皮书
+            <Button size="lg" variant="secondary" className="h-20 px-12 text-lg font-bold bg-white border-slate-200" onClick={() => navigate({ type: 'pricing' })}>
+              查看价格方案
             </Button>
           </div>
         </div>

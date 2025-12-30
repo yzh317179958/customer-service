@@ -2,7 +2,20 @@ import React from 'react';
 import { Settings, PenTool, Cpu, Layers, CheckCircle2, Zap } from 'lucide-react';
 import Button from './ui/Button';
 
-const CustomizationSection: React.FC = () => {
+interface CustomizationSectionProps {
+  onNavigate?: (route: any) => void;
+}
+
+const CustomizationSection: React.FC<CustomizationSectionProps> = ({ onNavigate }) => {
+  const scrollToPricing = () => {
+    const pricingSection = document.getElementById('pricing');
+    if (pricingSection) {
+      pricingSection.scrollIntoView({ behavior: 'smooth' });
+    } else if (onNavigate) {
+      onNavigate({ type: 'pricing' });
+    }
+  };
+
   return (
     <section className="py-32 bg-white overflow-hidden relative border-y border-bg-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -38,8 +51,8 @@ const CustomizationSection: React.FC = () => {
                ))}
             </div>
 
-            <Button size="lg" className="h-16 px-10 shadow-xl shadow-brand-600/20" withArrow>
-               开启您的定制化方案
+            <Button size="lg" className="h-16 px-10 shadow-xl shadow-brand-600/20" withArrow onClick={scrollToPricing}>
+               查看价格方案
             </Button>
           </div>
 

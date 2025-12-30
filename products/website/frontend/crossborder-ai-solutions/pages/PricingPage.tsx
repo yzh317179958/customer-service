@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { PageRoute } from '../App';
 import Button from '../components/ui/Button';
 import { PRICING_PLANS } from '../components/Pricing';
-import { Check, ShieldCheck, Lock, Globe, ShoppingCart, Zap, TrendingUp } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import PaymentModal from '../components/PaymentModal';
+import { Check, ShieldCheck, Lock, Globe, TrendingUp } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 interface PricingPageProps {
   navigate: (route: PageRoute) => void;
@@ -12,52 +13,19 @@ interface PricingPageProps {
 const PricingPage: React.FC<PricingPageProps> = ({ navigate }) => {
   const [isYearly, setIsYearly] = useState(true);
   const [orders, setOrders] = useState(5000);
-  const [showCheckout, setShowCheckout] = useState<string | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<typeof PRICING_PLANS[0] | null>(null);
 
   const calculateSavings = () => Math.floor(orders * 0.5 * 0.7);
 
   return (
     <div className="bg-white min-h-screen pt-24 relative selection:bg-brand-100">
-      <AnimatePresence>
-        {showCheckout && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
-              onClick={() => setShowCheckout(null)}
-            />
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden"
-            >
-              <div className="p-10">
-                <div className="flex justify-between items-start mb-8">
-                   <h3 className="text-2xl font-black flex items-center gap-2 tracking-tighter">
-                      <ShoppingCart className="text-brand-600" size={28} /> 确认订阅
-                   </h3>
-                   <button onClick={() => setShowCheckout(null)} className="p-2 hover:bg-bg-100 rounded-full">✕</button>
-                </div>
-                <div className="space-y-4 mb-10">
-                   <div className="flex justify-between p-6 bg-bg-50 rounded-2xl border border-bg-100">
-                      <span className="font-bold text-text-secondary">所选方案</span>
-                      <span className="text-brand-600 font-black">{showCheckout}</span>
-                   </div>
-                   <div className="flex justify-between p-6 bg-bg-50 rounded-2xl border border-bg-100">
-                      <span className="font-bold text-text-secondary">计费周期</span>
-                      <span className="text-brand-600 font-black">{isYearly ? '年度 (立省 20%)' : '月度'}</span>
-                   </div>
-                </div>
-                <Button className="w-full h-16 text-lg font-black shadow-xl shadow-brand-600/20" onClick={() => setShowCheckout(null)}>前往安全支付</Button>
-                <div className="flex justify-center gap-4 mt-8 opacity-30 grayscale scale-90">
-                   <span className="font-mono text-[9px] border px-2 py-1 rounded font-bold">STRIPE</span>
-                   <span className="font-mono text-[9px] border px-2 py-1 rounded font-bold">VISA</span>
-                   <span className="font-mono text-[9px] border px-2 py-1 rounded font-bold">PAYPAL</span>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      <PaymentModal
+        isOpen={!!selectedPlan}
+        onClose={() => setSelectedPlan(null)}
+        planName={selectedPlan?.name || ''}
+        price={isYearly ? (selectedPlan?.priceYearly || 0) : (selectedPlan?.priceMonthly || 0)}
+        isYearly={isYearly}
+      />
 
       <section className="py-20 text-center">
          <h1 className="text-5xl lg:text-8xl font-black mb-8 tracking-tighter leading-none">简单，<span className="text-brand-600">透明。</span></h1>
@@ -97,12 +65,12 @@ const PricingPage: React.FC<PricingPageProps> = ({ navigate }) => {
                   </li>
                 ))}
               </ul>
-              <Button 
-                variant={plan.recommended ? 'primary' : 'outline'} 
+              <Button
+                variant={plan.recommended ? 'primary' : 'outline'}
                 className="w-full h-16 font-black text-base"
-                onClick={() => setShowCheckout(plan.name)}
+                onClick={() => setSelectedPlan(plan)}
               >
-                立即开启免费试用
+                {price === 0 ? '免费开始' : '立即订阅'}
               </Button>
             </div>
           );
