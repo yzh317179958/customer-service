@@ -39,6 +39,9 @@ interface TrackingData {
 const trackingDataMap = ref<Map<string, TrackingData>>(new Map())
 const expandedTrackings = ref<Set<string>>(new Set())
 
+// 记录已自动弹出过承运商官网的运单（防止重复弹出）
+const autoPopupTriggered = ref<Set<string>>(new Set())
+
 // 统一 API Base：本地可配置 VITE_API_BASE，生产可留空走同域 /api
 const API_BASE = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '')
 
@@ -114,6 +117,31 @@ async function fetchTrackingData(
 }
 
 /**
+ * 打开承运商官网弹出窗口
+ * 使用定制大小的弹出窗口，用户无需离开当前聊天界面
+ */
+function openCarrierPopup(url: string, trackingNumber: string): void {
+  // 防止重复弹出
+  if (autoPopupTriggered.value.has(trackingNumber)) {
+    return
+  }
+  autoPopupTriggered.value.add(trackingNumber)
+
+  // 计算窗口位置（屏幕右侧）
+  const width = 500
+  const height = 700
+  const left = window.screenX + window.outerWidth - width - 50
+  const top = window.screenY + 100
+
+  // 打开定制大小的弹出窗口
+  window.open(
+    url,
+    `carrier_tracking_${trackingNumber}`,
+    `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,resizable=yes`
+  )
+}
+
+/**
  * 预加载物流数据 - 在订单卡片渲染时调用
  * 静默加载，不显示 loading 状态，用户点击时直接展示
  */
@@ -174,16 +202,37 @@ function toggleTracking(trackingNumber: string, carrier?: string, orderNumber?: 
     expandedTrackings.value.add(trackingNumber)
     const existing = trackingDataMap.value.get(trackingNumber)
 
-    // 如果已有预加载数据且有效（有轨迹或明确状态），直接展示
-    if (existing && !existing.loading && !existing.error && (existing.events.length > 0 || existing.is_pending || existing.message)) {
+    // 判断是否有有效的轨迹数据（必须有 events 才算有效）
+    const hasValidTrackingData = existing &&
+      !existing.loading &&
+      !existing.error &&
+      existing.events.length > 0
+
+    if (hasValidTrackingData) {
+      // 有有效轨迹数据，直接展示，无需弹出官网
       updateTimelineDOM(trackingNumber, true)
     } else {
-      // 否则重新请求
-      const force = !!existing && (existing.error !== null || existing.is_pending)
+      // 没有有效数据，需要请求 API
       // 先显示加载状态
       updateTimelineDOM(trackingNumber, true)
+
+      // 请求数据，完成后再决定是否弹出官网
+      const force = !!existing && (existing.error !== null || existing.is_pending)
       fetchTrackingData(trackingNumber, carrier, orderNumber, { force }).then(() => {
+        // API 请求完成后更新 DOM
         updateTimelineDOM(trackingNumber, true)
+
+        // 检查返回的数据，确定是否需要弹出官网
+        const data = trackingDataMap.value.get(trackingNumber)
+        if (data && !data.loading && !data.error) {
+          // 只有在 17track 确实没有轨迹事件时才弹出官网
+          // is_pending 表示后台正在注册，可能稍后会有数据，也弹出让用户先看官网
+          // events.length === 0 表示确实没有轨迹
+          const noTrackingEvents = data.events.length === 0
+          if (noTrackingEvents && data.tracking_url) {
+            openCarrierPopup(data.tracking_url, trackingNumber)
+          }
+        }
       })
     }
   }
@@ -246,26 +295,42 @@ function updateTimelineDOM(trackingNumber: string, expanded: boolean): void {
         // 运单正在追踪中（后台注册中），显示友好提示
         const pendingMessage = data.message || 'Fetching tracking info, please refresh in 1-2 minutes.'
         const trackUrl = data.tracking_url
+
+        // 从 URL 中提取承运商名称用于显示
+        const carrierName = trackUrl?.includes('ups.com') ? 'UPS'
+          : trackUrl?.includes('fedex.com') ? 'FedEx'
+          : trackUrl?.includes('dhl.com') ? 'DHL'
+          : trackUrl?.includes('usps.com') ? 'USPS'
+          : 'carrier'
+
         container.innerHTML = `
           <div class="tracking-timeline pending">
             <div class="timeline-pending">
-              <span class="pending-icon">⏳</span>
+              <span class="pending-icon">📦</span>
               <span class="pending-message">${pendingMessage}</span>
             </div>
-            ${trackUrl ? `<a href="${trackUrl}" target="_blank" class="carrier-link">Check carrier website →</a>` : ''}
+            ${trackUrl ? `<div class="carrier-opened-hint">🔍 Real-time tracking opened in ${carrierName} website</div>` : ''}
           </div>
         `
       } else if (data.events.length === 0) {
-        // 轨迹为空，显示友好提示和承运商链接
+        // 轨迹为空，显示友好提示
         const emptyMessage = data.message || 'No tracking events available.'
         const trackUrl = data.tracking_url
+
+        // 从 URL 中提取承运商名称用于显示
+        const carrierName = trackUrl?.includes('ups.com') ? 'UPS'
+          : trackUrl?.includes('fedex.com') ? 'FedEx'
+          : trackUrl?.includes('dhl.com') ? 'DHL'
+          : trackUrl?.includes('usps.com') ? 'USPS'
+          : 'carrier'
+
         container.innerHTML = `
           <div class="tracking-timeline empty">
             <div class="timeline-empty">
               <span class="empty-icon">📦</span>
               <span class="empty-message">${emptyMessage}</span>
             </div>
-            ${trackUrl ? `<a href="${trackUrl}" target="_blank" class="carrier-link">Check carrier website →</a>` : ''}
+            ${trackUrl ? `<div class="carrier-opened-hint">🔍 Real-time tracking opened in ${carrierName} website</div>` : ''}
           </div>
         `
       } else {
@@ -430,7 +495,6 @@ function transformProductCards(content: string, orderNumber?: string | null): st
     const isChinese = status.includes('发货') || status.includes('待') ||
                       status.includes('送达') || status.includes('运输') ||
                       status.includes('处理') || status.includes('失败')
-    const trackText = isChinese ? '追踪' : 'Track'
     const qtyLabel = isChinese ? '数量' : 'Qty'
     const carrierLabel = isChinese ? '承运商' : 'Carrier'
     const trackingLabel = isChinese ? '运单号' : 'Tracking'
@@ -568,7 +632,6 @@ function transformProductCards(content: string, orderNumber?: string | null): st
               ${trackingNumber ? `<span class="tracking-number">${trackingNumber}</span>` : ''}
             </div>
             <div class="tracking-actions">
-              ${trackingUrl ? `<a href="${trackingUrl}" target="_blank" class="tracking-link"><span class="link-icon">↗</span>${trackText}</a>` : ''}
               ${trackingNumber ? `<button class="tracking-expand-btn" data-tracking="${trackingNumber}" data-carrier="${carrier}" data-order="${orderNumber || ''}" data-expand="${expandText}" data-collapse="${collapseText}" data-loading="${loadingText}"><span class="expand-icon">▼</span><span class="expand-text">${expandText}</span></button>` : ''}
             </div>
           </div>
@@ -1594,75 +1657,6 @@ watch(
   word-break: break-all;
 }
 
-/* 追踪链接 - 迷你按钮 + 微光动效 */
-.message-content :deep(.tracking-link) {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  font-size: 9px;
-  font-weight: 500;
-  color: #0891b2;
-  text-decoration: none;
-  padding: 3px 8px;
-  background: linear-gradient(135deg, #f0fdfa 0%, #e0f7f6 100%);
-  border-radius: 4px;
-  border: 1px solid #99f6e4;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  flex-shrink: 0;
-  white-space: nowrap;
-  position: relative;
-  overflow: hidden;
-}
-
-/* 微光扫过动效 */
-.message-content :deep(.tracking-link)::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.4) 50%,
-    transparent 100%
-  );
-  animation: shimmer 3s ease-in-out infinite;
-}
-
-@keyframes shimmer {
-  0% {
-    left: -100%;
-  }
-  50%, 100% {
-    left: 100%;
-  }
-}
-
-.message-content :deep(.tracking-link .link-icon) {
-  font-size: 8px;
-  font-weight: 600;
-  transition: transform 0.2s ease;
-}
-
-.message-content :deep(.tracking-link:hover) {
-  background: linear-gradient(135deg, #ccfbf1 0%, #a7f3d0 100%);
-  color: #0e7490;
-  border-color: #5eead4;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 6px rgba(20, 184, 166, 0.2);
-}
-
-.message-content :deep(.tracking-link:hover .link-icon) {
-  transform: translate(1px, -1px);
-}
-
-.message-content :deep(.tracking-link:active) {
-  transform: translateY(0);
-  box-shadow: 0 1px 3px rgba(20, 184, 166, 0.15);
-}
-
 /* 响应式：小屏幕卡片布局 */
 @media (max-width: 480px) {
   .message-content :deep(.product-main) {
@@ -1972,28 +1966,17 @@ watch(
   text-align: center;
 }
 
-/* 承运商官网链接 */
-.message-content :deep(.carrier-link) {
-  display: block;
+/* 承运商官网已打开提示 - 简洁样式 */
+.message-content :deep(.carrier-opened-hint) {
   margin-top: 10px;
-  padding: 8px 16px;
-  font-size: 12px;
+  padding: 8px 12px;
+  font-size: 11px;
   font-weight: 500;
-  color: #0891b2;
-  text-decoration: none;
-  background: linear-gradient(135deg, #f0fdfa 0%, #e0f7f6 100%);
-  border-radius: 8px;
-  border: 1px solid #99f6e4;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  color: #059669;
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border-radius: 6px;
+  border: 1px solid #a7f3d0;
   text-align: center;
-}
-
-.message-content :deep(.carrier-link:hover) {
-  background: linear-gradient(135deg, #ccfbf1 0%, #a7f3d0 100%);
-  color: #0e7490;
-  border-color: #5eead4;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 6px rgba(20, 184, 166, 0.2);
 }
 
 /* 时间线滚动条美化 */

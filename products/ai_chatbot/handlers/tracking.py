@@ -37,8 +37,8 @@ CARRIER_TRACKING_URL_TEMPLATES = {
     "dhl express": "https://www.dhl.com/en/express/tracking.html?AWB={tracking_number}",
     "royal mail": "https://www.royalmail.com/track-your-item#{tracking_number}",
     "royalmail": "https://www.royalmail.com/track-your-item#{tracking_number}",
-    "dpd": "https://www.dpd.co.uk/tracking?parcel={tracking_number}",
-    "dpd uk": "https://www.dpd.co.uk/tracking?parcel={tracking_number}",
+    "dpd": "https://track.dpd.co.uk/parcels/{tracking_number}",
+    "dpd uk": "https://track.dpd.co.uk/parcels/{tracking_number}",
     "evri": "https://www.evri.com/track/parcel/{tracking_number}",
     "hermes": "https://www.evri.com/track/parcel/{tracking_number}",
     "dx": "https://my.dxdelivery.com/",
@@ -83,12 +83,42 @@ def _is_minor_carrier(carrier: Optional[str]) -> bool:
     return carrier.lower().strip() in MINOR_CARRIERS
 
 
+def _is_within_hours(iso_time_str: Optional[str], hours: int = 48) -> bool:
+    """
+    判断给定的 ISO 时间是否在指定小时数内
+
+    Args:
+        iso_time_str: ISO 格式时间字符串
+        hours: 小时数，默认 48
+
+    Returns:
+        True 如果时间在指定小时数内，否则 False
+    """
+    if not iso_time_str:
+        return False
+    try:
+        from datetime import timezone
+        # 解析 ISO 时间（支持带时区和不带时区）
+        if iso_time_str.endswith('Z'):
+            iso_time_str = iso_time_str[:-1] + '+00:00'
+        fulfilled_time = datetime.fromisoformat(iso_time_str.replace('Z', '+00:00'))
+        # 确保是 aware datetime
+        if fulfilled_time.tzinfo is None:
+            fulfilled_time = fulfilled_time.replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
+        diff_hours = (now - fulfilled_time).total_seconds() / 3600
+        return diff_hours <= hours
+    except Exception:
+        return False
+
+
 def _generate_friendly_message(
     info,
     carrier: Optional[str] = None,
     is_pending: bool = False,
     shopify_fulfillment_status: Optional[str] = None,
     shopify_shipment_status: Optional[str] = None,
+    fulfilled_at: Optional[str] = None,
 ) -> tuple:
     """
     生成友好提示信息
@@ -100,6 +130,8 @@ def _generate_friendly_message(
         carrier: 承运商名称
         is_pending: 是否正在追踪中
         shopify_fulfillment_status: Shopify 订单的发货状态（可选，用于辅助判断）
+        shopify_shipment_status: Shopify 运输状态
+        fulfilled_at: 发货时间（ISO 格式），用于判断是否在48小时内
 
     Returns:
         (message, tracking_url) 元组
@@ -171,10 +203,12 @@ def _generate_friendly_message(
             tracking_url
         )
 
-    # 场景 8: NotFound - 根据 Shopify 状态区分
+    # 场景 8: NotFound - 根据 Shopify 状态和发货时间区分
     if info.status == TrackingStatus.NOT_FOUND:
-        # 如果 Shopify 显示已发货/已签收，说明是历史运单，17track 可能没有数据
-        # 支持多种状态格式：fulfilled, delivered, success, Received, 已收货, 已送达, shipped, 已发货 等
+        # 检查是否在48小时内发货
+        is_recently_shipped = _is_within_hours(fulfilled_at, hours=48)
+
+        # 如果 Shopify 显示已发货/已签收
         if shopify_fulfillment_status:
             status_lower = shopify_fulfillment_status.lower()
             # 已签收/已收货状态
@@ -186,16 +220,28 @@ def _generate_friendly_message(
                 'shipped', 'in_transit', 'in transit', 'out_for_delivery', 'out for delivery',
                 '已发货', '运输中', '派送中'
             ])
+
+            # 场景 8a: 发货48小时内，无轨迹 - 显示"已发货，同步中"
+            if is_recently_shipped and (is_delivered or is_shipped):
+                return (
+                    "Shipped! Tracking info is syncing and will be available soon.",
+                    tracking_url
+                )
+
+            # 场景 8b: 超过48小时，已签收状态但无轨迹 - 可能是历史订单
             if is_delivered:
                 return (
                     "Detailed tracking history is not available. The package may have been delivered.",
                     tracking_url
                 )
+
+            # 场景 8c: 超过48小时，已发货但无轨迹 - 建议查看承运商官网
             if is_shipped:
                 return (
                     "Tracking info not available from 17track. Please check carrier website for updates.",
                     tracking_url
                 )
+
         # 无状态或新运单，等待物流信息同步
         return (
             "Tracking info syncing. New shipments usually take 24-48 hours to update.",
@@ -310,12 +356,14 @@ async def get_tracking(
         postal_code_source = "query" if postal_code else None
         derived_fulfillment_status = None
         derived_shipment_status = None
+        derived_fulfilled_at = None
         # 如果有订单号但没有邮编，尝试从 Shopify 获取
         if order_number:
             order_aux = await _get_order_aux_info_from_order(order_number)
             if order_aux:
                 derived_fulfillment_status = order_aux.get("fulfillment_status")
                 derived_shipment_status = order_aux.get("shipment_status")
+                derived_fulfilled_at = order_aux.get("fulfilled_at")
                 if not postal_code:
                     postal_code = order_aux.get("postal_code")
                     if postal_code:
@@ -360,6 +408,8 @@ async def get_tracking(
                 "postal_code_source": postal_code_source,
                 "shopify_fulfillment_status": fulfillment_status or derived_fulfillment_status,
                 "shopify_shipment_status": derived_shipment_status,
+                "shopify_fulfilled_at": derived_fulfilled_at,
+                "is_recently_shipped": _is_within_hours(derived_fulfilled_at, hours=48),
                 "refresh": refresh,
                 "has_track17_api_key": has_track17_api_key,
                 "configured_shopify_sites": configured_shopify_sites,
@@ -431,6 +481,7 @@ async def get_tracking(
                 is_pending=True,
                 shopify_fulfillment_status=fulfillment_status or derived_fulfillment_status,
                 shopify_shipment_status=derived_shipment_status,
+                fulfilled_at=derived_fulfilled_at,
             )
             return TrackingResponse(
                 tracking_number=info.tracking_number,
@@ -503,6 +554,7 @@ async def get_tracking(
             is_pending=False,
             shopify_fulfillment_status=fulfillment_status or derived_fulfillment_status,
             shopify_shipment_status=derived_shipment_status,
+            fulfilled_at=derived_fulfilled_at,
         )
 
         return TrackingResponse(
@@ -622,10 +674,16 @@ async def _get_postal_code_from_order(order_number: str) -> Optional[str]:
 
 async def _get_order_aux_info_from_order(order_number: str) -> Optional[dict]:
     """
-    从 Shopify 订单中获取物流辅助信息（站点/邮编/发货状态/运输状态）
+    从 Shopify 订单中获取物流辅助信息（站点/邮编/发货状态/运输状态/发货时间）
 
     Returns:
-        {"site": str, "postal_code": str|None, "fulfillment_status": str|None, "shipment_status": str|None}
+        {
+            "site": str,
+            "postal_code": str|None,
+            "fulfillment_status": str|None,
+            "shipment_status": str|None,
+            "fulfilled_at": str|None  # ISO 格式发货时间
+        }
     """
     try:
         site = detect_site_from_order_number(order_number)
@@ -637,7 +695,7 @@ async def _get_order_aux_info_from_order(order_number: str) -> Optional[dict]:
         result = await shopify.search_order_by_number(order_number)
         if not result or not result.get("order"):
             logger.warning(f"订单 {order_number} 未找到")
-            return {"site": site, "postal_code": None, "fulfillment_status": None, "shipment_status": None}
+            return {"site": site, "postal_code": None, "fulfillment_status": None, "shipment_status": None, "fulfilled_at": None}
 
         order = result["order"]
         shipping_address = order.get("shipping_address", {}) or {}
@@ -648,18 +706,22 @@ async def _get_order_aux_info_from_order(order_number: str) -> Optional[dict]:
         fulfillment_status = order.get("fulfillment_status")
 
         shipment_status = None
+        fulfilled_at = None
         fulfillments = order.get("fulfillments") or []
         for f in fulfillments:
             status = f.get("shipment_status")
             if status:
                 shipment_status = status
-                break
+            # 获取发货时间（优先 created_at，备选 updated_at）
+            if not fulfilled_at:
+                fulfilled_at = f.get("created_at") or f.get("updated_at")
 
         return {
             "site": site,
             "postal_code": postal_code,
             "fulfillment_status": fulfillment_status,
             "shipment_status": shipment_status,
+            "fulfilled_at": fulfilled_at,
         }
     except Exception as e:
         logger.error(f"从订单获取辅助信息失败: {order_number}, 错误: {e}")

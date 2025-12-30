@@ -46,6 +46,9 @@ paths:
         - 自动识别订单号前缀：UK、DE、EU、FR、IT、ES、NL、PL
         - 无前缀订单号会遍历所有站点查找
         - 返回订单完整信息包括商品、地址、物流
+
+        **重要**：订单不存在时返回 success=true 且 data.order=null，不会报错阻塞工作流。
+        后续 LLM 节点应检查 data.order 是否为 null 来生成"订单不存在"的友好回复。
       parameters:
         - name: q
           in: query
@@ -56,7 +59,10 @@ paths:
           example: "UK22080"
       responses:
         '200':
-          description: 订单详情
+          description: |
+            订单详情。
+            **重要**：订单不存在时不会报错，而是返回 success=true 且 data.order=null。
+            后续 LLM 节点应检查 data.order 是否为 null 来判断订单是否存在。
           content:
             application/json:
               schema:
@@ -64,14 +70,14 @@ paths:
                 properties:
                   success:
                     type: boolean
-                    description: 请求是否成功
+                    description: 请求是否成功（即使订单不存在也返回 true）
                   data:
                     type: object
                     properties:
                       order:
                         type: object
                         nullable: true
-                        description: 订单详情对象，未找到时为 null
+                        description: 订单详情对象。**订单不存在时为 null，不会报错**
                         properties:
                           order_id:
                             type: string

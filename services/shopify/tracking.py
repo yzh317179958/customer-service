@@ -12,8 +12,8 @@ from typing import Optional, Dict
 CARRIER_TRACKING_URLS = {
     # UK 常见承运商
     "Royal Mail": "https://www.royalmail.com/track-your-item#/tracking-results/{tracking_number}",
-    "DPD": "https://www.dpd.co.uk/tracking/trackingSearch.do?parcelNumber={tracking_number}",
-    "DPD UK": "https://www.dpd.co.uk/tracking/trackingSearch.do?parcelNumber={tracking_number}",
+    "DPD": "https://track.dpd.co.uk/parcels/{tracking_number}",
+    "DPD UK": "https://track.dpd.co.uk/parcels/{tracking_number}",
     "Hermes": "https://www.evri.com/track-a-parcel/{tracking_number}",
     "Evri": "https://www.evri.com/track-a-parcel/{tracking_number}",
     "Yodel": "https://www.yodel.co.uk/tracking/{tracking_number}",

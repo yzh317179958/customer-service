@@ -331,6 +331,9 @@ const sendMessage = async () => {
     if (chatStore.currentIntent) {
       requestBody.intent = chatStore.currentIntent
       console.log('🎯 传递 Intent:', chatStore.currentIntent)
+      // v7.7.3: 发送后立即清除 intent，只用于第一条消息的容错
+      chatStore.resetIntent()
+      console.log('🔄 Intent 已清除（仅用于首条消息）')
     }
 
     const response = await fetch(`${API_BASE_URL.value}/api/chat/stream`, {
