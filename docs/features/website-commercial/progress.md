@@ -1,7 +1,7 @@
 # 官网商业化 - 进度追踪
 
 > **核心目标**：官网能访问、能付款
-> **当前**：Step 2 已完成，可开始 Step 3
+> **当前**：Step 3 已完成，核心目标达成
 
 ---
 
@@ -9,7 +9,7 @@
 |------|------|------|
 | 1 | 前端品牌适配 | ✅ 已完成 |
 | 2 | 收款码弹窗 | ✅ 已完成 |
-| 3 | 部署上线 | ⏳ 待开始 |
+| 3 | 部署上线 | ✅ 已完成 |
 | 4 | 后端框架（可选） | - |
 | 5 | 数据库（可选） | - |
 
@@ -79,3 +79,46 @@ public/payment-qr.jpg (新增)
 - ✅ 弹窗显示收款码图片
 - ✅ 全站按钮均可跳转到定价区域
 - ✅ 客服微信可复制
+
+---
+
+## Step 3: 部署上线
+
+**完成时间:** 2025-12-31
+**版本号:** v7.9.2
+
+**完成内容:**
+- 前端构建：npm run build 生成 dist/ 静态文件
+- 服务器清理：清空 /var/www/ 目录
+- 文件部署：rsync 上传至 /var/www/fiido-website/
+- nginx 配置：SPA 路由支持 (try_files)
+- 安全组配置：开放 80 端口
+
+**服务器信息:**
+```
+IP: 8.129.91.128
+Web 目录: /var/www/fiido-website/
+nginx 配置: /etc/nginx/sites-available/fiido-website
+```
+
+**nginx 配置:**
+```nginx
+server {
+    listen 80 default_server;
+    root /var/www/fiido-website;
+    index index.html;
+    location / {
+        try_files $uri $uri/ /index.html =404;
+    }
+}
+```
+
+**访问地址:**
+- http://8.129.91.128/
+
+**测试结果:**
+- ✅ 网站可访问
+- ✅ 前端页面正常渲染
+- ✅ SPA 路由正常工作
+- ✅ 收款码弹窗功能正常
+- ✅ 核心目标达成：官网能访问、能付款
