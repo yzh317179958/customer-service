@@ -11,6 +11,13 @@ body {
   line-height: 1.6;
 }
 
+/* 嵌入模式：完全透明背景 */
+html.embed-mode,
+html.embed-mode body,
+html.embed-mode #app {
+  background: transparent !important;
+}
+
 html {
   scroll-behavior: smooth;
 }

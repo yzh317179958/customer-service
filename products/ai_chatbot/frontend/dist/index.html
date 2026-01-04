@@ -8,8 +8,19 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script type="module" crossorigin src="/chat-test/assets/index-CLPAZ1MN.js"></script>
-    <link rel="stylesheet" crossorigin href="/chat-test/assets/index-DGnfpvHq.css">
+    <!-- 嵌入模式：立即设置透明背景，避免白色闪烁 -->
+    <script>
+      if (window.location.search.includes('embed')) {
+        document.documentElement.classList.add('embed-mode');
+      }
+    </script>
+    <style>
+      html.embed-mode, html.embed-mode body, html.embed-mode #app {
+        background: transparent !important;
+      }
+    </style>
+    <script type="module" crossorigin src="/chat-test/assets/index-B10lMkPB.js"></script>
+    <link rel="stylesheet" crossorigin href="/chat-test/assets/index-B7LY8LrV.css">
   </head>
   <body>
     <div id="app"></div>

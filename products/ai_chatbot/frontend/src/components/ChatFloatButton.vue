@@ -257,13 +257,14 @@ const handleMouseUp = () => {
   .chat-float-button {
     bottom: 20px;
     right: 20px;
-    width: 48px;
-    height: 48px;
+    width: 56px;
+    height: 56px;
   }
 
+  /* 图片保持填满按钮，不固定尺寸 */
   .fiido-logo {
-    width: 24px;
-    height: 24px;
+    width: 100%;
+    height: 100%;
   }
 
   .chat-tooltip {

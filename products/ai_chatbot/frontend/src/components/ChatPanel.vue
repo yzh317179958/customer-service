@@ -930,16 +930,19 @@ onUnmounted(() => {
     -12px 0 60px rgba(0, 0, 0, 0.1),
     -4px 0 16px rgba(0, 0, 0, 0.04),
     0 0 0 1px rgba(0, 0, 0, 0.02);
-  transition: right 0.5s cubic-bezier(0.23, 1, 0.32, 1);
+  transition: right 0.5s cubic-bezier(0.23, 1, 0.32, 1), visibility 0s 0.5s;
   z-index: 1000;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   border-radius: 20px 0 0 20px;
+  visibility: hidden;
 }
 
 .chat-panel.open {
   right: 0;
+  visibility: visible;
+  transition: right 0.5s cubic-bezier(0.23, 1, 0.32, 1), visibility 0s 0s;
 }
 
 /* Header - Clean & Premium with integrated status */
