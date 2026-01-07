@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fiido AI Chat Embed Test</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #f5f5f5; min-height: 200vh; padding: 40px; }
+        h1 { color: #333; margin-bottom: 20px; }
+        p { color: #666; line-height: 1.6; margin-bottom: 15px; }
+        .content { max-width: 800px; margin: 0 auto; }
+    </style>
+</head>
+<body>
+    <div class="content">
+        <h1>Fiido AI Chat - Embed Test Page</h1>
+        <p>This page demonstrates the embedded AI chat widget.</p>
+        <p>Click the chat bubble in the bottom-right corner to open the chat.</p>
+        <p>Scroll down to test that the chat stays fixed in position.</p>
+        <p style="margin-top: 500px;">You've scrolled down. The chat bubble should still be visible.</p>
+        <p style="margin-top: 500px;">Keep scrolling...</p>
+        <p style="margin-top: 500px;">Bottom of the page.</p>
+    </div>
+
+    <!-- Fiido AI 智能客服 - v7.9.25 -->
+    <iframe id="fiido-chat-iframe" src="https://ai.fiido.com/chat-test/?embed"
+        style="position:fixed;bottom:0;right:0;width:100px;height:100px;border:none;z-index:9999;background:transparent;"></iframe>
+    <script>
+    (function(){
+        var f=document.getElementById('fiido-chat-iframe');
+        var isMobile=window.innerWidth<=768;
+        var closeTimer=null;
+
+        if(isMobile){f.style.bottom='60px';}
+
+        window.addEventListener('message',function(e){
+            if(e.data&&e.data.type==='fiido-chat-state'){
+                if(closeTimer){clearTimeout(closeTimer);closeTimer=null;}
+                if(e.data.isOpen){
+                    if(isMobile){
+                        f.style.width='100vw';
+                        f.style.height='100vh';
+                        f.style.bottom='0';
+                    }else{
+                        f.style.width='440px';
+                        f.style.height='100vh';
+                    }
+                }else{
+                    closeTimer=setTimeout(function(){
+                        f.style.width='100px';
+                        f.style.height='100px';
+                        f.style.bottom=isMobile?'60px':'0';
+                    },500);
+                }
+            }
+        });
+
+        window.addEventListener('resize',function(){
+            var wasMobile=isMobile;
+            isMobile=window.innerWidth<=768;
+            if(isMobile!==wasMobile){
+                f.style.width='100px';
+                f.style.height='100px';
+                f.style.bottom=isMobile?'60px':'0';
+            }
+        });
+    })();
+    </script>
+</body>
+</html>
