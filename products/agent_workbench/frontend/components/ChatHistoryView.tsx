@@ -714,56 +714,48 @@ const ChatHistoryView: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-12 gap-3">
-                <div className="col-span-12 md:col-span-7">
-                  <div className="relative">
-                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
-                      value={messageSearchQuery}
-                      onChange={(e) => setMessageSearchQuery(e.target.value)}
-                      placeholder={messageSearchScope === 'session' ? '关键词搜索（当前会话）' : '关键词搜索（全部会话）'}
-                      className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700"
-                    />
-                  </div>
+              <div className="flex items-center gap-3">
+                <div className="relative flex-1 min-w-0">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    value={messageSearchQuery}
+                    onChange={(e) => setMessageSearchQuery(e.target.value)}
+                    placeholder={messageSearchScope === 'session' ? '关键词搜索（当前会话）' : '关键词搜索（全部会话）'}
+                    className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700"
+                  />
                 </div>
-                <div className="col-span-6 md:col-span-2">
-                  <select
-                    value={messageSearchScope}
-                    onChange={(e) => setMessageSearchScope(e.target.value as 'session' | 'all')}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700"
-                  >
-                    <option value="session">当前会话</option>
-                    <option value="all">全部会话</option>
-                  </select>
-                </div>
-                <div className="col-span-6 md:col-span-2">
-                  <select
-                    value={messageSearchRole}
-                    onChange={(e) => setMessageSearchRole((e.target.value || '') as HistoryRole | '')}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700"
-                  >
-                    <option value="">全部角色</option>
-                    <option value="user">用户</option>
-                    <option value="assistant">AI</option>
-                    <option value="agent">坐席</option>
-                  </select>
-                </div>
-                <div className="col-span-12 md:col-span-1">
-                  <button
-                    onClick={runSearch}
-                    disabled={isSearching || (messageSearchScope === 'session' && !selectedSession)}
-                    className="w-full px-4 py-2 bg-black text-white rounded-xl font-black text-xs uppercase tracking-widest hover:opacity-90 disabled:opacity-50"
-                  >
-                    {isSearching ? '搜索中…' : '搜索'}
-                  </button>
-                </div>
+                <select
+                  value={messageSearchScope}
+                  onChange={(e) => setMessageSearchScope(e.target.value as 'session' | 'all')}
+                  className="w-28 shrink-0 px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700"
+                >
+                  <option value="session">当前会话</option>
+                  <option value="all">全部会话</option>
+                </select>
+                <select
+                  value={messageSearchRole}
+                  onChange={(e) => setMessageSearchRole((e.target.value || '') as HistoryRole | '')}
+                  className="w-28 shrink-0 px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700"
+                >
+                  <option value="">全部角色</option>
+                  <option value="user">用户</option>
+                  <option value="assistant">AI</option>
+                  <option value="agent">坐席</option>
+                </select>
+                <button
+                  onClick={runSearch}
+                  disabled={isSearching || (messageSearchScope === 'session' && !selectedSession)}
+                  className="shrink-0 w-24 px-4 py-2 bg-black text-white rounded-xl font-black text-xs uppercase tracking-widest hover:opacity-90 disabled:opacity-50"
+                >
+                  {isSearching ? '搜索中…' : '搜索'}
+                </button>
               </div>
               {searchError && <div className="text-xs font-bold text-red-600">{searchError}</div>}
             </div>
 
             {messagesError && <div className="px-6 pt-4 text-xs font-bold text-red-600">{messagesError}</div>}
 
-            <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 space-y-3">
+            <div className="flex-1 overflow-y-scroll overflow-x-hidden p-6 space-y-3">
               {showSearchResults ? (
                 <>
                   <div className="text-[11px] font-bold text-slate-400">

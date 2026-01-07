@@ -440,6 +440,11 @@ products/agent_workbench
 - 批量导出采用“导出中心”弹窗（异步任务列表 + 下载），减少主界面拥挤
 - 翻译按钮开启后不引起消息卡片横向溢出/宽度抖动（`overflow-x-hidden` + `flex-wrap`）
 
+补充（Step 10 修复）：
+- 右侧消息列表滚动条占位固定（避免翻译开关触发滚动条出现/消失造成宽度抖动）
+- 搜索区（输入框/范围/角色/按钮）固定为单行对齐
+- `meta` 与 `export-jobs` 相关 404 的根因多为后端未重启加载新路由
+
 ### products/agent_workbench/frontend/components/Sidebar.tsx + App.tsx
 
 **用途**：增加 `/history` 菜单入口并注册前端路由。

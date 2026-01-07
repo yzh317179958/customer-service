@@ -713,3 +713,21 @@ https://ai.fiido.com/workbench/
 
 **测试结果:**
 - ✅ `npm -C products/agent_workbench/frontend run build`
+
+---
+
+## Cross-module: chat-history-storage - Step 10（History UI 交互修复）
+
+**完成时间:** 2026-01-07  
+**所属模块:** `products/agent_workbench/frontend` + `products/agent_workbench`
+
+**完成内容:**
+- 翻译开关导致“消息卡片宽度抖动”：将右侧消息列表滚动容器改为固定滚动条占位（避免滚动条出现/消失导致布局宽度变化）。
+- 搜索区布局：将“搜索框 + 范围 + 角色 + 搜索按钮”改为同一行对齐（按钮不再换行）。
+- 404 排查结论：`会话备注(meta)` 与 `批量导出(export-jobs)` 的 404 来自后端仍在运行旧版本；更新代码后需重启 workbench 后端进程使路由生效（验证现已返回 403/401 而非 404）。
+
+**涉及文件:**
+- `products/agent_workbench/frontend/components/ChatHistoryView.tsx`
+
+**测试结果:**
+- ✅ `npm -C products/agent_workbench/frontend run build`

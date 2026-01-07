@@ -1,7 +1,7 @@
 import type { ConversationResponse, BotConfig } from '@/types'
 
-// 生产环境 VITE_API_BASE 为空字符串（同域部署），使用 ?? 避免空字符串被视为 falsy
-const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000'
+// 生产环境 VITE_API_BASE 为空字符串（同域部署），本地开发默认走同域 /api（由 Vite proxy 转发）
+const API_BASE = (import.meta.env.VITE_API_BASE ?? '').replace(/\/$/, '')
 
 export async function loadBotConfig(): Promise<{ success: boolean; bot?: BotConfig }> {
   try {

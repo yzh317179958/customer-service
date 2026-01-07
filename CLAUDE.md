@@ -306,6 +306,23 @@ ssh root@8.211.27.199 "systemctl restart fiido-ai-chatbot fiido-agent-workbench"
 
 ### 3.7 部署注意事项（铁律）
 
+#### 3.7.1 本地/生产一致性检查清单（避免“本地正常，上线异常”）
+
+- **前端 API Base（必须确认）**
+  - `products/ai_chatbot/frontend`：生产建议同域走 `/api`（`VITE_API_BASE=`）；本地开发走 Vite proxy（同样是相对 `/api`），避免 CORS。
+  - `products/agent_workbench/frontend`：生产用 Nginx `/workbench-api` → `/api` 的 rewrite，需要 `VITE_API_BASE_URL=/workbench-api`（见 `products/agent_workbench/frontend/.env.production`）。
+- **Nginx 反向代理与 base path**
+  - `ai_chatbot` 前端 base path：`/chat-test/`
+  - `agent_workbench` 前端 base path：`/workbench/`
+  - `/workbench-api/*` 必须 rewrite 到后端 `/api/*`（或直接提供同等路由），否则前端会 404/401。
+- **数据库/Redis 指向一致**
+  - 生产必须设置正确的 `DATABASE_URL`（Postgres）与 Redis 配置；并确保 Alembic migrations 已执行到最新 head。
+  - 本地联调使用 workspace 内自启 Postgres（unix socket）时，不会与服务器数据自动同步。
+- **批量导出文件落盘**
+  - 批量导出任务会写入 `CHAT_HISTORY_EXPORT_DIR`（默认 `data/exports`）；服务器需保证目录可写并建议配置清理策略/持久化卷。
+- **外网依赖（Coze）**
+  - 服务器需可访问 `COZE_API_BASE`（默认 `https://api.coze.com`），并配置正确的 `COZE_*` OAuth/Workflow/App 参数。
+
 **⚠️ 绝对禁止以下操作：**
 
 ```bash

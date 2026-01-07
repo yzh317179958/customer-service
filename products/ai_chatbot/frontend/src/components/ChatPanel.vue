@@ -15,14 +15,9 @@ let statusPollInterval: number | null = null
 // 检测嵌入模式
 const isEmbedMode = new URLSearchParams(window.location.search).has('embed')
 
-// 生产环境使用相对路径（通过nginx代理），本地开发使用8000端口
+// 统一 API Base：生产可留空走同域 /api；本地开发默认同域 /api（由 Vite proxy 转发）
 const API_BASE_URL = computed(() => {
-  const hostname = window.location.hostname
-  if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    return 'http://localhost:8000'
-  }
-  // 生产环境使用同域名，通过 nginx 代理 /api
-  return ''
+  return ((import.meta as any).env?.VITE_API_BASE ?? '').replace(/\/$/, '')
 })
 
 // 🔴 P0-9.5: 输入框禁用逻辑
