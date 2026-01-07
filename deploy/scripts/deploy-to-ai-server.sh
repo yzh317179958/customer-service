@@ -32,6 +32,8 @@ SERVER_WB_FE_DIR="${SERVER_WB_FE_DIR:-/var/www/fiido-workbench}"
 SKIP_FRONTEND_BUILD="${SKIP_FRONTEND_BUILD:-0}"
 SKIP_SERVICE_RESTART="${SKIP_SERVICE_RESTART:-0}"
 SKIP_PREFLIGHT="${SKIP_PREFLIGHT:-0}"
+SYNC_ENV="${SYNC_ENV:-0}"
+SYNC_KEYS="${SYNC_KEYS:-0}"
 
 echo "[deploy] repo: ${ROOT_DIR}"
 echo "[deploy] server: ${DEPLOY_USER}@${DEPLOY_HOST}"
@@ -69,14 +71,28 @@ fi
 
 echo "[deploy] syncing python code (split rsync; see CLAUDE.md 3.6/3.7)"
 rsync -avz --exclude '__pycache__' --exclude 'node_modules' --exclude '.git' \
+  --exclude '.local_*' \
   products/ "${DEPLOY_USER}@${DEPLOY_HOST}:${SERVER_ROOT}/products/"
 rsync -avz --exclude '__pycache__' --exclude 'node_modules' --exclude '.git' \
+  --exclude '.local_*' \
   services/ "${DEPLOY_USER}@${DEPLOY_HOST}:${SERVER_ROOT}/services/"
 rsync -avz --exclude '__pycache__' --exclude 'node_modules' --exclude '.git' \
+  --exclude '.local_*' \
   infrastructure/ "${DEPLOY_USER}@${DEPLOY_HOST}:${SERVER_ROOT}/infrastructure/"
 rsync -avz assets/ "${DEPLOY_USER}@${DEPLOY_HOST}:${SERVER_ROOT}/assets/"
-rsync -avz config/ "${DEPLOY_USER}@${DEPLOY_HOST}:${SERVER_ROOT}/config/"
-rsync -avz requirements.txt .env "${DEPLOY_USER}@${DEPLOY_HOST}:${SERVER_ROOT}/"
+if [[ "${SYNC_KEYS}" == "1" ]]; then
+  rsync -avz config/ "${DEPLOY_USER}@${DEPLOY_HOST}:${SERVER_ROOT}/config/"
+else
+  rsync -avz --exclude 'private_key*.pem' config/ "${DEPLOY_USER}@${DEPLOY_HOST}:${SERVER_ROOT}/config/"
+  echo "[deploy] NOTE: skipped syncing config/private_key*.pem (set SYNC_KEYS=1 to include)"
+fi
+
+rsync -avz requirements.txt "${DEPLOY_USER}@${DEPLOY_HOST}:${SERVER_ROOT}/"
+if [[ "${SYNC_ENV}" == "1" ]]; then
+  rsync -avz .env "${DEPLOY_USER}@${DEPLOY_HOST}:${SERVER_ROOT}/"
+else
+  echo "[deploy] NOTE: skipped syncing .env (set SYNC_ENV=1 to include)"
+fi
 
 echo "[deploy] syncing built frontends to nginx static dirs"
 rsync -avz --delete products/ai_chatbot/frontend/dist/ "${DEPLOY_USER}@${DEPLOY_HOST}:${SERVER_AI_FE_DIR}/"
@@ -92,4 +108,3 @@ else
 fi
 
 echo "[deploy] done"
-
