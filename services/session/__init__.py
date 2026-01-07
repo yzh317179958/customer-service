@@ -25,6 +25,7 @@ from services.session.state import (
 from services.session.redis_store import RedisSessionStore
 from services.session.regulator import Regulator, RegulatorConfig
 from services.session.shift_config import get_shift_config, is_in_shift
+from services.session.message_store import MessageStoreService
 
 __all__ = [
     # 核心模型
@@ -58,4 +59,7 @@ __all__ = [
     # 排班
     "get_shift_config",
     "is_in_shift",
+
+    # Chat history storage
+    "MessageStoreService",
 ]

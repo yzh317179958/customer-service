@@ -31,6 +31,9 @@ from infrastructure.database.models import (
     AuditLogModel,
     SessionArchiveModel,
     EmailRecordModel,
+    ChatMessageModel,
+    ChatSessionMetaModel,
+    ChatExportJobModel,
 )
 
 # Alembic Config 对象

@@ -31,6 +31,7 @@ _ticket_store: Optional[TicketStore] = None
 _quick_reply_store: Optional[QuickReplyStore] = None
 _audit_log_store: Optional[AuditLogStore] = None
 _sse_queues: Dict[str, asyncio.Queue] = {}
+_message_store = None
 
 
 # ============================================================================
@@ -75,6 +76,11 @@ def set_audit_log_store(store: AuditLogStore) -> None:
 def set_sse_queues(queues: Dict[str, asyncio.Queue]) -> None:
     global _sse_queues
     _sse_queues = queues
+
+
+def set_message_store(store) -> None:
+    global _message_store
+    _message_store = store
 
 
 # ============================================================================
@@ -122,6 +128,11 @@ def get_audit_log_store() -> Optional[AuditLogStore]:
 
 def get_sse_queues() -> Dict[str, asyncio.Queue]:
     return _sse_queues
+
+
+def get_message_store():
+    """Message store is optional; return None when not initialized."""
+    return _message_store
 
 
 def get_or_create_sse_queue(target: str) -> asyncio.Queue:

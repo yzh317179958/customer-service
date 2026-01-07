@@ -30,6 +30,7 @@ from infrastructure.bootstrap import (
 from infrastructure.security import init_login_protector
 import services.bootstrap  # noqa: F401  # 注册服务层组件
 from products.agent_workbench.config import AgentWorkbenchConfig
+from services.session.message_store import MessageStoreService
 
 
 @asynccontextmanager
@@ -78,6 +79,11 @@ async def lifespan(app: FastAPI):
     deps.set_quick_reply_store(get_quick_reply_store())
     deps.set_sse_queues(get_sse_queues())
 
+    # Chat history message store (Step 6)
+    message_store = MessageStoreService()
+    await message_store.start()
+    deps.set_message_store(message_store)
+
     # 初始化登录保护器
     redis_client = get_redis_client()
     if redis_client:
@@ -110,5 +116,10 @@ async def lifespan(app: FastAPI):
 
     from infrastructure.bootstrap import shutdown_background_tasks
     await shutdown_background_tasks()
+
+    try:
+        await message_store.shutdown()
+    except Exception:
+        pass
 
     print(f"✅ {config.product_name} 已关闭\n")

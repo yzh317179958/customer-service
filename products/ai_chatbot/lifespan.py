@@ -30,6 +30,7 @@ from infrastructure.bootstrap import (
 )
 import services.bootstrap  # noqa: F401  # 注册服务层组件
 from products.ai_chatbot.config import AIChatbotConfig
+from services.session.message_store import MessageStoreService
 
 # 清理代理环境变量（避免干扰 HTTP 请求）
 _PROXY_ENV_VARS = [
@@ -136,6 +137,11 @@ async def lifespan(app: FastAPI):
     deps.set_smart_assignment_engine(smart_assignment_engine)
     deps.set_customer_reply_auto_reopen(customer_reply_auto_reopen)
 
+    # Chat history message store (Step 4)
+    message_store = MessageStoreService()
+    await message_store.start()
+    deps.set_message_store(message_store)
+
     # 设置 Regulator
     if config.enable_regulator and Component.REGULATOR in instances:
         deps.set_regulator(instances[Component.REGULATOR])
@@ -166,5 +172,10 @@ async def lifespan(app: FastAPI):
 
     from infrastructure.bootstrap import shutdown_background_tasks
     await shutdown_background_tasks()
+
+    try:
+        await message_store.shutdown()
+    except Exception:
+        pass
 
     print(f"✅ {config.product_name} 已关闭\n")

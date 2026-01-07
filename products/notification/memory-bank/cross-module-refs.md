@@ -54,3 +54,21 @@
 | 功能 | 主文档 | 状态 | 本模块职责 |
 |------|--------|------|-----------|
 | 17track 物流集成 | `docs/features/17track-integration/` | ⏳ Phase 5 | Webhook 接收、邮件通知 |
+
+---
+
+### 易仓 ERP 售后配件物流通知（规划）
+
+**主文档**: `docs/features/yicang-after-sales-notification/`（待创建）
+
+**状态**: ⏳ 规划中
+
+**本模块职责（规划）**:
+- 接收易仓回调/查询结果，识别售后配件订单
+- 将“物流状态变更事件”归一化为内部事件
+- 复用现有邮件模板/发送器，向客户发送异常/签收等通知
+
+**对接模块（规划）**:
+- `services/email` - 邮件发送
+- `infrastructure/database` - 通知记录、运单关联
+- `services/yicang` - 易仓 API 适配（待建，服务层）

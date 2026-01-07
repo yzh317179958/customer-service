@@ -630,3 +630,86 @@ rsync -avz dist/ root@8.211.27.199:/var/www/fiido-workbench/
 # 3. 访问地址
 https://ai.fiido.com/workbench/
 ```
+
+---
+
+## Cross-module: chat-history-storage - Step 6
+
+**完成时间:** 2026-01-07
+**所属模块:** products/agent_workbench
+
+**完成内容:**
+- 在 `products/agent_workbench/dependencies.py` 增加 MessageStoreService 注入与获取（`set_message_store()` / `get_message_store()`）
+- 在 `products/agent_workbench/lifespan.py` 启动/关闭 `MessageStoreService`
+- 在 `products/agent_workbench/handlers/sessions.py` 的 `agent_send_message` 写入点 best-effort enqueue 保存 `role=agent` 消息（包含 agent_id/agent_name）
+
+**涉及文件:**
+- `products/agent_workbench/dependencies.py`
+- `products/agent_workbench/lifespan.py`
+- `products/agent_workbench/handlers/sessions.py`
+
+**测试结果:**
+- ✅ 单元级自测通过（mock session_store + message_store + SSE enqueue），验证 enqueue 被调用且字段完整（`STEP6_AGENT_PERSIST_OK`）
+
+---
+
+## Cross-module: chat-history-storage - Step 7
+
+**完成时间:** 2026-01-07
+**所属模块:** products/agent_workbench
+
+**完成内容:**
+- 新增聊天记录历史 API（受 JWT 坐席认证保护）：
+  - `GET /api/history/sessions`
+  - `GET /api/history/sessions/{session_name}`
+  - `GET /api/history/search`（q 参数，FTS）
+  - `GET /api/history/statistics`
+  - `GET /api/history/export`（CSV）
+- 路由注册到 workbench 主 router
+
+**涉及文件:**
+- `products/agent_workbench/handlers/history.py`（新增）
+- `products/agent_workbench/routes.py`（修改，注册 history router）
+
+**测试结果:**
+- ✅ 单元级自测通过（mock MessageStoreService），验证各端点可调用并返回预期结构（`STEP7_HISTORY_API_OK`）
+
+---
+
+## Cross-module: chat-history-storage - Step 8
+
+**完成时间:** 2026-01-07  
+**所属模块:** `products/agent_workbench/frontend`
+
+**完成内容:**
+- 新增聊天记录页面（会话列表/详情/搜索/导出 CSV），按 `session_name` 聚合会话列表。
+- 新增前端 API 封装 `historyApi` 对接 `/api/history/*`。
+- 在 Sidebar 增加菜单项，并在 `App.tsx` 注册 `/history` 路由。
+
+**涉及文件:**
+- `products/agent_workbench/frontend/src/api/history.ts`（新增）
+- `products/agent_workbench/frontend/src/api/index.ts`（修改，导出 historyApi）
+- `products/agent_workbench/frontend/components/ChatHistoryView.tsx`（新增）
+- `products/agent_workbench/frontend/components/Sidebar.tsx`（修改，新增入口）
+- `products/agent_workbench/frontend/App.tsx`（修改，新增路由）
+
+**测试结果:**
+- ✅ `npm -C products/agent_workbench/frontend run build`
+
+---
+
+## Cross-module: chat-history-storage - Step 9（History UI 业务友好性优化）
+
+**完成时间:** 2026-01-07  
+**所属模块:** `products/agent_workbench/frontend`
+
+**完成内容:**
+- 批量导出入口调整：将“批量导出”从会话详情区按钮组迁移到左侧时间筛选工具条，更符合运营/质检“先选时间范围再导出”的使用路径。
+- 批量导出交互升级：改为“批量导出中心”弹窗（异步任务列表 + 下载），降低主界面拥挤度并提升高频导出可用性。
+- 翻译 UI 体验优化：开启翻译后，消息卡片不再出现横向溢出/宽度抖动（增加 overflow-x 保护 + flex wrap 布局）。
+
+**涉及文件:**
+- `products/agent_workbench/frontend/components/ChatHistoryView.tsx`
+
+**测试结果:**
+- ✅ `npm -C products/agent_workbench/frontend run build`

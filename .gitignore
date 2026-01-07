@@ -51,6 +51,13 @@ dist/
 dist-ssr/
 *.local
 
+# Local runtime artifacts (workspace)
+.local_*.pid
+.local_*.log
+.local_pgdata/
+.local_pgsocket/
+data/
+
 # Frontend Build
 frontend/dist/
 frontend/.vite/

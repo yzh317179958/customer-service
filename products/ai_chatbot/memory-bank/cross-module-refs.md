@@ -2,7 +2,7 @@
 
 > **文档类型**：跨模块功能引用记录
 > **所属模块**：products/ai_chatbot（AI 智能客服）
-> **最后更新**：2025-12-22
+> **最后更新**：2026-01-07
 
 ---
 
@@ -47,6 +47,7 @@
 | 转人工会话流转 | `docs/features/human-handoff/` | ✅ | 触发转人工、发布事件 |
 | 微服务 SSE 通信 | `docs/features/microservice-sse-communication/` | ⏳ 开发中 | 发送 SSE 消息 |
 | 17track 物流集成 | `docs/features/17track-integration/` | ⏳ 开发中 | 商品卡片展示物流轨迹 |
+| **聊天记录存储** | `docs/features/chat-history-storage/` | ⏳ 开发中 | 消息实时存储 |
 
 ---
 
@@ -104,3 +105,32 @@
 **对接模块**:
 - `services/tracking` - 17track API 封装
 - `products/notification` - 物流状态通知
+
+---
+
+### 聊天记录存储
+
+**主文档**: `docs/features/chat-history-storage/`
+
+**状态**: ⏳ 开发中
+**进度**:
+- Step 4 ✅: 已完成 DI + 生命周期注入（MessageStoreService 初始化与启动/关闭）
+- Step 5 ✅: 已在 `handlers/chat.py` 写入点调用 enqueue 保存 user/assistant 消息
+
+**本模块职责**:
+- 用户消息发送时调用 `message_store.save_message()` 持久化
+- AI 回复时保存消息并记录响应时间
+- 人工客服消息由坐席工作台模块持久化（本模块不直接产生 agent 消息）
+- 存储失败时降级处理，不阻塞聊天流程
+
+**涉及文件**:
+| 文件 | 改动类型 | 说明 |
+|------|----------|------|
+| `handlers/chat.py` | 修改 | 添加消息存储调用 |
+| `dependencies.py` | 修改 | 注入 MessageStoreService |
+| `lifespan.py` | 修改 | 初始化服务 |
+
+**对接模块**:
+- `services/session/message_store` - 消息持久化服务
+- `products/agent_workbench` - 历史记录查询
+- `infrastructure/database` - 数据库表模型

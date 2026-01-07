@@ -35,6 +35,7 @@
 │  │  ├── client.ts        ← Axios 实例 (JWT, 拦截器)              │  │
 │  │  ├── auth.ts          ← 认证 API                             │  │
 │  │  ├── sessions.ts      ← 会话 API                             │  │
+│  │  ├── history.ts       ← 聊天记录 API（Step 8: /api/history/*） │  │
 │  │  ├── tickets.ts       ← 工单 API                             │  │
 │  │  ├── quickReplies.ts  ← 快捷回复 API                         │  │
 │  │  ├── shopify.ts       ← Shopify 订单 API（Step 14 新增）      │  │
@@ -151,6 +152,7 @@ products/agent_workbench/frontend/   # Step 1: 已从 fronted_origin 重命名
 │   │   ├── quickReplies.ts   # Step 7: 快捷回复 API 封装
 │   │   ├── shopify.ts        # Step 14: Shopify 订单 API（跨站点查询/物流）
 │   │   ├── stats.ts          # Step 16: 统计数据 API（会话/坐席/SLA）
+│   │   ├── history.ts        # Step 8: 聊天记录 API（sessions/detail/search/export）
 │   │   └── index.ts          # Step 7: 统一导出
 │   ├── stores/               # Step 8-9: 状态管理
 │   │   ├── authStore.ts      # Step 8: 认证状态 Store
@@ -165,6 +167,7 @@ products/agent_workbench/frontend/   # Step 1: 已从 fronted_origin 重命名
 │   ├── Workspace.tsx          # 会话工作台 (15KB) - 核心
 │   ├── TicketsView.tsx        # 工单中心 (10KB)
 │   ├── Dashboard.tsx          # Step 16: 效能报表（真实API+Mock）
+│   ├── ChatHistoryView.tsx    # Step 8: 聊天记录（会话列表/搜索/导出）
 │   ├── KnowledgeBase.tsx      # 知识库 (7KB)
 │   ├── Monitoring.tsx         # 实时监控 (7KB)
 │   ├── QualityAudit.tsx       # 智能质检 (7KB)
@@ -376,3 +379,67 @@ products/agent_workbench
 **禁止依赖**：
 - ❌ products/ai_chatbot（产品间禁止互相依赖）
 - ❌ products/customer_portal
+
+---
+
+## Cross-module: chat-history-storage (Step 6)
+
+### products/agent_workbench/dependencies.py
+
+**用途**：注入并提供 `MessageStoreService` 实例给 handler 使用。
+
+**新增接口**：
+- `set_message_store(store)`：在产品启动时注入服务实例
+- `get_message_store()`：在 handler 中获取服务实例（可为 None）
+
+### products/agent_workbench/lifespan.py
+
+**用途**：在产品生命周期中启动/关闭 `MessageStoreService`。
+
+**行为**：
+- 启动时：创建 `MessageStoreService()` 并 `await start()`，注入到 dependencies
+- 关闭时：`await message_store.shutdown()`（不影响主关闭流程）
+
+### products/agent_workbench/handlers/sessions.py
+
+**用途**：在坐席发送消息写入点持久化 `role=agent` 消息到 chat history（best-effort enqueue）。
+
+---
+
+## Cross-module: chat-history-storage (Step 7)
+
+### products/agent_workbench/handlers/history.py
+
+**用途**：提供聊天记录历史查询 API（坐席认证保护），后续供历史记录页面使用。
+
+**端点**：
+- `GET /api/history/sessions`：会话列表（按 session_name 聚合）
+- `GET /api/history/sessions/{session_name}`：会话详情（消息流）
+- `GET /api/history/search`：全文检索（q 参数，支持多词）
+- `GET /api/history/statistics`：统计
+- `GET /api/history/export`：导出 CSV
+
+### products/agent_workbench/routes.py
+
+**用途**：注册 history router 到 workbench API 路由。
+
+---
+
+## Cross-module: chat-history-storage (Step 8)
+
+### products/agent_workbench/frontend/src/api/history.ts
+
+**用途**：封装聊天记录相关 API（`/api/history/*`），供前端页面使用（会话列表/详情/搜索/统计/CSV 导出）。
+
+### products/agent_workbench/frontend/components/ChatHistoryView.tsx
+
+**用途**：聊天记录页面（按 `session_name` 聚合展示会话列表，查看详情消息流；支持全文检索与 CSV 导出）。
+
+补充（Step 9 优化）：
+- 批量导出入口放在左侧时间筛选区（更贴合运营/质检“按日期范围导出”的路径）
+- 批量导出采用“导出中心”弹窗（异步任务列表 + 下载），减少主界面拥挤
+- 翻译按钮开启后不引起消息卡片横向溢出/宽度抖动（`overflow-x-hidden` + `flex-wrap`）
+
+### products/agent_workbench/frontend/components/Sidebar.tsx + App.tsx
+
+**用途**：增加 `/history` 菜单入口并注册前端路由。

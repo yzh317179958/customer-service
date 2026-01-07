@@ -27,6 +27,7 @@ from products.ai_chatbot.dependencies import (
     get_regulator,
     get_workflow_id,
     get_app_id,
+    get_message_store,
     refresh_coze_client_if_needed,
 )
 
@@ -103,8 +104,11 @@ async def chat(chat_request: ChatRequest, request: Request) -> ChatResponse:
     regulator = get_regulator()
     workflow_id = get_workflow_id()
     app_id = get_app_id()
+    message_store = get_message_store()
 
     try:
+        start_time = time.time()
+
         # 获取会话标识（session_id），如果没有则生成
         session_id = chat_request.user_id or generate_user_id()
 
@@ -145,6 +149,18 @@ async def chat(chat_request: ChatRequest, request: Request) -> ChatResponse:
                 print(f"♻️  使用缓存的 Conversation: {conversation_id}")
             else:
                 print(f"🆕 首次对话,将自动生成 conversation_id")
+
+        # Step 5: persist user message (best-effort; conversation_id may be None)
+        if message_store:
+            try:
+                message_store.enqueue_save_message(
+                    session_name=session_id,
+                    conversation_id=conversation_id,
+                    role="user",
+                    content=chat_request.message,
+                )
+            except Exception:
+                pass
 
         # 准备参数（Workflow Chat API 格式）
         api_base = os.getenv("COZE_API_BASE", "https://api.coze.com")
@@ -246,6 +262,19 @@ async def chat(chat_request: ChatRequest, request: Request) -> ChatResponse:
 
         final_message = "".join(response_messages) if response_messages else ""
 
+        # Step 5: persist assistant message (best-effort)
+        if message_store and final_message:
+            try:
+                message_store.enqueue_save_message(
+                    session_name=session_id,
+                    conversation_id=returned_conversation_id or conversation_id,
+                    role="assistant",
+                    content=final_message,
+                    response_time_ms=int((time.time() - start_time) * 1000),
+                )
+            except Exception:
+                pass
+
         # 【P0-3 后置处理】更新会话状态和触发监管检查
         if session_store and regulator and final_message:
             try:
@@ -334,11 +363,13 @@ async def chat_stream(chat_request: ChatRequest, request: Request):
     regulator = get_regulator()
     workflow_id = get_workflow_id()
     app_id = get_app_id()
+    message_store = get_message_store()
 
     async def event_generator():
         """SSE 事件生成器"""
         try:
             session_id = chat_request.user_id or generate_user_id()
+            start_time = time.time()
 
             # 创建 SSE 消息队列
             if session_id not in sse_queues:
@@ -377,6 +408,18 @@ async def chat_stream(chat_request: ChatRequest, request: Request):
                     print(f"♻️  流式接口使用缓存的 Conversation: {conversation_id}")
                 else:
                     print(f"🆕 流式接口首次对话,将自动生成 conversation_id")
+
+            # Step 5: persist user message (best-effort; conversation_id may be None)
+            if message_store:
+                try:
+                    message_store.enqueue_save_message(
+                        session_name=session_id,
+                        conversation_id=conversation_id,
+                        role="user",
+                        content=chat_request.message,
+                    )
+                except Exception:
+                    pass
 
             api_base = os.getenv("COZE_API_BASE", "https://api.coze.com")
             url = f"{api_base}/v1/workflows/chat"
@@ -502,6 +545,20 @@ async def chat_stream(chat_request: ChatRequest, request: Request):
 
             # 后置处理
             final_ai_message = "".join(full_ai_response)
+
+            # Step 5: persist assistant message (best-effort)
+            if message_store and final_ai_message:
+                try:
+                    message_store.enqueue_save_message(
+                        session_name=session_id,
+                        conversation_id=returned_conversation_id or conversation_id,
+                        role="assistant",
+                        content=final_ai_message,
+                        response_time_ms=int((time.time() - start_time) * 1000),
+                    )
+                except Exception:
+                    pass
+
             if session_store and regulator and final_ai_message:
                 try:
                     conversation_id_for_update = returned_conversation_id or conversation_id

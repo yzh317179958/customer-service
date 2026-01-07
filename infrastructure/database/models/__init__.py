@@ -23,6 +23,11 @@ from .audit import AuditLogModel
 # 会话归档
 from .session import SessionArchiveModel
 
+# 聊天消息
+from .chat_message import ChatMessageModel
+from .chat_session_meta import ChatSessionMetaModel
+from .chat_export_job import ChatExportJobModel
+
 # 邮件记录
 from .email import EmailRecordModel
 
@@ -42,6 +47,10 @@ __all__ = [
     "AuditLogModel",
     # 会话归档
     "SessionArchiveModel",
+    # 聊天消息
+    "ChatMessageModel",
+    "ChatSessionMetaModel",
+    "ChatExportJobModel",
     # 邮件记录
     "EmailRecordModel",
     # 物流追踪

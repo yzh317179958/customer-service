@@ -3,7 +3,6 @@ import { ref } from 'vue'
 import { useChatStore } from '@/stores/chatStore'
 
 const chatStore = useChatStore()
-const showTooltip = ref(false)
 const isHovered = ref(false)
 const isPressed = ref(false)
 
@@ -24,20 +23,17 @@ const handleMouseUp = () => {
 </script>
 
 <template>
+  <!-- 聊天打开时隐藏悬浮按钮，避免与面板 overlay 冲突 -->
   <div
+    v-show="!chatStore.isChatOpen"
     class="chat-float-button"
     :class="{ hovered: isHovered, pressed: isPressed }"
     @click="handleClick"
-    @mouseenter="showTooltip = true; isHovered = true"
-    @mouseleave="showTooltip = false; isHovered = false; isPressed = false"
+    @mouseenter="isHovered = true"
+    @mouseleave="isHovered = false; isPressed = false"
     @mousedown="handleMouseDown"
     @mouseup="handleMouseUp"
   >
-    <!-- Tooltip -->
-    <span class="chat-tooltip" :class="{ show: showTooltip }">
-      <span class="tooltip-text">Need help?</span>
-    </span>
-
     <!-- Main Button -->
     <div class="button-inner">
       <div class="icon-wrapper">
@@ -178,52 +174,6 @@ const handleMouseUp = () => {
   transform: scale(1.05) rotate(0deg);
 }
 
-/* Tooltip - Premium style */
-.chat-tooltip {
-  position: absolute;
-  right: 64px;
-  top: 50%;
-  transform: translateY(-50%) translateX(12px);
-  background: #ffffff;
-  padding: 10px 16px;
-  border-radius: 10px;
-  box-shadow:
-    0 4px 16px rgba(0, 0, 0, 0.1),
-    0 2px 6px rgba(0, 0, 0, 0.05);
-  opacity: 0;
-  visibility: hidden;
-  transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
-  pointer-events: none;
-  white-space: nowrap;
-}
-
-.chat-tooltip::after {
-  content: '';
-  position: absolute;
-  right: -8px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 0;
-  height: 0;
-  border-left: 8px solid #ffffff;
-  border-top: 8px solid transparent;
-  border-bottom: 8px solid transparent;
-  filter: drop-shadow(2px 0 4px rgba(0, 0, 0, 0.06));
-}
-
-.chat-tooltip.show {
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(-50%) translateX(0);
-}
-
-.tooltip-text {
-  color: #1a1a1a;
-  font-size: 14px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-}
-
 /* Ripple Ring - Breathing animation to attract attention */
 .ripple-ring {
   position: absolute;
@@ -252,9 +202,9 @@ const handleMouseUp = () => {
   opacity: 0;
 }
 
-/* Responsive */
+/* Responsive - 仅在非嵌入模式下生效 */
 @media (max-width: 768px) {
-  .chat-float-button {
+  html:not(.embed-mode) .chat-float-button {
     bottom: 20px;
     right: 20px;
     width: 56px;
@@ -262,20 +212,15 @@ const handleMouseUp = () => {
   }
 
   /* 图片保持填满按钮，不固定尺寸 */
-  .fiido-logo {
+  html:not(.embed-mode) .fiido-logo {
     width: 100%;
     height: 100%;
-  }
-
-  .chat-tooltip {
-    display: none;
   }
 }
 
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .chat-float-button,
-  .chat-tooltip,
   .ripple-ring,
   .chat-badge,
   .fiido-logo {

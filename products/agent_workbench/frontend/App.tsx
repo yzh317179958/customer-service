@@ -12,6 +12,7 @@ import QualityAudit from './components/QualityAudit';
 import Settings from './components/Settings';
 import BillingView from './components/BillingView';
 import LoginView from './components/LoginView';
+import ChatHistoryView from './components/ChatHistoryView';
 import { useAuthStore } from './src/stores';
 
 // 占位组件：功能开发中
@@ -64,6 +65,7 @@ const App: React.FC = () => {
             <Route path="/" element={<Navigate to="/workspace" replace />} />
             <Route path="/workspace" element={<Workspace />} />
             <Route path="/tickets" element={<TicketsView />} />
+            <Route path="/history" element={<ChatHistoryView />} />
             <Route path="/knowledge" element={<KnowledgeBase />} />
             <Route path="/monitoring" element={<Monitoring />} />
             <Route path="/dashboard" element={<Dashboard />} />

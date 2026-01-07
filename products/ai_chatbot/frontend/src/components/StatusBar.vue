@@ -291,17 +291,17 @@ const agentInfo = computed(() => chatStore.agentInfo)
   letter-spacing: -0.01em;
 }
 
-/* 响应式设计 */
+/* 响应式设计 - 仅在非嵌入模式下生效 */
 @media (max-width: 768px) {
-  .status-bar {
+  html:not(.embed-mode) .status-bar {
     padding: 10px 12px;
   }
 
-  .status-text {
+  html:not(.embed-mode) .status-text {
     font-size: 12px;
   }
 
-  .agent-avatar {
+  html:not(.embed-mode) .agent-avatar {
     width: 28px;
     height: 28px;
     font-size: 12px;

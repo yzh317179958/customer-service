@@ -20,6 +20,7 @@ _jwt_oauth_app = None
 _sse_queues: dict = {}
 _smart_assignment_engine = None
 _customer_reply_auto_reopen = None
+_message_store = None
 
 # 配置变量
 _workflow_id: str = ""
@@ -81,6 +82,12 @@ def set_customer_reply_auto_reopen(rule):
     _customer_reply_auto_reopen = rule
 
 
+def set_message_store(store):
+    """设置消息存储服务（由 backend.py 调用）"""
+    global _message_store
+    _message_store = store
+
+
 # ==================== Getter 函数（用于 Depends 注入）====================
 
 def get_coze_client() -> Coze:
@@ -137,6 +144,11 @@ def get_smart_assignment_engine():
 def get_customer_reply_auto_reopen():
     """获取客户回复自动恢复规则"""
     return _customer_reply_auto_reopen
+
+
+def get_message_store():
+    """获取消息存储服务（可为 None）"""
+    return _message_store
 
 
 # ==================== 依赖注入帮助函数 ====================

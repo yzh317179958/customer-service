@@ -1,11 +1,11 @@
 # 物流通知 - 架构说明
 
 > **创建日期**：2025-12-23
-> **最后更新**：2025-12-23
+> **最后更新**：2026-01-07
 
 ---
 
-## 模块结构
+## 模块结构（产品层）
 
 ```
 products/notification/
@@ -28,9 +28,23 @@ products/notification/
 
 ---
 
-## 数据流
+## 总体架构（事件驱动）
 
-### Shopify 发货 → 运单注册
+本模块采用“事件接入 → 事件归一化 → 通知规则 → 发送与记录”的形态：
+
+1. **事件接入（Webhook / API）**：Shopify 发货、17track 状态推送、（规划）易仓物流更新
+2. **归一化（Domain Event）**：将不同来源的 payload 转换为内部统一的“物流事件”语义
+3. **规则判断**：拆包裹 / 预售 / 异常 / 签收
+4. **发送与幂等**：同一运单同一事件只发一次，并落库可追踪
+
+依赖方向严格遵循三层架构：
+`products/notification → services/* → infrastructure/*`
+
+---
+
+## 数据流（已实现）
+
+### Shopify 发货 → 运单注册（17track 可选）
 
 ```
 Shopify 发货事件
@@ -71,7 +85,41 @@ services/email.send_email()
 
 ---
 
-## 文件说明
+## 数据流（规划：易仓 ERP 售后配件）
+
+目标：易仓中下单的售后配件订单，若物流信息更新（尤其异常/签收），自动邮件通知客户。
+
+推荐最优路径是 **易仓 → 我方 Webhook 回调**：
+
+```
+易仓售后配件订单创建 / 发货
+    │
+    ▼
+（易仓回调）POST /webhook/yicang
+    │
+    ▼
+（规划）handlers/yicang_handler.py
+    │
+    ├─ 识别售后配件订单（来源店铺/订单类型）
+    ├─ 提取客户邮箱、运单、承运商
+    └─ 建立运单关联（tracking_number → customer_email / order_ref）
+    │
+    ▼
+（复用）notification_sender.py 发送邮件模板
+```
+
+当易仓无法推送“物流状态变化”，降级路径为“定时轮询易仓接口”，但这依赖基础设施层具备可靠的任务调度与重试机制（当前 scheduler 组件仍待补齐）。
+
+### 易仓回调安全与幂等（[[YICANG_TBD]]）
+
+待易仓文档补齐后，在此处固化最终验签与幂等策略：
+- 验签：签名算法、参与签名字段、时间戳窗口、nonce、防重放（[[YICANG_TBD]]）
+- 幂等：以 `yicang_order_no + tracking_no` 或 `event_id` 作为 `notification_id` 的组成，防止重复发送（[[YICANG_TBD]]）
+- 重试：易仓是否重推、我方如何返回 ACK/错误码（[[YICANG_TBD]]）
+
+---
+
+## 文件说明（现状与差异）
 
 ### config.py
 
@@ -108,6 +156,8 @@ services/email.send_email()
   - Headers: X-17track-Signature
 - `GET /webhook/health` - 健康检查
 
+> 注：`POST /webhook/yicang` 为规划端点，待易仓接口能力明确后落地。
+
 ---
 
 ### handlers/shopify_handler.py
@@ -118,6 +168,13 @@ services/email.send_email()
 - `handle_fulfillment_create()` - 处理发货创建事件
 - `handle_order_create()` - 处理订单创建事件
 - `_register_tracking()` - 注册运单到 17track
+
+---
+
+## 生产化必须补齐（当前缺口）
+
+- **幂等与去重的权威落库**：`infrastructure/database` 已有 `notification_records` / `tracking_registrations` 表，但当前通知链路主要依赖 Redis/内存映射，长链路（跨境时长）存在丢关联风险。
+- **易仓集成适配层**：建议新增 `services/yicang`（服务层）与 `products/notification/handlers/yicang_handler.py`（产品层），并以 webhook-first 实现。
 - `_check_split_package()` - 检测是否拆包裹
 - `_detect_presale_items()` - 检测预售商品
 - `_get_site_code()` - 站点域名映射（fiidouk → uk）

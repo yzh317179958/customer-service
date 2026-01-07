@@ -109,3 +109,30 @@ export type {
   SLADashboard as DashboardSLAData,
   DashboardStats,
 } from './stats';
+
+// Chat History API
+export { historyApi } from './history';
+export type {
+  HistoryRole,
+  HistorySessionMeta,
+  HistorySessionSummary,
+  HistoryMessageItem,
+  HistorySearchItem,
+  HistorySessionsResponse,
+  HistorySearchSessionsResponse,
+  HistorySessionDetailResponse,
+  HistorySessionMetaResponse,
+  HistoryUpdateSessionMetaRequest,
+  HistorySearchResponse,
+  HistoryStatisticsResponse,
+  HistoryListParams,
+  HistoryDetailParams,
+  HistorySearchParams,
+  HistoryExportParams,
+  ExportJobCreateRequest,
+  ExportJobCreateResponse,
+  ExportJobItem,
+  ExportJobListResponse,
+  HistoryTranslateRequest,
+  HistoryTranslateResponse,
+} from './history';

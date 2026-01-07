@@ -6,6 +6,7 @@ import {
   Ticket,
   BookOpen,
   Activity,
+  History,
   BarChart3,
   Settings,
   ChevronLeft,
@@ -27,6 +28,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, toggleCollapse }) => {
   const navItems = [
     { path: '/workspace', icon: MessageSquare, label: '会话工作台' },
     { path: '/tickets', icon: Ticket, label: '工单中心' },
+    { path: '/history', icon: History, label: '聊天记录' },
     { path: '/knowledge', icon: BookOpen, label: '知识文档' },
     { path: '/monitoring', icon: Activity, label: '实时大屏' },
     { path: '/dashboard', icon: BarChart3, label: '效能报表' },

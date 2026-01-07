@@ -14,8 +14,8 @@ products/ai_chatbot/
 ├── config.py                 # 配置管理
 ├── routes.py                 # API 路由注册
 ├── models.py                 # 请求/响应模型 + Intent 枚举
-├── dependencies.py           # 依赖注入
-├── lifespan.py               # 生命周期管理
+├── dependencies.py           # 依赖注入（含 MessageStoreService 注入）
+├── lifespan.py               # 生命周期管理（含 MessageStoreService 启停）
 ├── handlers/
 │   ├── __init__.py
 │   ├── chat.py               # 聊天处理（含 intent 识别）
@@ -68,6 +68,26 @@ products/ai_chatbot
     ├── security              # JWT 签名、限流（v7.7.0 新增）
     ├── database              # PostgreSQL + Redis 双写
     └── monitoring            # 指标采集（v7.7.0 新增）
+
+---
+
+## 五、近期变更（跨模块：聊天记录存储 chat-history-storage）
+
+### products/ai_chatbot/dependencies.py
+
+**用途**：注入并提供 `MessageStoreService` 实例给 handler 使用（Step 4）。
+
+**新增接口**：
+- `set_message_store(store)`：在产品启动时注入服务实例
+- `get_message_store()`：在 handler 中获取服务实例（可为 None）
+
+### products/ai_chatbot/lifespan.py
+
+**用途**：在产品生命周期中启动/关闭 `MessageStoreService`（Step 4）。
+
+**行为**：
+- 启动时：`await MessageStoreService().start()` 并注入到 dependencies
+- 关闭时：`await message_store.shutdown()`（不影响主关闭流程）
 ```
 
 ---
@@ -106,6 +126,13 @@ router.include_router(tracking_router)
 | /api/chat | POST | 同步聊天 |
 | /api/chat/stream | POST | 流式聊天（SSE） |
 | /api/bot/info | GET | 机器人信息 |
+
+**跨模块（chat-history-storage）新增行为**：
+- 在请求进入时 best-effort enqueue 保存 `role=user` 消息
+- 在最终回复生成后 best-effort enqueue 保存 `role=assistant` 消息，并记录 `response_time_ms`
+
+**验证方式（Step 5）**：
+- 通过 mock `httpx.AsyncClient`（不依赖外部网络）执行 `/chat` 与 `/chat/stream` 逻辑，断言 `MessageStoreService.enqueue_save_message()` 对 user/assistant 各调用一次，且 assistant 带 `response_time_ms`。
 
 **v7.7.0 变更**:
 - Bot 默认配置改为英文（name: "Fiido Support"）

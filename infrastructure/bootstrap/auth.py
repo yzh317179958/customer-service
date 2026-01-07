@@ -8,6 +8,7 @@
 import os
 from dataclasses import dataclass
 from typing import Optional, Any
+from fnmatch import fnmatch
 
 
 @dataclass
@@ -40,6 +41,35 @@ class AgentAuthConfig:
 _agent_manager = None
 _agent_token_manager = None
 _initialized = False
+
+
+class _InMemoryRedis:
+    def __init__(self) -> None:
+        self._data: dict[str, str] = {}
+
+    def set(self, key: str, value: str, ex: Optional[int] = None) -> bool:  # noqa: ARG002
+        self._data[str(key)] = str(value)
+        return True
+
+    def get(self, key: str) -> Optional[str]:
+        return self._data.get(str(key))
+
+    def delete(self, key: str) -> int:
+        k = str(key)
+        existed = 1 if k in self._data else 0
+        self._data.pop(k, None)
+        return existed
+
+    def scan_iter(self, pattern: str, count: int = 100):  # noqa: ARG002
+        pat = str(pattern)
+        for k in list(self._data.keys()):
+            if fnmatch(k, pat):
+                yield k
+
+
+class _InMemoryRedisStore:
+    def __init__(self) -> None:
+        self.redis = _InMemoryRedis()
 
 
 def init_agent_auth(session_store: Any, config: Optional[AgentAuthConfig] = None) -> tuple:
@@ -79,7 +109,11 @@ def init_agent_auth(session_store: Any, config: Optional[AgentAuthConfig] = None
         )
 
         # 初始化坐席账号管理器
-        _agent_manager = AgentManager(session_store)
+        if not hasattr(session_store, "redis") or getattr(session_store, "redis", None) is None:
+            print("[Bootstrap] ⚠️ Redis 不可用，坐席认证降级为内存存储（仅开发/本地验收）")
+            _agent_manager = AgentManager(_InMemoryRedisStore())
+        else:
+            _agent_manager = AgentManager(session_store)
 
         # 初始化超级管理员账号
         print(f"[Bootstrap] 🔐 初始化坐席认证系统...")

@@ -42,7 +42,8 @@ from services.ticket.store import TicketStore
 from products.agent_workbench.dependencies import (
     get_session_store, get_agent_manager, get_ticket_store,
     get_sse_queues, get_or_create_sse_queue,
-    require_agent, verify_agent_token_from_query
+    require_agent, verify_agent_token_from_query,
+    get_message_store
 )
 from infrastructure.bootstrap.sse import enqueue_sse_message, subscribe_sse_events
 
@@ -721,6 +722,7 @@ async def agent_send_message(
         发送成功的消息对象
     """
     session_store = get_session_store()
+    message_store = get_message_store()
 
     agent_id = agent.get("agent_id")
     agent_name = agent.get("username")
@@ -767,6 +769,21 @@ async def agent_send_message(
         # 5. 写入会话历史
         session_state.add_message(message)
         await session_store.save(session_state)
+
+        # Step 6: Persist agent message (best-effort)
+        if message_store:
+            try:
+                message_store.enqueue_save_message(
+                    session_name=session_name,
+                    conversation_id=session_state.conversation_id,
+                    role="agent",
+                    content=request.content,
+                    agent_id=agent_id,
+                    agent_name=agent_name,
+                    created_at=message.timestamp,
+                )
+            except Exception:
+                pass
 
         # 6. 推送 SSE 事件
         sse_payload = {

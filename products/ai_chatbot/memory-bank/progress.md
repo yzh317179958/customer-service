@@ -74,10 +74,52 @@
 | Step | 任务 | 状态 | 完成时间 |
 |------|------|------|----------|
 | 3.1 | 多语言动态切换 | ⬜ 规划中 | - |
-| 3.2 | 会话历史持久化 | ⬜ 规划中 | - |
+| 3.2 | 会话历史持久化（跨模块：chat-history-storage） | 🚧 开发中 | 2026-01-07 |
 | 3.3 | 富媒体消息支持 | ⬜ 规划中 | - |
 
 **Phase 3 进度**: 0/3 (0%)
+
+---
+
+## 三、跨模块功能进度：聊天记录存储（chat-history-storage）
+
+主文档：`docs/features/chat-history-storage/`
+
+### Step 4: ai_chatbot DI + lifecycle（已完成）
+
+**完成时间**: 2026-01-07
+
+**完成内容**:
+- 在 `products/ai_chatbot/dependencies.py` 增加 MessageStoreService 的注入与获取（`set_message_store()` / `get_message_store()`）
+- 在 `products/ai_chatbot/lifespan.py` 启动时初始化并启动 `MessageStoreService` worker(s)，关闭时优雅 shutdown
+
+**涉及文件**:
+| 文件 | 改动类型 | 说明 |
+|------|----------|------|
+| `products/ai_chatbot/dependencies.py` | 修改 | 注入 MessageStoreService |
+| `products/ai_chatbot/lifespan.py` | 修改 | 生命周期启动/关闭 MessageStoreService |
+
+**测试结果**:
+- ✅ DI + 生命周期集成自测通过（MessageStoreService start/enqueue/shutdown）
+
+---
+
+### Step 5: Persist user/assistant messages（已完成）
+
+**完成时间**: 2026-01-07
+
+**完成内容**:
+- 在 `/chat` 与 `/chat/stream` 两个入口中：
+  - 在调用 Coze 前，best-effort enqueue 保存 `role=user` 消息（conversation_id 可能为空）
+  - 在最终 AI 回复生成后，best-effort enqueue 保存 `role=assistant` 消息，并记录 `response_time_ms`
+
+**涉及文件**:
+| 文件 | 改动类型 | 说明 |
+|------|----------|------|
+| `products/ai_chatbot/handlers/chat.py` | 修改 | 增加 enqueue 保存 user/assistant 消息 |
+
+**测试结果**:
+- ✅ 单元级自测通过：通过 mock httpx（无外部网络）驱动 `/chat` 与 `/chat/stream` 完整执行路径，验证 enqueue 写入 `role=user` 与 `role=assistant` 均被调用，且 `assistant` 记录了 `response_time_ms` 与 `conversation_id`
 
 ---
 

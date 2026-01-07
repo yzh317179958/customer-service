@@ -479,7 +479,23 @@ function transformProductCards(content: string, orderNumber?: string | null): st
   const productRegex = /\[PRODUCT\](.*?)\[\/PRODUCT\]/g
 
   return content.replace(productRegex, (match, productData) => {
-    const fields = productData.split('|')
+    let fields = productData.split('|')
+
+    // 服务类商品关键词（用于检测字段错位）
+    const serviceKeywords = ['worry-free', 'warranty', 'protection', 'insurance', 'service', 'purchase', 'seel']
+
+    // 检测字段错位：如果第一个字段包含服务类商品关键词（而非 URL），则说明缺少 imageUrl 字段
+    // 正常格式: [PRODUCT]ImageURL|ProductName|Qty|Price|Status|Carrier|TrackingNumber|TrackingURL[/PRODUCT]
+    // 错误格式: [PRODUCT]ProductName|Qty|Price|Status|...[/PRODUCT] (缺少 ImageURL)
+    const firstField = (fields[0] || '').toLowerCase()
+    const isFirstFieldUrl = firstField.startsWith('http') || firstField.startsWith('/') || firstField === ''
+    const isFirstFieldServiceProduct = serviceKeywords.some(kw => firstField.includes(kw))
+
+    if (!isFirstFieldUrl && isFirstFieldServiceProduct) {
+      // 检测到字段错位，在开头插入空的 imageUrl 字段
+      fields = ['', ...fields]
+    }
+
     const [
       imageUrl = '',
       name = '',
@@ -590,8 +606,8 @@ function transformProductCards(content: string, orderNumber?: string | null): st
       name.toLowerCase().includes('service')
     )
 
-    // 服务类商品使用盾牌图标
-    const serviceIcon = '🛡️'
+    // 服务类商品使用盾牌 SVG 图标（避免 emoji 在某些设备上显示异常）
+    const serviceIcon = `<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#00a6a0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>`
 
     // 物流展开按钮文字
     const expandText = isChinese ? '查看物流' : 'Track Details'
@@ -1657,9 +1673,9 @@ watch(
   word-break: break-all;
 }
 
-/* 响应式：小屏幕卡片布局 */
+/* 响应式：小屏幕卡片布局 - 仅在非嵌入模式下生效 */
 @media (max-width: 480px) {
-  .message-content :deep(.product-main) {
+  html:not(.embed-mode) .message-content :deep(.product-main) {
     flex-direction: column;
     gap: 12px;
     padding: 14px;
@@ -1667,39 +1683,39 @@ watch(
     text-align: center;
   }
 
-  .message-content :deep(.product-image-wrapper) {
+  html:not(.embed-mode) .message-content :deep(.product-image-wrapper) {
     width: 100%;
     max-width: 200px;
     height: 140px;
   }
 
-  .message-content :deep(.product-details) {
+  html:not(.embed-mode) .message-content :deep(.product-details) {
     align-items: center;
   }
 
-  .message-content :deep(.product-meta) {
+  html:not(.embed-mode) .message-content :deep(.product-meta) {
     justify-content: center;
   }
 
-  .message-content :deep(.tracking-row) {
+  html:not(.embed-mode) .message-content :deep(.tracking-row) {
     flex-direction: column;
     align-items: flex-start;
     gap: 4px;
   }
 }
 
-/* Responsive */
+/* Responsive - 仅在非嵌入模式下生效 */
 @media (max-width: 768px) {
-  .message-body {
+  html:not(.embed-mode) .message-body {
     max-width: 85%;
   }
 
-  .message-avatar {
+  html:not(.embed-mode) .message-avatar {
     width: 36px;
     height: 36px;
   }
 
-  .message-content {
+  html:not(.embed-mode) .message-content {
     padding: 12px 16px;
     font-size: 14px;
   }

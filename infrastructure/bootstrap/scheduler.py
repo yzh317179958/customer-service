@@ -196,6 +196,20 @@ def start_warmup_scheduler():
         warmup_service = _warmup_service_factory()
         _warmup_scheduler = AsyncIOScheduler()
 
+        # Chat history cleanup - daily at 03:00 (server timezone)
+        try:
+            from infrastructure.scheduler.tasks.cleanup_chat_history import cleanup_old_chat_messages
+
+            _warmup_scheduler.add_job(
+                lambda: asyncio.create_task(cleanup_old_chat_messages()),
+                CronTrigger(hour=3, minute=0),
+                id="cleanup_chat_history",
+                name="聊天记录清理",
+                replace_existing=True,
+            )
+        except Exception as e:
+            print(f"[Scheduler] ⚠️ 聊天记录清理任务注册失败: {e}")
+
         # 02:00 UTC - 全量预热
         _warmup_scheduler.add_job(
             warmup_service.full_warmup,

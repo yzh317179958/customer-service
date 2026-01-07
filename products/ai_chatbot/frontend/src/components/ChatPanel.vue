@@ -12,6 +12,9 @@ const inputRef = ref<HTMLInputElement | null>(null)
 const showMenu = ref(false)
 let statusPollInterval: number | null = null
 
+// 检测嵌入模式
+const isEmbedMode = new URLSearchParams(window.location.search).has('embed')
+
 // 生产环境使用相对路径（通过nginx代理），本地开发使用8000端口
 const API_BASE_URL = computed(() => {
   const hostname = window.location.hostname
@@ -783,15 +786,16 @@ onUnmounted(() => {
 
 <template>
   <div>
-    <!-- Overlay -->
+    <!-- Overlay - 嵌入模式下不显示，避免与父页面冲突 -->
     <div
+      v-if="!isEmbedMode"
       class="chat-overlay"
       :class="{ show: chatStore.isChatOpen }"
       @click="handleClose"
     ></div>
 
     <!-- Chat Panel -->
-    <div class="chat-panel" :class="{ open: chatStore.isChatOpen }">
+    <div class="chat-panel" :class="{ open: chatStore.isChatOpen, 'embed-mode': isEmbedMode }">
       <div class="chat-header">
         <div class="header-left">
           <div class="status-dot" :class="chatStore.statusColorClass"></div>
@@ -1458,23 +1462,23 @@ onUnmounted(() => {
   }
 }
 
-/* Responsive */
+/* Responsive - 仅在非嵌入模式下生效 */
 @media (max-width: 768px) {
-  .chat-panel {
+  html:not(.embed-mode) .chat-panel {
     width: 100%;
     right: -100%;
     border-radius: 0;
   }
 
-  .chat-header {
+  html:not(.embed-mode) .chat-header {
     padding: 18px 20px;
   }
 
-  .chat-messages {
+  html:not(.embed-mode) .chat-messages {
     padding: 20px;
   }
 
-  .chat-input-area {
+  html:not(.embed-mode) .chat-input-area {
     padding: 16px 18px 20px;
   }
 }
@@ -1491,5 +1495,19 @@ onUnmounted(() => {
     animation: none;
     transition: none;
   }
+}
+
+/* 嵌入模式特殊样式 */
+html.embed-mode .chat-panel {
+  /* 去掉左侧阴影（会被 iframe 裁剪），改用简洁边框 */
+  box-shadow: none;
+  border-left: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+/* 嵌入模式下自适应容器宽度 */
+.chat-panel.embed-mode {
+  width: 100%;
+  max-width: 440px;
+  border-radius: 0;
 }
 </style>

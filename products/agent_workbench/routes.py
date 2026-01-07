@@ -34,6 +34,7 @@ from products.agent_workbench.handlers.misc import router as misc_router
 from products.agent_workbench.handlers.shopify import router as shopify_router
 from products.agent_workbench.handlers.warmup import router as warmup_router
 from products.agent_workbench.handlers.cdn import router as cdn_router
+from products.agent_workbench.handlers.history import router as history_router
 
 # Register sub-routers
 router.include_router(auth_router)
@@ -47,3 +48,4 @@ router.include_router(misc_router)
 router.include_router(shopify_router)
 router.include_router(warmup_router)
 router.include_router(cdn_router)
+router.include_router(history_router)

@@ -213,22 +213,22 @@ const handleQuickQuestion = (item: typeof quickQuestions[0]) => {
   color: #00a6a0;
 }
 
-/* Responsive */
+/* Responsive - 仅在非嵌入模式下生效 */
 @media (max-width: 768px) {
-  .welcome-screen {
+  html:not(.embed-mode) .welcome-screen {
     padding: 20px 16px;
   }
 
-  .welcome-avatar {
+  html:not(.embed-mode) .welcome-avatar {
     width: 48px;
     height: 48px;
   }
 
-  .quick-questions {
+  html:not(.embed-mode) .quick-questions {
     max-width: 100%;
   }
 
-  .quick-btn {
+  html:not(.embed-mode) .quick-btn {
     padding: 9px 12px;
   }
 }
