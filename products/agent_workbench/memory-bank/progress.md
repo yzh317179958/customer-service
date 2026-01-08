@@ -8,6 +8,21 @@
 
 ## 完成记录
 
+### Step 19: 服务器部署与历史记录 500 修复
+
+**完成时间:** 2026-01-08
+
+**完成内容:**
+- 使用 `deploy/scripts/deploy-to-ai-server.sh` 将最新代码与前端构建产物部署到 `8.211.27.199`（ai.fiido.com）
+- 修复坐席工作台历史记录页访问报错 `500`：
+  - 根因：服务器 `DATABASE_URL` 指向 `localhost:5432`，但 Postgres 未运行导致连接拒绝
+  - 在服务器安装并启动 PostgreSQL，创建 `fiido` 用户与 `fiido_db` 数据库，执行 Alembic 迁移到最新
+  - 重启 `fiido-agent-workbench` / `fiido-ai-chatbot`
+
+**验证结果:**
+- ✅ `https://ai.fiido.com/workbench/history` 可正常打开
+- ✅ `https://ai.fiido.com/workbench-api/history/sessions` 未登录返回 `403`（符合预期，不再返回 `500`）
+
 ### Step 1: 创建正式前端项目
 
 **完成时间:** 2025-12-21

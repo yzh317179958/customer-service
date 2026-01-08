@@ -2,7 +2,7 @@
 
 > **Feature**: Chat History Storage & Retrieval  
 > **Created**: 2026-01-07  
-> **Last Updated**: 2026-01-07  
+> **Last Updated**: 2026-01-08  
 > **Tracking**: Cross-module (single source of truth)
 
 ---
@@ -31,6 +31,7 @@
 | 4 | 7 | Workbench history API | `products/agent_workbench` | ✅ |
 | 4 | 8 | Workbench history UI | `products/agent_workbench/frontend` | ✅ |
 | 5 | 9 | End-to-end verification | All | ✅ |
+| 6 | 10 | Server deploy + DB bootstrap | Ops | ✅ |
 
 ---
 
@@ -222,3 +223,21 @@
 
 **Test result:**
 - ✅ Local DB E2E smoke (`MessageStoreService` direct calls) passed.
+
+---
+
+## Step 10: Server deploy + DB bootstrap
+
+**When:** 2026-01-08
+
+**Completed (ops):**
+- Deployed latest code + built frontends to `8.211.27.199` (ai.fiido.com) via `deploy/scripts/deploy-to-ai-server.sh`
+- Fixed production error on `/workbench/history` ("Request failed with status code 500"):
+  - Root cause: server `DATABASE_URL` pointed to `localhost:5432` but Postgres was not running → backend DB connection refused
+  - Installed and started PostgreSQL 14 on server, created role `fiido` + database `fiido_db`
+  - Ran Alembic migrations to `head` using `infrastructure/database/migrations/alembic.ini`
+  - Restarted `fiido-agent-workbench` and `fiido-ai-chatbot`
+
+**Verification:**
+- ✅ `https://ai.fiido.com/workbench/history` returns `200`
+- ✅ `https://ai.fiido.com/workbench-api/history/sessions` returns `403` when unauthenticated (expected), and stops returning `500`
