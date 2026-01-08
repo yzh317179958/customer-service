@@ -30,6 +30,10 @@ from products.ai_chatbot.dependencies import (
     get_message_store,
     refresh_coze_client_if_needed,
 )
+from products.ai_chatbot.contact_support import (
+    get_contact_support_message,
+    is_manual_handoff_enabled,
+)
 
 # 导入模型
 from products.ai_chatbot.models import ChatRequest, ChatResponse, UserIntent
@@ -108,6 +112,7 @@ async def chat(chat_request: ChatRequest, request: Request) -> ChatResponse:
 
     try:
         start_time = time.time()
+        contact_only_triggered = False
 
         # 获取会话标识（session_id），如果没有则生成
         session_id = chat_request.user_id or generate_user_id()
@@ -122,13 +127,15 @@ async def chat(chat_request: ChatRequest, request: Request) -> ChatResponse:
                     conversation_id=conversation_id_for_state
                 )
 
-                # 如果正在人工接管中(包括等待人工和人工服务中)，返回 409 状态码
+                # 如果正在人工接管中(包括等待人工和人工服务中)
                 if session_state.status in [SessionStatus.PENDING_MANUAL, SessionStatus.MANUAL_LIVE]:
-                    print(f"⚠️  会话 {session_id} 状态为 {session_state.status}，拒绝AI对话")
-                    raise HTTPException(
-                        status_code=409,
-                        detail=f"SESSION_IN_MANUAL_MODE: {session_state.status}"
-                    )
+                    if is_manual_handoff_enabled():
+                        print(f"⚠️  会话 {session_id} 状态为 {session_state.status}，拒绝AI对话")
+                        raise HTTPException(
+                            status_code=409,
+                            detail=f"SESSION_IN_MANUAL_MODE: {session_state.status}"
+                        )
+                    print(f"ℹ️  手动接管未启用，忽略会话状态 {session_state.status}，继续 AI 对话")
 
                 print(f"📊 会话状态: {session_state.status}")
             except HTTPException:
@@ -297,7 +304,11 @@ async def chat(chat_request: ChatRequest, request: Request) -> ChatResponse:
                 )
 
                 if regulator_result.should_escalate:
-                    print(f"🚨 触发人工接管: {regulator_result.reason} - {regulator_result.details}")
+                    if is_manual_handoff_enabled():
+                        print(f"🚨 触发人工接管: {regulator_result.reason} - {regulator_result.details}")
+                    else:
+                        contact_only_triggered = True
+                        print(f"ℹ️  contact-only：命中转人工条件: {regulator_result.reason} - {regulator_result.details}")
 
                     session_state.escalation = EscalationInfo(
                         reason=regulator_result.reason,
@@ -305,7 +316,8 @@ async def chat(chat_request: ChatRequest, request: Request) -> ChatResponse:
                         severity=regulator_result.severity
                     )
 
-                    session_state.transition_status(new_status=SessionStatus.PENDING_MANUAL)
+                    if is_manual_handoff_enabled():
+                        session_state.transition_status(new_status=SessionStatus.PENDING_MANUAL)
 
                     print(json.dumps({
                         "event": "escalation_triggered",
@@ -321,6 +333,11 @@ async def chat(chat_request: ChatRequest, request: Request) -> ChatResponse:
                 print(f"⚠️  监管处理异常（不影响对话）: {str(regulator_error)}")
                 import traceback
                 traceback.print_exc()
+
+        if contact_only_triggered:
+            contact = get_contact_support_message(locale="en")
+            final_message = (final_message or "").rstrip()
+            final_message = f"{final_message}\n\n{contact}" if final_message else contact
 
         return ChatResponse(success=True, message=final_message)
 
@@ -370,6 +387,7 @@ async def chat_stream(chat_request: ChatRequest, request: Request):
         try:
             session_id = chat_request.user_id or generate_user_id()
             start_time = time.time()
+            contact_only_triggered = False
 
             # 创建 SSE 消息队列
             if session_id not in sse_queues:
@@ -386,13 +404,15 @@ async def chat_stream(chat_request: ChatRequest, request: Request):
                     )
 
                     if session_state.status in [SessionStatus.PENDING_MANUAL, SessionStatus.MANUAL_LIVE]:
-                        print(f"⚠️  流式会话 {session_id} 状态为 {session_state.status}，拒绝AI对话")
-                        error_data = {
-                            "type": "error",
-                            "content": f"SESSION_IN_MANUAL_MODE: {session_state.status}"
-                        }
-                        yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
-                        return
+                        if is_manual_handoff_enabled():
+                            print(f"⚠️  流式会话 {session_id} 状态为 {session_state.status}，拒绝AI对话")
+                            error_data = {
+                                "type": "error",
+                                "content": f"SESSION_IN_MANUAL_MODE: {session_state.status}"
+                            }
+                            yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
+                            return
+                        print(f"ℹ️  手动接管未启用，忽略流式会话状态 {session_state.status}，继续 AI 对话")
 
                     print(f"📊 流式会话状态: {session_state.status}")
                 except Exception as state_error:
@@ -580,7 +600,11 @@ async def chat_stream(chat_request: ChatRequest, request: Request):
                     )
 
                     if regulator_result.should_escalate:
-                        print(f"🚨 流式接口触发人工接管: {regulator_result.reason} - {regulator_result.details}")
+                        if is_manual_handoff_enabled():
+                            print(f"🚨 流式接口触发人工接管: {regulator_result.reason} - {regulator_result.details}")
+                        else:
+                            contact_only_triggered = True
+                            print(f"ℹ️  contact-only：流式命中转人工条件: {regulator_result.reason} - {regulator_result.details}")
 
                         session_state.escalation = EscalationInfo(
                             reason=regulator_result.reason,
@@ -588,7 +612,8 @@ async def chat_stream(chat_request: ChatRequest, request: Request):
                             severity=regulator_result.severity
                         )
 
-                        session_state.transition_status(new_status=SessionStatus.PENDING_MANUAL)
+                        if is_manual_handoff_enabled():
+                            session_state.transition_status(new_status=SessionStatus.PENDING_MANUAL)
 
                         print(json.dumps({
                             "event": "escalation_triggered",
@@ -604,6 +629,11 @@ async def chat_stream(chat_request: ChatRequest, request: Request):
                     print(f"⚠️  流式监管处理异常（不影响对话）: {str(regulator_error)}")
                     import traceback
                     traceback.print_exc()
+
+            if contact_only_triggered:
+                contact = get_contact_support_message(locale="en")
+                contact_delta = "\n\n" + contact
+                yield f"data: {json.dumps({'type': 'message', 'content': contact_delta}, ensure_ascii=False)}\n\n"
 
             yield f"data: {json.dumps({'type': 'done', 'content': ''}, ensure_ascii=False)}\n\n"
 

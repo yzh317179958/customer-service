@@ -19,7 +19,7 @@ products/ai_chatbot/
 ├── lifespan.py               # 生命周期管理（含 MessageStoreService 启停）
 ├── handlers/
 │   ├── __init__.py
-│   ├── chat.py               # 聊天处理（含 intent 识别）
+│   ├── chat.py               # 聊天处理（含 intent 识别；contact-only 时不切换人工状态、仅追加联系方式）
 │   ├── config.py             # 配置端点
 │   ├── conversation.py       # 会话管理
 │   ├── manual.py             # 人工转接（contact-only 时仅返回联系方式，不切换状态）
