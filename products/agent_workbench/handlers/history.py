@@ -24,6 +24,7 @@ import asyncio
 import json
 import os
 import time
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -41,6 +42,27 @@ def _require_message_store():
     if store is None:
         raise HTTPException(status_code=503, detail="MessageStoreService not initialized")
     return store
+
+
+def _load_repo_dotenv() -> None:
+    """
+    Best-effort load of repo `.env` regardless of current working directory.
+
+    On servers, the process may run with a different WorkingDirectory. If Coze config
+    is stored in a repo `.env`, relying on `os.getcwd()` makes translation return 503.
+    """
+    try:
+        from dotenv import load_dotenv
+
+        here = Path(__file__).resolve()
+        for parent in [here, *here.parents]:
+            dotenv_path = parent / ".env"
+            if dotenv_path.exists():
+                load_dotenv(dotenv_path=str(dotenv_path), override=False)
+                return
+        load_dotenv(dotenv_path=os.path.join(os.getcwd(), ".env"), override=False)
+    except Exception:
+        pass
 
 
 @router.get("/sessions")
@@ -301,15 +323,17 @@ class TranslateResponse(BaseModel):
 
 
 def _get_translate_config() -> dict[str, str]:
-    workflow_id = os.getenv("COZE_TRANSLATE_WORKFLOW_ID", "").strip()
-    app_id = os.getenv("COZE_TRANSLATE_APP_ID", "").strip()
+    _load_repo_dotenv()
+
+    workflow_id = (os.getenv("COZE_TRANSLATE_WORKFLOW_ID", "") or os.getenv("COZE_WORKFLOW_ID", "")).strip()
+    app_id = (os.getenv("COZE_TRANSLATE_APP_ID", "") or os.getenv("COZE_APP_ID", "")).strip()
     api_base = os.getenv("COZE_API_BASE", "https://api.coze.com").strip()
     input_key = os.getenv("COZE_TRANSLATE_INPUT_KEY", "USER_INPUT").strip() or "USER_INPUT"
 
     if not workflow_id or not app_id:
         raise HTTPException(
             status_code=503,
-            detail="Translation not configured (set COZE_TRANSLATE_WORKFLOW_ID and COZE_TRANSLATE_APP_ID)",
+            detail="Translation not configured (set COZE_TRANSLATE_WORKFLOW_ID/COZE_TRANSLATE_APP_ID or COZE_WORKFLOW_ID/COZE_APP_ID)",
         )
 
     return {"workflow_id": workflow_id, "app_id": app_id, "api_base": api_base, "input_key": input_key}
@@ -322,14 +346,12 @@ async def _coze_translate_to_zh(*, text: str, session_name: str) -> str:
     This is best-effort and may fail due to missing config or network issues.
     """
     import httpx
-    from dotenv import load_dotenv
 
     from services.coze.token_manager import OAuthTokenManager
 
     cfg = _get_translate_config()
     try:
-        # Ensure repo `.env` is loaded (same as ai-chatbot local config).
-        load_dotenv(dotenv_path=os.path.join(os.getcwd(), ".env"), override=False)
+        _load_repo_dotenv()
         token_manager = OAuthTokenManager.from_env()
         access_token = token_manager.get_access_token(session_name=session_name)
     except HTTPException:

@@ -765,11 +765,16 @@ watch(
 </script>
 
 <template>
-  <!-- System message (包括分隔线) -->
-  <div v-if="isSystem || isDivider" class="system-message">
+  <!-- Divider -->
+  <div v-if="isDivider" class="system-message">
     <div class="system-divider"></div>
     <span class="system-text">{{ message.content }}</span>
     <div class="system-divider"></div>
+  </div>
+
+  <!-- System notice (e.g. contact-only / status hints) -->
+  <div v-else-if="isSystem" class="system-notice">
+    <div class="system-notice-bubble">{{ message.content }}</div>
   </div>
 
   <!-- Normal message (用户、AI、人工) -->
@@ -854,6 +859,30 @@ watch(
   border-radius: 20px;
   letter-spacing: 0.01em;
   border: 1px solid #e2e8f0;
+}
+
+/* System Notice Bubble */
+.system-notice {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 0 16px;
+  margin: 16px 0 20px;
+}
+
+.system-notice-bubble {
+  max-width: 400px;
+  width: 100%;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 12px 14px;
+  color: #334155;
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
 }
 
 /* Message Base Styles */

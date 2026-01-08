@@ -1,7 +1,7 @@
 # 物流通知 - 架构说明
 
 > **创建日期**：2025-12-23
-> **最后更新**：2026-01-07
+> **最后更新**：2026-01-08
 
 ---
 
@@ -17,7 +17,8 @@ products/notification/
 │   ├── __init__.py          # 处理器导出 ✅
 │   ├── shopify_handler.py   # Shopify 事件 ✅
 │   ├── tracking_handler.py  # 17track 推送 ✅
-│   └── notification_sender.py # 通知发送 ✅
+│   ├── notification_sender.py # 通知发送 ✅
+│   └── yicang_handler.py    # 易仓轮询处理（规划）
 ├── templates/               # 邮件模板 ✅
 │   ├── split_package.html
 │   ├── presale_shipped.html
@@ -30,10 +31,10 @@ products/notification/
 
 ## 总体架构（事件驱动）
 
-本模块采用“事件接入 → 事件归一化 → 通知规则 → 发送与记录”的形态：
+本模块采用"事件接入 → 事件归一化 → 通知规则 → 发送与记录"的形态：
 
-1. **事件接入（Webhook / API）**：Shopify 发货、17track 状态推送、（规划）易仓物流更新
-2. **归一化（Domain Event）**：将不同来源的 payload 转换为内部统一的“物流事件”语义
+1. **事件接入（Webhook / API / 轮询）**：Shopify 发货、17track 状态推送、易仓定时轮询
+2. **归一化（Domain Event）**：将不同来源的 payload 转换为内部统一的"物流事件"语义
 3. **规则判断**：拆包裹 / 预售 / 异常 / 签收
 4. **发送与幂等**：同一运单同一事件只发一次，并落库可追踪
 
@@ -85,37 +86,101 @@ services/email.send_email()
 
 ---
 
-## 数据流（规划：易仓 ERP 售后配件）
+## 数据流（规划：易仓 ERP 售后配件 - 轮询模式）
 
-目标：易仓中下单的售后配件订单，若物流信息更新（尤其异常/签收），自动邮件通知客户。
+> **重要发现**：易仓开放平台采用"主动拉取 API"模式，暂无公开的 Webhook 推送机制。
+> 因此采用**定时轮询**方案。
 
-推荐最优路径是 **易仓 → 我方 Webhook 回调**：
+### 轮询架构图
 
 ```
-易仓售后配件订单创建 / 发货
-    │
-    ▼
-（易仓回调）POST /webhook/yicang
-    │
-    ▼
-（规划）handlers/yicang_handler.py
-    │
-    ├─ 识别售后配件订单（来源店铺/订单类型）
-    ├─ 提取客户邮箱、运单、承运商
-    └─ 建立运单关联（tracking_number → customer_email / order_ref）
-    │
-    ▼
-（复用）notification_sender.py 发送邮件模板
+┌─────────────────────────────────────────────────────────────────────┐
+│                    定时任务（每 5-10 分钟）                           │
+│                    infrastructure/scheduler                          │
+└─────────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    services/yicang（服务层）                         │
+│                                                                      │
+│  1. 生成签名（MD5）                                                  │
+│  2. 调用 getOrderList 获取最近更新的订单                             │
+│  3. 返回订单列表                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    handlers/yicang_handler.py（产品层）              │
+│                                                                      │
+│  1. 按 shipping_method/warehouse_code 筛选售后订单                  │
+│  2. 对比本地记录，识别状态变更                                       │
+│  3. 触发对应通知（发货/签收/异常）                                   │
+│  4. 更新本地状态记录（幂等去重）                                     │
+└─────────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    notification_sender.py                            │
+│                    发送邮件模板                                       │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-当易仓无法推送“物流状态变化”，降级路径为“定时轮询易仓接口”，但这依赖基础设施层具备可靠的任务调度与重试机制（当前 scheduler 组件仍待补齐）。
+### 详细流程
 
-### 易仓回调安全与幂等（[[YICANG_TBD]]）
+```
+定时任务触发（每 5-10 分钟）
+    │
+    ▼
+services/yicang.poll_order_updates()
+    │
+    ├─ 构建请求参数（app_key, timestamp, nonce_str, biz_content）
+    ├─ 生成 MD5 签名
+    ├─ 调用 getOrderList API（增量查询，按 modify_date 筛选）
+    │
+    ▼
+返回订单列表
+    │
+    ▼
+handlers/yicang_handler.process_order_updates()
+    │
+    ├─ 遍历订单列表
+    │   │
+    │   ├─ 检查 shipping_method / warehouse_code / mail_cargo_type
+    │   │   └─ 是否匹配售后配件订单规则
+    │   │
+    │   ├─ 查询本地记录（tracking_registrations）
+    │   │   └─ 是否已存在？状态是否变更？
+    │   │
+    │   ├─ 状态变更时：
+    │   │   ├─ status: P→S（发货）→ 发送发货通知
+    │   │   ├─ status: S→C（签收）→ 发送签收确认
+    │   │   ├─ status: *→E（异常）→ 发送异常告警
+    │   │   └─ 写入 notification_records（幂等 key: reference_no + status）
+    │   │
+    │   └─ 更新本地状态记录
+    │
+    ▼
+services/email.send_email()
+```
 
-待易仓文档补齐后，在此处固化最终验签与幂等策略：
-- 验签：签名算法、参与签名字段、时间戳窗口、nonce、防重放（[[YICANG_TBD]]）
-- 幂等：以 `yicang_order_no + tracking_no` 或 `event_id` 作为 `notification_id` 的组成，防止重复发送（[[YICANG_TBD]]）
-- 重试：易仓是否重推、我方如何返回 ACK/错误码（[[YICANG_TBD]]）
+### 易仓轮询安全与幂等策略
+
+**已明确（基于官方文档调研）**：
+
+| 项目 | 策略 |
+|------|------|
+| **签名算法** | MD5：参数按 key 字典序排序 → 拼接 `key=value&` → 末尾追加 `app_secret` → MD5 大写 |
+| **时间戳** | 毫秒级，有效期 **1 分钟** |
+| **防重放** | `nonce_str` 随机字符串，每次请求唯一 |
+| **幂等去重** | 以 `reference_no + status` 作为 `notification_id` 组成，防止重复发送 |
+| **增量查询** | 按 `modify_date` 筛选，只拉取最近变更（建议 5-10 分钟窗口） |
+| **重试策略** | 我方轮询失败时自动重试；下次轮询会重新拉取 |
+
+**待业务确认**：
+
+| 项目 | 说明 |
+|------|------|
+| **售后订单识别** | 需确认使用哪个字段识别：`shipping_method` / `warehouse_code` / `mail_cargo_type` |
 
 ---
 
@@ -156,7 +221,7 @@ services/email.send_email()
   - Headers: X-17track-Signature
 - `GET /webhook/health` - 健康检查
 
-> 注：`POST /webhook/yicang` 为规划端点，待易仓接口能力明确后落地。
+> 注：易仓采用轮询模式，无需 Webhook 端点。
 
 ---
 
@@ -168,13 +233,6 @@ services/email.send_email()
 - `handle_fulfillment_create()` - 处理发货创建事件
 - `handle_order_create()` - 处理订单创建事件
 - `_register_tracking()` - 注册运单到 17track
-
----
-
-## 生产化必须补齐（当前缺口）
-
-- **幂等与去重的权威落库**：`infrastructure/database` 已有 `notification_records` / `tracking_registrations` 表，但当前通知链路主要依赖 Redis/内存映射，长链路（跨境时长）存在丢关联风险。
-- **易仓集成适配层**：建议新增 `services/yicang`（服务层）与 `products/notification/handlers/yicang_handler.py`（产品层），并以 webhook-first 实现。
 - `_check_split_package()` - 检测是否拆包裹
 - `_detect_presale_items()` - 检测预售商品
 - `_get_site_code()` - 站点域名映射（fiidouk → uk）
@@ -195,6 +253,18 @@ services/email.send_email()
 - `handle_exception()` - 处理异常事件
 - `_get_order_info()` - 获取订单信息
 - `handle_status_change()` - 处理状态变更
+
+---
+
+### handlers/yicang_handler.py（规划）
+
+**用途:** 易仓订单轮询处理
+
+**规划函数:**
+- `process_order_updates()` - 处理订单更新列表
+- `_is_aftersales_order()` - 判断是否售后配件订单
+- `_detect_status_change()` - 检测状态变更
+- `_trigger_notification()` - 触发对应通知
 
 ---
 
@@ -225,13 +295,22 @@ services/email.send_email()
 
 ---
 
+## 生产化必须补齐（当前缺口）
+
+- **幂等与去重的权威落库**：`infrastructure/database` 已有 `notification_records` / `tracking_registrations` 表，但当前通知链路主要依赖 Redis/内存映射，长链路（跨境时长）存在丢关联风险。
+- **易仓轮询适配层**：需新增 `services/yicang`（服务层）与 `products/notification/handlers/yicang_handler.py`（产品层）。
+- **定时任务调度**：依赖 `infrastructure/scheduler` 组件支持可靠的定时轮询。
+
+---
+
 ## 跨模块依赖
 
 ```
 products/notification
     ├── services/tracking      # 17track API 封装
     ├── services/shopify       # 订单数据查询
-    └── services/email         # 邮件发送
+    ├── services/email         # 邮件发送
+    └── services/yicang        # 易仓 API 封装（规划）
 ```
 
 ---

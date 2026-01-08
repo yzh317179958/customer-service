@@ -165,16 +165,18 @@ const handleEscalateToManual = async () => {
     return
   }
 
-  if (!confirm('Connect to a live agent?')) {
-    return
-  }
-
   try {
     console.log('🚀 发起转人工请求...')
     const result = await chatStore.escalateToManual('manual')
 
     if (!result.success) {
-      alert('Failed to connect. Please try again.')
+      chatStore.addMessage({
+        id: `system-${Date.now()}`,
+        content: 'Failed to connect. Please try again.',
+        role: 'system',
+        timestamp: new Date(),
+        sender: 'System'
+      })
       console.error('❌ 转人工失败')
       return
     }
@@ -196,7 +198,6 @@ const handleEscalateToManual = async () => {
     }
 
     console.log('✅ 转人工成功')
-    alert('Connecting you to a live agent...')
 
     // 添加系统消息提示
     chatStore.addMessage({
@@ -207,7 +208,13 @@ const handleEscalateToManual = async () => {
       sender: 'System'
     })
   } catch (error) {
-    alert('Request failed: ' + (error as Error).message)
+    chatStore.addMessage({
+      id: `system-${Date.now()}`,
+      content: 'Request failed: ' + (error as Error).message,
+      role: 'system',
+      timestamp: new Date(),
+      sender: 'System'
+    })
     console.error('❌ 转人工异常:', error)
   }
 }
