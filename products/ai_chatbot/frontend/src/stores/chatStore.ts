@@ -245,12 +245,14 @@ export const useChatStore = defineStore('chat', () => {
   /**
    * 转人工
    * @param reason 转人工原因（默认为用户手动请求）
-   * @returns Promise<boolean> 是否成功
+   * @returns Promise<{success, contact_message?, handoff_enabled?}>
    */
-  async function escalateToManual(reason: EscalationReason = 'manual'): Promise<boolean> {
+  async function escalateToManual(
+    reason: EscalationReason = 'manual'
+  ): Promise<{ success: boolean; contact_message?: string; handoff_enabled?: boolean }> {
     if (!canEscalate.value) {
       console.warn('⚠️  当前状态不允许转人工')
-      return false
+      return { success: false }
     }
 
     isEscalating.value = true
@@ -270,12 +272,17 @@ export const useChatStore = defineStore('chat', () => {
       const data = await response.json()
 
       if (data.success && data.data) {
+        // contact-only: keep AI running, do NOT change session status
+        if (data.handoff_enabled === false) {
+          return { success: true, contact_message: data.contact_message, handoff_enabled: false }
+        }
+
         // 非工作时间：只显示提示，不触发人工接管状态
         if (data.is_in_shift === false) {
           // 更新状态为 after_hours（用于状态栏显示）
           updateSessionStatus('after_hours_email')
           console.log('📢 非工作时间，无法转人工')
-          return true
+          return { success: true, handoff_enabled: true }
         }
 
         // 工作时间：正常触发人工接管
@@ -287,14 +294,14 @@ export const useChatStore = defineStore('chat', () => {
         }
 
         console.log('✅ 转人工成功')
-        return true
+        return { success: true, handoff_enabled: true }
       } else {
         console.error('❌ 转人工失败:', data.error)
-        return false
+        return { success: false }
       }
     } catch (error) {
       console.error('❌ 转人工请求异常:', error)
-      return false
+      return { success: false }
     } finally {
       isEscalating.value = false
     }

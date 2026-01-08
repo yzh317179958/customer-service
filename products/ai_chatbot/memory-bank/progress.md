@@ -46,6 +46,7 @@
 | 0.1 | 联系方式文案与开关入口 | ✅ 已完成 | 2026-01-08 |
 | 0.2 | manual/escalate contact-only | ✅ 已完成 | 2026-01-08 |
 | 0.3 | chat 端点 contact-only（不改状态） | ✅ 已完成 | 2026-01-08 |
+| 0.4 | 前端 Live Agent contact-only | ✅ 已完成 | 2026-01-08 |
 
 ### Phase 1 - P0 核心功能
 

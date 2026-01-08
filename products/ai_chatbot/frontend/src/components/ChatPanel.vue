@@ -171,24 +171,41 @@ const handleEscalateToManual = async () => {
 
   try {
     console.log('🚀 发起转人工请求...')
-    const success = await chatStore.escalateToManual('manual')
+    const result = await chatStore.escalateToManual('manual')
 
-    if (success) {
-      console.log('✅ 转人工成功')
-      alert('Connecting you to a live agent...')
+    if (!result.success) {
+      alert('Failed to connect. Please try again.')
+      console.error('❌ 转人工失败')
+      return
+    }
 
-      // 添加系统消息提示
+    // contact-only: show contact message, keep AI chat running
+    if (result.handoff_enabled === false) {
+      const content =
+        result.contact_message ||
+        "You can reach our support team via:\nEmail: service@fiido.com\nPhone: (852) 56216918 (Service hours: Monday–Friday, 9:00 AM–10:00 PM, GMT+8)\n\nHappy riding!"
       chatStore.addMessage({
         id: `system-${Date.now()}`,
-        content: 'Connecting you to a live agent, please wait...',
+        content,
         role: 'system',
         timestamp: new Date(),
         sender: 'System'
       })
-    } else {
-      alert('Failed to connect. Please try again.')
-      console.error('❌ 转人工失败')
+      scrollToBottom(true)
+      return
     }
+
+    console.log('✅ 转人工成功')
+    alert('Connecting you to a live agent...')
+
+    // 添加系统消息提示
+    chatStore.addMessage({
+      id: `system-${Date.now()}`,
+      content: 'Connecting you to a live agent, please wait...',
+      role: 'system',
+      timestamp: new Date(),
+      sender: 'System'
+    })
   } catch (error) {
     alert('Request failed: ' + (error as Error).message)
     console.error('❌ 转人工异常:', error)

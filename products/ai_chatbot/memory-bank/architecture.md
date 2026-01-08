@@ -27,12 +27,12 @@ products/ai_chatbot/
 ├── frontend/                 # Vue 3 前端
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── ChatPanel.vue      # 主聊天面板（含售后状态机）
+│   │   │   ├── ChatPanel.vue      # 主聊天面板（含售后状态机；contact-only 时按钮只展示联系方式）
 │   │   │   ├── WelcomeScreen.vue  # 欢迎界面（快捷回复）
 │   │   │   ├── ChatMessage.vue    # 消息气泡
 │   │   │   └── StatusBar.vue      # 状态栏
 │   │   ├── stores/
-│   │   │   └── chatStore.ts       # Pinia 状态（含 intent、afterSaleState）
+│   │   │   └── chatStore.ts       # Pinia 状态（含 intent、afterSaleState；contact-only 下不切换人工状态）
 │   │   └── api/
 │   │       └── chat.ts            # API 调用
 │   ├── public/
