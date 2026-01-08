@@ -15,7 +15,38 @@
 
 ---
 
-## 二、依赖关系
+## 二、临时策略：转人工“保留但不启用”（contact-only）
+
+> **背景**：当前阶段不做人工转接闭环，但需要保留未来转人工能力的代码结构。  
+> **目标**：任何“转人工/人工客服”触发场景都 **不改变会话状态**、**不走人工转接**，继续保持 AI 对话可用；同时在对话中输出固定联系文案，引导用户联系人工客服。
+
+### 2.1 统一输出文案（固定内容）
+
+当命中“转人工触发条件”时，向用户输出以下内容（作为 assistant/system 提示均可，但需保证在聊天窗口可见）：
+
+```
+您可以通过以下方式联系我们：
+邮箱：service@fiido.com
+电话：(852) 56216918（服务时间：周一至周五，上午9点至晚上10点，GMT+8）
+
+祝您骑行愉快!
+```
+
+### 2.2 触发条件（本期只做“提示”，不做转接）
+
+- 用户点击前端入口（当前 UI 的 “Live Agent / Contact Us”）
+- 用户输入命中监管关键词（示例：人工、转人工、客服、投诉…）
+-（可选）后端监管引擎判定需要转人工（VIP / AI fail-loop）时也仅提示联系方式
+
+### 2.3 保留未来转人工能力的方式（开关）
+
+- 引入开关（建议：`ENABLE_MANUAL_HANDOFF`，默认 `false`）
+  - `false`：当前阶段行为（contact-only，不改状态）
+  - `true`：恢复原有转人工状态机（`pending_manual/manual_live`）与 SSE 通知链路
+
+---
+
+## 三、依赖关系
 
 ```
 Phase 1 核心功能:
@@ -36,7 +67,96 @@ Phase 2 安全防护 (已迁移至 infrastructure/security 模块):
 
 ---
 
-## 三、Phase 1 - P0 核心功能
+## 四、Phase 0（插入任务）- Contact-only（不转接、不改状态）
+
+> 说明：此 Phase 属于“生产策略调整”，会影响既有转人工链路，但目标是“保留代码、禁用状态机”。
+
+### Step 0.1: 新增开关与联系文案构造入口
+
+**目标**：以配置开关控制“是否启用转人工状态机”，并提供统一联系文案构造入口。
+
+**改动**:
+- 新增环境变量（建议）：
+  - `ENABLE_MANUAL_HANDOFF=false`（默认 false）
+- 新增工具函数（建议位置：`products/ai_chatbot` 内部）：
+  - `get_contact_support_message()`：返回固定联系文案（本期先硬编码；后续可改为从 env/配置读取）
+
+**验证**:
+```bash
+python3 -c "from products.ai_chatbot.<module> import get_contact_support_message; print(get_contact_support_message())"
+# 期望输出包含: service@fiido.com, (852) 56216918
+```
+
+---
+
+### Step 0.2: manual/escalate 改为 contact-only（不改会话状态）
+
+**目标**：用户点击“转人工”入口时，不触发 `pending_manual/manual_live`，仅返回并展示联系文案。
+
+**改动**:
+- `products/ai_chatbot/handlers/manual.py`
+  - 当 `ENABLE_MANUAL_HANDOFF=false`：
+    - 不调用 `session_state.transition_status()`
+    - 不推送 `status_change` SSE（保持未来可恢复）
+    - 返回 `success=true` + `contact_message`
+  - 当 `ENABLE_MANUAL_HANDOFF=true`：保持现有行为不变（未来启用）
+
+**验证**:
+- `curl -X POST http://localhost:8000/api/manual/escalate -H 'Content-Type: application/json' -d '{"session_name":"session_x","reason":"manual"}'`
+- 期望：响应包含 `contact_message`；会话状态不变（仍为 `bot_active`）
+
+---
+
+### Step 0.3: chat 端点中“触发转人工”逻辑改为 contact-only（不改会话状态）
+
+**目标**：用户输入命中关键词/VIP/fail-loop 等触发时，继续 AI 对话，但追加联系文案；不进入人工状态机。
+
+**改动**:
+- `products/ai_chatbot/handlers/chat.py`
+  - 当 `ENABLE_MANUAL_HANDOFF=false`：
+    - 禁止把会话转为 `pending_manual`
+    - 若会话当前处于 `pending_manual/manual_live`（历史遗留），也不阻断 AI（避免 409）
+    - 在合适时机把联系文案追加到回复末尾（或作为额外 system 消息）
+  - 当 `ENABLE_MANUAL_HANDOFF=true`：保持现有转人工状态机逻辑
+
+**验证**:
+- 发送包含“转人工/人工/客服”等关键词的消息：
+  - 仍返回 AI 回复
+  - 回复末尾追加联系文案
+  - 不出现 409，不出现 session 状态切换
+
+---
+
+### Step 0.4: 前端“转人工”入口改为展示联系文案（不改变前端状态机）
+
+**目标**：点击 “Live Agent” 不再让 UI 进入 `pending_manual/manual_live`，只在聊天窗口展示联系文案。
+
+**改动**:
+- `products/ai_chatbot/frontend/src/stores/chatStore.ts`
+  - `escalateToManual()`：在 contact-only 模式下不更新 `sessionStatus`
+- `products/ai_chatbot/frontend/src/components/ChatPanel.vue`
+  - 点击按钮后展示联系文案（从后端返回或前端本地模板）
+
+**验证**:
+- 点击 Live Agent：
+  - 聊天窗口出现联系文案
+  - 输入框仍可用（继续 AI 对话）
+
+---
+
+### Step 0.5: 回归测试（确保“禁用转接”不影响其它功能）
+
+**目标**：确保 contact-only 改动不破坏普通聊天、售后状态机、聊天记录存储等。
+
+**验证建议**:
+- 普通问答（`/api/chat/stream`）
+- 售后流程（订单校验 → 问题 → Coze 回复）
+- contact-only 触发（按钮 + 关键词）
+- 聊天记录页面能查询到本次会话（坐席工作台）
+
+---
+
+## 五、Phase 1 - P0 核心功能
 
 ### Step 1.1: TrackingStatus 枚举英文化
 

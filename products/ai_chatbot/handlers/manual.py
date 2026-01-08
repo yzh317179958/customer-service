@@ -24,6 +24,10 @@ from products.ai_chatbot.dependencies import (
     get_session_store, get_regulator,
     get_smart_assignment_engine, get_customer_reply_auto_reopen
 )
+from products.ai_chatbot.contact_support import (
+    get_contact_support_message,
+    is_manual_handoff_enabled,
+)
 from infrastructure.bootstrap.sse import enqueue_sse_message
 from products.ai_chatbot.handlers.chat import conversation_cache
 
@@ -73,6 +77,21 @@ async def manual_escalate(request: dict):
         raise HTTPException(status_code=400, detail="session_name is required")
 
     try:
+        # contact-only mode: keep AI running, do NOT transition to pending_manual/manual_live
+        if not is_manual_handoff_enabled():
+            session_state = await session_store.get_or_create(
+                session_name=session_name,
+                conversation_id=conversation_cache.get(session_name),
+            )
+            return {
+                "success": True,
+                "data": session_state.model_dump(),
+                "email_sent": False,
+                "is_in_shift": True,
+                "handoff_enabled": False,
+                "contact_message": get_contact_support_message(locale="en"),
+            }
+
         # 获取或创建会话状态
         session_state = await session_store.get_or_create(
             session_name=session_name,

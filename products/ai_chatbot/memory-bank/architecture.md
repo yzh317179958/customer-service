@@ -10,6 +10,7 @@
 ```
 products/ai_chatbot/
 ├── __init__.py               # 模块入口
+├── contact_support.py        # contact-only：转人工未启用时的开关与联系方式文案
 ├── main.py                   # 独立启动入口
 ├── config.py                 # 配置管理
 ├── routes.py                 # API 路由注册
@@ -21,7 +22,7 @@ products/ai_chatbot/
 │   ├── chat.py               # 聊天处理（含 intent 识别）
 │   ├── config.py             # 配置端点
 │   ├── conversation.py       # 会话管理
-│   ├── manual.py             # 人工转接
+│   ├── manual.py             # 人工转接（contact-only 时仅返回联系方式，不切换状态）
 │   └── tracking.py           # 物流轨迹查询
 ├── frontend/                 # Vue 3 前端
 │   ├── src/
